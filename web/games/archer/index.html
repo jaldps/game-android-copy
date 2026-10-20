@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Bowbrawl</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../shared/fonts.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"../../lib/three.module.js","three/addons/":"../../lib/addons/"}}</script>
+</head><body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="hud" class="hidden">
+    <div class="hpbar left"><div class="fill" id="hpL"></div><div class="name" id="nameL"></div></div>
+    <div class="hpbar right"><div class="fill" id="hpR"></div><div class="name" id="nameR"></div></div>
+    <div id="wind">WIND <span id="windVal">0</span></div>
+    <div id="turn" class="hidden"></div>
+    <button id="btnPause" class="roundbtn" aria-label="Pause">II</button>
+  </div>
+  <div id="menu" class="screen">
+    <div class="logo">BOWBRAWL</div>
+    <div class="tag">Aim. Draw. Headshot.</div>
+    <div class="coins">Coins: <b id="coins">0</b></div>
+    <div class="modes">
+      <button class="bigbtn yellow" id="btnQuick">QUICK DUEL</button>
+      <button class="bigbtn blue" id="btnTower">TOWER LADDER</button>
+      <button class="bigbtn green" id="btn2P">2 PLAYER</button>
+      <button class="bigbtn purple" id="btnShop">SHOP</button>
+    </div>
+    <div class="bottomrow">
+      <button class="smallbtn" id="btnSettings">⚙</button>
+      <button class="smallbtn" id="btnHome">⌂</button>
+    </div>
+  </div>
+  <div id="shop" class="screen hidden">
+    <div class="panel">
+      <div class="phead"><span>SHOP</span><div class="coins">Coins: <b id="coins2">0</b></div></div>
+      <div class="tabs">
+        <button class="tab active" data-tab="heroes">HEROES</button>
+        <button class="tab" data-tab="bows">BOWS</button>
+      </div>
+      <div id="shopList"></div>
+      <button class="bigbtn yellow small" id="btnShopBack">DONE</button>
+    </div>
+  </div>
+  <div id="pause" class="screen hidden">
+    <div class="panel narrow">
+      <div class="phead center">PAUSED</div>
+      <button class="bigbtn yellow small" id="btnResume">RESUME</button>
+      <button class="bigbtn blue small" id="btnSound">SOUND: ON</button>
+      <button class="bigbtn blue small" id="btnMusic">MUSIC: ON</button>
+      <button class="bigbtn blue small" id="btnQuality">QUALITY: HIGH</button>
+      <button class="bigbtn red small" id="btnQuit">QUIT TO MENU</button>
+    </div>
+  </div>
+  <div id="over" class="screen hidden">
+    <div class="panel results">
+      <div class="rhead" id="overTitle">VICTORY</div>
+      <div class="stars" id="stars"></div>
+      <div class="stats">
+        <div><b id="rsDmg">0</b><span>DAMAGE</span></div>
+        <div><b id="rsHits">0</b><span>HITS</span></div>
+        <div><b id="rsHead">0</b><span>HEADSHOTS</span></div>
+      </div>
+      <div class="earn">+<b id="rsCoins">0</b> coins</div>
+      <div class="row">
+        <button class="bigbtn blue small" id="btnMenu2">HOME</button>
+        <button class="bigbtn yellow small" id="btnAgain">PLAY AGAIN</button>
+      </div>
+      <div id="towerInfo" class="hidden"></div>
+    </div>
+  </div>
+  <div id="fade"></div>
+</div>
+<script type="module" src="main.js"></script>
+</body></html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Ridgeline</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../shared/fonts.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"../../lib/three.module.js","three/addons/":"../../lib/addons/"}}</script>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud" class="hidden">
+  <div class="top">
+    <button id="btnPause" class="iconbtn">II</button>
+    <div class="speed"><b id="speed">0</b><span>km/h</span></div>
+    <div class="pos" id="pos">1ST</div>
+  </div>
+  <div class="bars">
+    <div class="bar"><span>POWER</span><div class="track"><i id="power"></i></div></div>
+    <div class="bar"><span>HP</span><div class="track"><i id="hp"></i></div></div>
+  </div>
+  <div class="time" id="time">0:00.00</div>
+  <canvas id="minimap" width="120" height="120"></canvas>
+  <div class="controls">
+    <div id="steerZone" class="steer"></div>
+    <button id="btnBrake" class="ctrl brake">BRAKE</button>
+    <button id="btnJump" class="ctrl jump">JUMP</button>
+    <button id="btnBoost" class="ctrl boost">BOOST</button>
+  </div>
+</div>
+<div id="menu" class="screen">
+  <h1>RIDGELINE</h1>
+  <p>Downhill mountain bike racing</p>
+  <button id="btnPlay" class="play">RACE</button>
+  <div class="career">Coins <b id="coins">0</b> · Stars <b id="stars">0</b></div>
+</div>
+<div id="pause" class="screen hidden">
+  <div class="panel">
+    <h2>PAUSED</h2>
+    <button id="btnResume" class="play">RESUME</button>
+    <button id="btnQuit" class="ghost">QUIT</button>
+  </div>
+</div>
+<div id="over" class="screen hidden">
+  <div class="panel">
+    <h2 id="resTitle">FINISH</h2>
+    <div id="resStats"></div>
+    <button id="btnAgain" class="play">RACE AGAIN</button>
+    <button id="btnMenu" class="ghost">MENU</button>
+  </div>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>

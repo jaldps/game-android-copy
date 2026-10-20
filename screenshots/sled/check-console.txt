@@ -1,0 +1,3 @@
+[warning] THREE.BufferGeometry.toNonIndexed(): BufferGeometry is already non-indexed.
+[warning] THREE.WebGLShadowMap: PCFSoftShadowMap has been removed. Using PCFShadowMap instead.
+[fps] 60
