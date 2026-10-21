@@ -1,7 +1,7 @@
 // Frostline Dash — orchestration
 import * as THREE from 'three';
 import { setOrientation, onBack, onPauseResume, goHome, params, vibrate as hostVibrate } from '../../shared/platform.js';
-import { initRender, renderFrame, R, applyTod, followShadow, CURVE } from './render.js';
+import { initRender, renderFrame, R, applyTod, followShadow, CURVE, setQuality } from './render.js';
 import { initMaterials, updateGlow } from './materials.js';
 import { World } from './world.js';
 import { Obstacles, KINDS } from './obstacles.js';
@@ -40,9 +40,37 @@ const powerEl = mk('position:absolute;bottom:90px;left:50%;transform:translateX(
 const menuEl = mk('position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;pointer-events:auto;background:rgba(5,10,30,.55);');
 const overEl = mk('position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;pointer-events:auto;background:rgba(5,10,30,.7);');
 
+const pauseEl = mk('position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;pointer-events:auto;background:rgba(5,10,30,.7);');
+const pauseTitle = document.createElement('h1'); pauseTitle.style.cssText='font-size:34px;margin:0;color:#fff;'; pauseTitle.textContent='PAUSED';
+const btnResume = btn('RESUME', () => closePause());
+const btnSound = btn('SOUND: ON', () => { S.mute = !S.mute; persist(); syncPause(); });
+const btnQuality = btn('QUALITY: HIGH', () => { S.quality = S.quality === 'high' ? 'low' : 'high'; persist(); setQuality(S.quality); syncPause(); });
+const btnQuit = btn('QUIT TO MENU', () => { pauseEl.style.display='none'; G.paused=false; showMenu(); });
+pauseEl.append(pauseTitle, btnResume, btnSound, btnQuality, btnQuit);
+
+const pauseBtn = document.createElement('button');
+pauseBtn.textContent = '⏸';
+pauseBtn.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);padding:6px 12px;font-size:18px;border:none;border-radius:10px;background:rgba(255,255,255,.25);color:#fff;cursor:pointer;pointer-events:auto;';
+pauseBtn.onclick = () => { if (G.mode === 'play') openPause(); };
+hud.appendChild(pauseBtn);
+
+function syncPause() {
+  btnSound.textContent = 'SOUND: ' + (S.mute ? 'OFF' : 'ON');
+  btnQuality.textContent = 'QUALITY: ' + (S.quality || 'high').toUpperCase();
+}
+function openPause(settingsOnly = false) {
+  if (G.mode === 'play') G.paused = true;
+  pauseTitle.textContent = settingsOnly ? 'SETTINGS' : 'PAUSED';
+  btnResume.textContent = settingsOnly ? 'CLOSE' : 'RESUME';
+  btnQuit.style.display = settingsOnly ? 'none' : '';
+  syncPause();
+  pauseEl.style.display = 'flex';
+}
+function closePause() { pauseEl.style.display = 'none'; G.paused = false; }
+
 function btn(text, cb) { const b = document.createElement('button'); b.textContent = text; b.style.cssText = 'padding:12px 22px;font-size:18px;border:none;border-radius:14px;background:#ffcf3d;color:#3a2a0a;font-family:Lilita One;cursor:pointer;'; b.onclick = cb; return b; }
 
-const G = { mode: 'menu', time: 0, score: 0, coinsRun: 0, mult: 1, speed: SPEED0, lane: 1, x: 0, z: 0, y: 0, vy: 0, duck: 0, air: false, shield: false, magnet: 0, kite: 0, x2: 0, boots: 0, stumble: 0, crashed: false, revived: false, spawnCursor: -40, rng: makeRng(Q.seed), best: S.best || 0, autoplay: Q.autoplay };
+const G = { mode: 'menu', paused: false, time: 0, score: 0, coinsRun: 0, mult: 1, speed: SPEED0, lane: 1, x: 0, z: 0, y: 0, vy: 0, duck: 0, air: false, shield: false, magnet: 0, kite: 0, x2: 0, boots: 0, stumble: 0, crashed: false, revived: false, spawnCursor: -40, rng: makeRng(Q.seed), best: S.best || 0, autoplay: Q.autoplay };
 
 function laneX(i) { return LANES[i]; }
 
@@ -75,8 +103,8 @@ window.addEventListener('keydown', (e) => {
 function moveLane(dir) { if (G.crashed) return; const nl = G.lane + dir; if (nl < 0 || nl > 2) return; G.lane = nl; beep(440, 0.06, 'square', 0.05); }
 function jump() { if (G.crashed || G.air) return; const v = G.boots > 0 ? SUPER_JUMP_V : JUMP_V; G.vy = v; G.air = true; beep(660, 0.08, 'sine', 0.07); }
 function duck() { if (G.crashed) return; G.duck = DUCK_TIME; beep(330, 0.06, 'square', 0.05); }
-function togglePause() { if (G.mode !== 'play') return; G.paused = !G.paused; }
-onBack(() => { if (G.mode === 'play') { togglePause(); return true; } return false; });
+function togglePause() { if (G.mode !== 'play') return; if (pauseEl.style.display === 'flex') closePause(); else openPause(); }
+onBack(() => { if (pauseEl.style.display === 'flex') { closePause(); return true; } if (G.mode === 'play') { openPause(); return true; } return false; });
 
 if (!S.missions) { S.missions = {}; for (const m of MISSIONS) S.missions[m.k] = { i: 0, v: 0 }; persist(); }
 
@@ -203,6 +231,7 @@ function showMenu() {
   menuEl.style.display = 'flex';
   menuEl.innerHTML = `<h1 style="font-size:40px;margin:0">Frostline Dash</h1>`;
   menuEl.appendChild(btn('Play', () => { menuEl.style.display = 'none'; resetRun(); }));
+  menuEl.appendChild(btn('Settings', () => openPause(true)));
 }
 
 function botControl() {

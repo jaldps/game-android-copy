@@ -15,7 +15,8 @@ function vnoise(x, y, s, per) {
 export function fbm(x, y, s, oct = 4, per = 0) { let v = 0, a = 0.5, f = 1, n = 0; for (let o = 0; o < oct; o++) { v += a * vnoise(x * f, y * f, s + o * 17, per ? per * f : 0); n += a; a *= 0.5; f *= 2; } return v / n; }
 
 function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
-function tex(c, { repeat = true, srgb = true, aniso = 4 } = {}) {
+function tex(c, { repeat = true, srgb = true, aniso } = {}) {
+  if (aniso == null) aniso = (R.quality === 'low') ? 2 : 8;
   const t = new THREE.CanvasTexture(c);
   if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;

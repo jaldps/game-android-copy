@@ -22,7 +22,7 @@ export function initRender(canvas, quality) {
   R.camera = new THREE.PerspectiveCamera(66, window.innerWidth / window.innerHeight, 0.15, 5000);
   R.hemi = new THREE.HemisphereLight('#cfe4ff', '#5a6b3a', 1.0); R.scene.add(R.hemi);
   const sun = new THREE.DirectionalLight('#fff0d8', 3.4);
-  sun.castShadow = true;
+  sun.castShadow = quality !== 'low';
   const sm = quality === 'low' ? 1024 : 2048; sun.shadow.mapSize.set(sm, sm);
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.035; sun.shadow.radius = 2.5;
   const sc = sun.shadow.camera; sc.near = 1; sc.far = 260; sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34;

@@ -65,7 +65,7 @@ export const TODS = {
 let sky, mtn, gradePass, bloomPass;
 export function initRender(canvas, quality) {
   R.quality = quality;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality !== 'low', powerPreference: 'high-performance', stencil: false });
   // Low quality targets mobile/SwiftShader: avoid the expensive shadow pass and
   // keep its framebuffer at native CSS resolution. High quality is unchanged.
   R.pr = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1 : 2);
@@ -74,7 +74,7 @@ export function initRender(canvas, quality) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = quality !== 'low';
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.type = quality === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   R.renderer = renderer;
   const scene = new THREE.Scene(); R.scene = scene;
   scene.fog = new THREE.Fog('#ffffff', 60, 220);
@@ -242,7 +242,10 @@ export function setQuality(q) {
   R.quality = q;
   R.pr = Math.min(window.devicePixelRatio || 1, q === 'low' ? 1 : 2);
   R.renderer.shadowMap.enabled = q !== 'low';
+  R.renderer.shadowMap.type = q === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   R.renderer.setPixelRatio(R.pr);
+  const sm = q === 'low' ? 1024 : 2048;
+  if (R.sun && R.sun.shadow && R.sun.shadow.mapSize.x !== sm) { R.sun.shadow.mapSize.set(sm, sm); if (R.sun.shadow.map) { R.sun.shadow.map.dispose(); R.sun.shadow.map = null; } }
   if (R.composer) { R.composer.dispose?.(); R.composer = null; }
   bloomPass = null; gradePass = null; R.grade = null;
   setupPost(); resize(); applyTod(R.tod);

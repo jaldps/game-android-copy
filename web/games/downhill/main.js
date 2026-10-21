@@ -55,10 +55,10 @@ function buildWorld(c) {
   // racers
   racers.forEach(r => r.dispose(RR.scene));
   racers = [];
-  player = new Racer(RR.scene, T, { name: 'You', isPlayer: true, kit: KITS[store.kit], paint: PAINTS[store.paint], skill: 1, up: store.up, s: T.start, u: 0 });
+  player = new Racer(RR.scene, T, { name: 'You', isPlayer: true, kit: KITS[store.kit], paint: PAINTS[store.paint], skill: 1, up: store.up, quality, s: T.start, u: 0 });
   racers.push(player);
   RIVALS.forEach((rv, i) => {
-    const r = new Racer(RR.scene, T, { name: rv.name, isPlayer: false, kit: rv.kit, paint: rv.paint, skill: rv.skill, idx: i + 1, s: T.start + 0.5 * i, u: (i % 2 === 0 ? 1 : -1) * 0.6 });
+    const r = new Racer(RR.scene, T, { name: rv.name, isPlayer: false, kit: rv.kit, paint: rv.paint, skill: rv.skill, idx: i + 1, quality, s: T.start + 0.5 * i, u: (i % 2 === 0 ? 1 : -1) * 0.6 });
     racers.push(r);
   });
   race = { go: false, countdown: 3, racers, obstacles: T.obstacles, walls: true, tapeAt: null, rivalSkill: 1, finished: [] };

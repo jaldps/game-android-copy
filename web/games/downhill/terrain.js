@@ -184,7 +184,9 @@ function aoAt(x, z) {
 const TILE = 128, SEG = 64;
 export function buildTerrain(scene, mat, quality = 'high') {
   const tiles = new Set();
-  const samples = quality === 'low' ? [Math.round(T.start)] : Array.from({ length: Math.ceil(T.N / 6) }, (_, k) => k * 6);
+  const stride = quality === 'low' ? 40 : 12;
+  const samples = Array.from({ length: Math.ceil(T.N / stride) }, (_, k) => k * stride);
+  if (quality === 'low') samples.push(Math.round(T.start));
   for (const i of samples) {
     const r = 120;
     for (let tx = Math.floor((T.X[i] - r) / TILE); tx <= Math.floor((T.X[i] + r) / TILE); tx++)
@@ -196,12 +198,12 @@ export function buildTerrain(scene, mat, quality = 'high') {
   const meshes = [];
   for (const key of tiles) {
     const [tx, tz] = key.split(',').map(Number);
-    const geo = tileGeometry(tx * TILE, tz * TILE, TILE, quality === 'low' ? 20 : SEG, quality !== 'low');
+    const geo = tileGeometry(tx * TILE, tz * TILE, TILE, quality === 'low' ? 12 : 32, quality !== 'low');
     const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; m.matrixAutoUpdate = false;
     scene.add(m); meshes.push(m);
   }
   // far terrain to the horizon (coarse), sunk where detailed tiles exist
-  const far = farGeometry(tiles, quality === 'low' ? 90 : 34);
+  const far = farGeometry(tiles, quality === 'low' ? 120 : 48);
   const fm = new THREE.Mesh(far, mat); fm.receiveShadow = false; fm.matrixAutoUpdate = false; scene.add(fm); meshes.push(fm);
   return meshes;
 }
@@ -258,7 +260,7 @@ function farGeometry(tiles, st = 34) {
 
 /** trail ribbon meshes, one per 100 m chunk. Lateral span covers the trail plus a feathered grass margin. */
 export function buildTrail(scene, mat) {
-  const CH = 100, meshes = [];
+  const CH = 200, meshes = [];
   const LAT = [-1.0, -0.8, -0.55, -0.3, -0.1, 0.1, 0.3, 0.55, 0.8, 1.0]; // fractions of (tw) inside, extended below
   const EXT = 2.8; // grass margin beyond trail edge
   for (let c0 = 0; c0 < T.N - 1; c0 += CH) {

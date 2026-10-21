@@ -1,7 +1,7 @@
 import { setOrientation, onBack, onPauseResume, goHome, params, vibrate as hostVibrate } from '../../shared/platform.js';
 import { TAU, clamp, lerp, mulberry, makeCanvas } from './util.js';
 import { Fighter, drawArrow } from './rig.js';
-import { HEROES, BOWS, TOWER, heroById, bowById } from './data.js';
+import { HEROES, BOWS, TOWER, heroById, bowById, ARROW_TYPES, arrowTypeById, OUTFITS, outfitById } from './data.js';
 import { store } from './store.js';
 import * as A from './audio.js';
 
@@ -57,12 +57,84 @@ window.__fps = 0;
 // fighters setup
 function makeFighter(heroId, bowId, side, hp = 100) {
   const f = new Fighter(heroById(heroId), bowById(bowId), side < 0 ? -1 : 1, { hp, scale: 1.1 });
-  f.x = side < 0 ? W * 0.18 : W * 0.82;
-  f.y = groundY();
+  f.x = side < 0 ? W * 0.15 : W * 0.85;
+  f.y = surfaceY(f.x);
   f.maxHp = hp; f.hp = hp; f.hpShown = hp;
   const Aa = ARENA_LIGHT();
   f.setLight(Aa);
   return f;
+}
+// ---------- Terrain system (procedural, destructible) ----------
+let terrainH = null; // array indexed by x (px), surface y
+function genTerrain() {
+  terrainH = new Float32Array(W + 1);
+  const base = Hh * 0.78;
+  const n = mulberry(Q.seed + (G.floor || 0) * 7 + Math.floor(rng() * 999));
+  // base rolling ground
+  for (let x = 0; x <= W; x++) {
+    const t = x / W;
+    let h = base + Math.sin(t * Math.PI * 2.3) * 18 + Math.sin(t * Math.PI * 5.7 + 1.2) * 9;
+    terrainH[x] = h;
+  }
+  // mountains between players (3-5)
+  const mid0 = W * 0.28, mid1 = W * 0.72;
+  const mcount = 3 + Math.floor(n() * 3);
+  for (let m = 0; m < mcount; m++) {
+    const cx = W * (0.32 + n() * 0.36);
+    const mw = 60 + n() * 90;
+    const mh = 40 + n() * 110;
+    for (let x = 0; x <= W; x++) {
+      const d = Math.abs(x - cx);
+      if (d < mw) {
+        const k = 1 - d / mw;
+        const bump = mh * (k * k * (3 - 2 * k));
+        terrainH[x] = Math.min(terrainH[x], terrainH[x] - bump); // raise (lower y)
+      }
+    }
+  }
+  // flatten platforms under fighters
+  const flats = [W * 0.15, W * 0.85];
+  for (const fx of flats) {
+    for (let x = fx - 70; x <= fx + 70; x++) {
+      if (x < 0 || x > W) continue;
+      terrainH[x] = Math.max(terrainH[x], base - 2); // keep not too high
+    }
+  }
+  // ensure monotonic-ish smoothness
+  for (let pass = 0; pass < 2; pass++) {
+    for (let x = 1; x < W; x++) {
+      terrainH[x] = (terrainH[x - 1] + terrainH[x] + terrainH[x + 1]) / 3;
+    }
+  }
+  // clamp
+  for (let x = 0; x <= W; x++) {
+    terrainH[x] = clamp(terrainH[x], Hh * 0.45, Hh * 0.86);
+  }
+}
+function surfaceY(x) {
+  if (!terrainH) return groundY();
+  const xi = clamp(Math.round(x), 0, W);
+  return terrainH[xi];
+}
+function terrainHit(x, y) {
+  return y >= surfaceY(x);
+}
+function carveCrater(cx, cy, r) {
+  if (!terrainH) return;
+  const x0 = Math.max(0, Math.floor(cx - r));
+  const x1 = Math.min(W, Math.ceil(cx + r));
+  for (let x = x0; x <= x1; x++) {
+    const d = Math.abs(x - cx);
+    if (d <= r) {
+      const depth = Math.sqrt(r * r - d * d);
+      // lower surface (raise y) by depth*0.8
+      terrainH[x] = Math.min(Hh * 0.92, terrainH[x] + depth * 0.75);
+    }
+  }
+  // smooth
+  for (let pass = 0; pass < 1; pass++) {
+    for (let x = x0 + 1; x < x1; x++) terrainH[x] = (terrainH[x - 1] + terrainH[x] + terrainH[x + 1]) / 3;
+  }
 }
 function groundY() { return Hh * 0.78; }
 function ARENA_LIGHT() { return { L: { x: 0.5, y: -0.8 }, amb: '#ffd9c0', ambAmt: 0.22, shadow: '#5b2a6e', shadowAmt: 0.42, rim: '#ffc27a', rimAmt: 0.75, outline: '#2a1430' }; }
@@ -95,11 +167,15 @@ function startMatch(type, foeHero, foeBow, dist) {
   G.wind = (rng() * 2 - 1) * (type === 'tower' ? 0.6 : 0.4);
   G.arrow = null;
   G.aim.active = false;
-  // positions based on distance maybe
+  genTerrain();
+  // positions based on distance
   const d = dist || 1000;
   const scale = W / 1200;
-  f0.x = W * 0.15; f1.x = W * 0.85;
-  f0.y = groundY(); f1.y = groundY();
+  const gap = clamp(d * scale * 0.5, W * 0.28, W * 0.42);
+  f0.x = W * 0.5 - gap; f1.x = W * 0.5 + gap;
+  f0.y = surfaceY(f0.x); f1.y = surfaceY(f1.x);
+  // varying heights: possibly one higher
+  if (Math.random() < 0.4) { f1.y = surfaceY(f1.x) - 30; }
   G.mode = 'play';
   $('hud').classList.remove('hidden');
   $('menu').classList.add('hidden');
@@ -135,19 +211,39 @@ function aiShoot(who) {
   if (G.mode !== 'play') return;
   const shooter = G.fighters[who], target = G.fighters[1 - who];
   const diff = G.enemyDiff;
-  // compute ideal angle/power to hit target
   const dx = target.x - shooter.x;
-  const dy = target.y - shooter.y - 40; // aim slightly high
+  const dy = target.y - 90 - (shooter.y - 90);
   const dist = Math.abs(dx);
   const dir = dx > 0 ? 1 : -1;
-  // power ~ dist/ (something)
-  let power = clamp(dist / 900 + 0.35, 0.4, 1.0);
-  power *= (shooter.bow.power || 1);
-  // angle
-  let ang = Math.atan2(-dy, Math.abs(dx)) + (Math.random() - 0.5) * (1 - diff) * 0.6;
+  // solve projectile: try several angles, pick one that lands closest
+  let best = null;
+  const bowPower = shooter.bow.power || 1;
+  for (let ai = 0; ai < 12; ai++) {
+    const ang = 0.25 + (ai / 11) * 1.05;
+    const power = clamp(dist / 850 + 0.3, 0.35, 1.0);
+    const speed = (600 + power * 500) * bowPower;
+    const vx = Math.cos(ang) * speed * dir;
+    const vy = -Math.sin(ang) * speed;
+    // simulate
+    let x = shooter.x + dir * 40, y = shooter.y - 90, vxv = vx, vyv = vy;
+    let t = 0;
+    for (let i = 0; i < 300; i++) {
+      const dt = 1 / 120;
+      vyv += GRAV * dt; vxv += G.wind * 120 * dt;
+      x += vxv * dt; y += vyv * dt; t += dt;
+      if (y >= surfaceY(x) || x < -50 || x > W + 50) break;
+    }
+    const err = Math.hypot(x - target.x, y - (target.y - 90));
+    if (!best || err < best.err) best = { ang, power, err };
+  }
+  let ang = best.ang;
+  let power = best.power;
+  // add inaccuracy based on difficulty
+  ang += (Math.random() - 0.5) * (1 - diff) * 0.25;
   ang = clamp(ang, 0.15, 1.35);
-  // wind adjust
-  ang -= G.wind * 0.15 * (1 - diff * 0.5);
+  power = clamp(power + (Math.random() - 0.5) * (1 - diff) * 0.15, 0.3, 1.0);
+  // wind adjust already in sim; small correction
+  ang -= G.wind * 0.1 * (1 - diff * 0.5);
   shooter.aim = ang;
   shooter.drawAmt = power;
   for (let i = 0; i < 20; i++) shooter.update(1 / 60);
@@ -166,29 +262,39 @@ function releaseArrow(who, ang, power) {
   const vy = -Math.sin(ang) * speed;
   const sx = shooter.x + actualDir * 40;
   const sy = shooter.y - 90;
-  G.arrow = { x: sx, y: sy, vx, vy, who, ang, power, trail: [], alive: true, slow: 1 };
+  G.arrow = { x: sx, y: sy, vx, vy, who, ang, power, trail: [], alive: true, slow: 1, type: (store.arrowType || 'standard'), t: 0, bounces: 0 };
   A.SFX.release();
   shooter.recoil = 1;
 }
 
-// trajectory hint
+// trajectory hint — MUST use identical physics to sim() so preview matches flight.
 function trajectoryPoints(sx, sy, ang, power, who) {
-  const actualDir = (G.fighters[who].x < G.fighters[1 - who].x) ? 1 : -1;
-  const speed = (600 + power * 500) * (G.fighters[who].bow.power || 1);
-  const vx = Math.cos(ang) * speed * actualDir;
-  const vy = -Math.sin(ang) * speed;
+  const shooter = G.fighters[who];
+  const target = G.fighters[1 - who];
+  const actualDir = (shooter.x < target.x) ? 1 : -1;
+  const bow = shooter.bow;
+  const speed = (600 + power * 500) * (bow.power || 1);
+  const vx0 = Math.cos(ang) * speed * actualDir;
+  const vy0 = -Math.sin(ang) * speed;
   const pts = [];
-  let x = sx, y = sy, vxv = vx, vyv = vy;
-  for (let i = 0; i < 18; i++) {
-    vxv += G.wind * 60 * actualDir * (1 / 60) * 0; // placeholder
-    // use euler
-    x += vxv * (1 / 60) * 4; y += vyv * (1 / 60) * 4;
-    vyv += GRAV * (1 / 60) * 4;
-    vxv += G.wind * 40 * actualDir;
+  let x = sx, y = sy, vx = vx0, vy = vy0;
+  const dt = 1 / 120;
+  const maxSteps = 240;
+  for (let i = 0; i < maxSteps; i++) {
+    vy += GRAV * dt;
+    vx += G.wind * 120 * dt;
+    x += vx * dt;
+    y += vy * dt;
     pts.push({ x, y });
-    if (y > groundY() + 50) break;
+    if (y > groundY() + 60 || x < -80 || x > W + 80) break;
+    // stop when hitting terrain
+    if (terrainHit(x, y)) break;
   }
-  return pts;
+  // downsample for drawing
+  const out = [];
+  for (let i = 0; i < pts.length; i += 4) out.push(pts[i]);
+  if (out.length === 0 && pts.length) out.push(pts[pts.length - 1]);
+  return out;
 }
 
 // pointer input
@@ -308,6 +414,22 @@ function drawBackground() {
     ctx.fillStyle = 'rgba(67,105,68,0.78)';
     for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.ellipse(x + k * 7, gy - 10 - (k === 0 ? 5 : 0), 7, 4, k * 0.3, 0, TAU); ctx.fill(); }
   }
+  // Terrain profile (procedural mountains)
+  if (terrainH) {
+    ctx.fillStyle = '#5a3a5a';
+    ctx.beginPath();
+    ctx.moveTo(0, Hh);
+    for (let x = 0; x <= W; x++) ctx.lineTo(x, terrainH[x]);
+    ctx.lineTo(W, Hh);
+    ctx.closePath();
+    ctx.fill();
+    // highlight ridge
+    ctx.strokeStyle = 'rgba(255,200,160,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x++) { if (x===0) ctx.moveTo(x, terrainH[x]); else ctx.lineTo(x, terrainH[x]); }
+    ctx.stroke();
+  }
   // Platforms remain the nearest, high-contrast footing under each archer.
   for (const f of G.fighters) {
     ctx.fillStyle = 'rgba(39,24,49,0.42)'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 8, 68, 8, 0, 0, TAU); ctx.fill();
@@ -367,12 +489,42 @@ function draw() {
     a.trail.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
     ctx.stroke();
   }
+  // extra arrows (multi)
+  if (G.extraArrows) {
+    for (const a of G.extraArrows) {
+      if (!a.alive) continue;
+      ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(Math.atan2(a.vy, a.vx));
+      // draw simple arrow
+      ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-20,0); ctx.stroke();
+      ctx.restore();
+    }
+  }
   // HP bars updated in DOM
   updateHpBars();
   // wind
   $('windVal').textContent = (G.wind >= 0 ? '+' : '') + G.wind.toFixed(2);
 }
 
+function applyHit(arrow, part) {
+  arrow.alive = false;
+  const shooter = G.fighters[arrow.who];
+  const target = G.fighters[1 - arrow.who];
+  let dmg = (part === 'head') ? 50 : 25;
+  if (part === 'head') { G.heads[arrow.who]++; A.SFX.headshot(); showCallout('HEADSHOT!', arrow.x, arrow.y); }
+  else { A.SFX.hit(); }
+  dmg *= (shooter.bow.dmg || 1);
+  // outfit perk armor
+  const armor = (store.outfit === 'armor') ? 0.7 : 1.0;
+  dmg = Math.round(dmg * armor);
+  target.hp = Math.max(0, target.hp - dmg);
+  G.dmgDealt[arrow.who] += dmg;
+  G.hits[arrow.who]++;
+  target.hit(part, arrow.x < target.x ? -1 : 1, 1);
+  target.addStuck && target.addStuck(part, arrow.x, arrow.y, Math.atan2(arrow.vy, arrow.vx));
+  target.leanV += (arrow.x < target.x ? -1 : 1) * 0.3;
+  spawnImpact(arrow.x, arrow.y);
+  endTurnCheck();
+}
 // simulation
 let last = performance.now();
 function sim(dt) {
@@ -383,34 +535,66 @@ function sim(dt) {
     const a = G.arrow;
     a.vy += GRAV * dt;
     a.vx += G.wind * 120 * dt;
+    // bounce arrow: reflect off terrain
+    if (a.type === 'bounce') {
+      const sy = surfaceY(a.x);
+      if (a.y >= sy && a.vy > 0) {
+        a.y = sy - 1;
+        a.vy = -a.vy * 0.7;
+        a.vx *= 0.85;
+        a.bounces = (a.bounces || 0) + 1;
+        if (a.bounces > 3) { a.alive = false; A.SFX.miss(); spawnImpact(a.x, a.y, true); endTurnCheck(); return; }
+      }
+    }
     a.x += a.vx * dt;
     a.y += a.vy * dt;
-    // slow-mo near ground/impact
+    // multi arrow split
+    if (a.type === 'multi' && !a.split && a.t > 0.25) {
+      a.split = true;
+      // spawn two extra arrows
+      for (let k = -1; k <= 1; k += 2) {
+        const sp = { x: a.x, y: a.y, vx: a.vx + k * 120, vy: a.vy + k * 40, who: a.who, ang: a.ang, power: a.power, trail: [], alive: true, type: 'standard', split: true };
+        G.extraArrows = G.extraArrows || [];
+        G.extraArrows.push(sp);
+      }
+    }
+    // process extra arrows
+    if (G.extraArrows) {
+      for (const ea of G.extraArrows) {
+        if (!ea.alive) continue;
+        ea.vy += GRAV * dt; ea.vx += G.wind * 120 * dt; ea.x += ea.vx * dt; ea.y += ea.vy * dt;
+        const t = G.fighters[1 - ea.who];
+        const part = t.testPoint(ea.x, ea.y);
+        if (part) { ea.alive = false; applyHit(ea, part); }
+        else if (ea.y >= surfaceY(ea.x) || ea.x < -50 || ea.x > W + 50) { ea.alive = false; carveCrater(ea.x, Math.min(ea.y, surfaceY(ea.x)), 18); A.SFX.miss(); }
+      }
+      G.extraArrows = G.extraArrows.filter(e => e.alive);
+    }
     // check hit
     const target = G.fighters[1 - a.who];
     const part = target.testPoint(a.x, a.y);
     if (part) {
-      // hit
       a.alive = false;
-      let dmg = 25;
-      if (part === 'head') { dmg = 50; G.heads[a.who]++; A.SFX.headshot(); showCallout('HEADSHOT!', a.x, a.y); }
-      else { A.SFX.hit(); }
-      dmg *= (G.fighters[a.who].bow.dmg || 1);
-      target.hp = Math.max(0, target.hp - dmg);
-      G.dmgDealt[a.who] += dmg;
-      G.hits[a.who]++;
-      target.hit(part, a.x < target.x ? -1 : 1, 1);
-      target.addStuck && target.addStuck(part, a.x, a.y, Math.atan2(a.vy, a.vx));
-      // knockback wobble
-      target.leanV += (a.x < target.x ? -1 : 1) * 0.3;
-      spawnImpact(a.x, a.y);
-      // camera not needed
-      endTurnCheck();
-    } else if (a.y > groundY() + 40 || a.x < -50 || a.x > W + 50) {
-      // miss
+      applyHit(a, part);
+    } else if (a.y >= surfaceY(a.x) || a.x < -50 || a.x > W + 50) {
+      // miss / terrain
       a.alive = false;
       A.SFX.miss();
-      spawnImpact(a.x, Math.min(a.y, groundY()), true);
+      const cr = a.type === 'explosive' ? 46 : 22;
+      carveCrater(a.x, Math.min(a.y, surfaceY(a.x)), cr);
+      spawnImpact(a.x, Math.min(a.y, surfaceY(a.x)), true);
+      // explosive AoE damage
+      if (a.type === 'explosive') {
+        const t = G.fighters[1 - a.who];
+        const dist2 = Math.hypot(t.x - a.x, (t.y - 90) - a.y);
+        if (dist2 < 120) {
+          const dmg = Math.round((25 * (G.fighters[a.who].bow.dmg || 1)) * (1 - dist2 / 120));
+          t.hp = Math.max(0, t.hp - dmg);
+          G.dmgDealt[a.who] += dmg;
+          t.hit('torso', a.x < t.x ? -1 : 1, 1);
+          spawnImpact(t.x, t.y - 90);
+        }
+      }
       endTurnCheck();
     }
   }
@@ -495,28 +679,33 @@ function openShop() {
 }
 function renderShop(tab) {
   const list = $('shopList'); list.innerHTML = '';
-  const items = tab === 'heroes' ? HEROES : BOWS;
-  const owned = tab === 'heroes' ? store.heroes : store.bows;
-  const selected = tab === 'heroes' ? store.hero : store.bow;
+  let items, owned, selected, isListOwned;
+  if (tab === 'heroes') { items = HEROES; owned = store.heroes; selected = store.hero; isListOwned = true; }
+  else if (tab === 'bows') { items = BOWS; owned = store.bows; selected = store.bow; isListOwned = true; }
+  else if (tab === 'arrows') { items = ARROW_TYPES; owned = [store.arrowType]; selected = store.arrowType; isListOwned = false; }
+  else if (tab === 'outfits') { items = OUTFITS; owned = [store.outfit]; selected = store.outfit; isListOwned = false; }
   for (const it of items) {
     const card = document.createElement('div'); card.className = 'shopcard';
-    const isOwned = owned.includes(it.id);
+    const isOwned = isListOwned ? owned.includes(it.id) : true;
     const isSel = selected === it.id;
-    card.innerHTML = `<div class="nm">${it.name}</div><div style="font-size:11px;color:#9ff3ff">${it.title || it.desc || ''}</div><div class="pr">${isOwned ? (isSel ? 'EQUIPPED' : 'OWNED') : it.price + ' coins'}</div>`;
+    const genderTxt = it.gender ? ` (${it.gender})` : '';
+    card.innerHTML = `<div class="nm">${it.name}${genderTxt}</div><div style="font-size:11px;color:#9ff3ff">${it.title || it.desc || ''}</div><div class="pr">${isSel ? 'EQUIPPED' : (isListOwned ? (isOwned ? 'OWNED' : it.price + ' coins') : it.price + ' coins')}</div>`;
     const btn = document.createElement('button');
-    btn.className = 'bigbtn small ' + (isOwned ? 'blue' : 'yellow');
-    btn.textContent = isOwned ? (isSel ? 'SELECTED' : 'EQUIP') : 'BUY';
+    btn.className = 'bigbtn small ' + (isSel ? 'blue' : 'yellow');
+    btn.textContent = isSel ? 'SELECTED' : (isListOwned && !isOwned ? 'BUY' : 'EQUIP');
     btn.addEventListener('click', () => {
-      if (isOwned) {
-        if (tab === 'heroes') store.hero = it.id; else store.bow = it.id;
-      } else {
+      if (isListOwned && !owned.includes(it.id)) {
         if (store.coins >= it.price) {
           store.coins = store.coins - it.price;
-          if (tab === 'heroes') { const h = store.heroes; h.push(it.id); store.heroes = h; store.hero = it.id; }
-          else { const b = store.bows; b.push(it.id); store.bows = b; store.bow = it.id; }
+          if (tab === 'heroes') { const h = store.heroes; h.push(it.id); store.heroes = h; }
+          else { const b = store.bows; b.push(it.id); store.bows = b; }
           A.SFX.coin();
-        }
+        } else { renderShop(tab); return; }
       }
+      if (tab === 'heroes') store.hero = it.id;
+      else if (tab === 'bows') store.bow = it.id;
+      else if (tab === 'arrows') store.arrowType = it.id;
+      else if (tab === 'outfits') store.outfit = it.id;
       $('coins2').textContent = store.coins;
       $('coins').textContent = store.coins;
       renderShop(tab);
