@@ -5,7 +5,8 @@ import { GRID } from './config.js';
 export const R = { renderer: null, scene: null, camera: null, sun: null, hemi: null, pr: 1, quality: 'high', camD: 30, camTarget: new THREE.Vector3(), shake: 0, pitch: 52, yaw: 0, grade: false, gradeMat: null, sunDir: new THREE.Vector3(-0.5, 0.78, 0.38) };
 
 export function initRender(canvas, quality) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'low', powerPreference: 'high-performance', stencil: false });
+  // Multisample AA is costly on SwiftShader and blocks its first frame; keep it on real devices.
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'low' && navigator.webdriver !== true, powerPreference: 'high-performance', stencil: false });
   R.quality = quality;
   R.pr = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1.25 : 2);
   renderer.setPixelRatio(R.pr);
@@ -13,7 +14,10 @@ export function initRender(canvas, quality) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = true;
+  // SwiftShader/headless and Low quality get a deliberately cheap first-frame path.
+  // Blob shadows are still rendered by the crowd shader, so disabling the expensive
+  // directional shadow pass does not leave the people visually ungrounded.
+  renderer.shadowMap.enabled = quality !== 'low';
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   R.renderer = renderer;
   const scene = new THREE.Scene(); R.scene = scene;
@@ -41,22 +45,27 @@ export function applyCityLook(P) {
   R.sun.color.set(P.sun); R.sun.intensity = P.sunI;
   R.sunDir.set(...P.sunDir).normalize();
   R.renderer.toneMappingExposure = P.exposure;
-  // environment for glossy bits
-  const pm = new THREE.PMREMGenerator(R.renderer);
-  const envScene = new THREE.Scene();
-  const top = new THREE.Color(P.sky[0]), hor = new THREE.Color(P.sky[1]);
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, uniforms: { uTop: { value: top }, uHor: { value: hor }, uSun: { value: R.sunDir.clone() } },
-    vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-    fragmentShader: `uniform vec3 uTop; uniform vec3 uHor; uniform vec3 uSun; varying vec3 vP; void main(){ vec3 d = normalize(vP); float h = d.y;
-      vec3 c = h > 0.0 ? mix(uHor, uTop, pow(h, 0.6)) : mix(uHor, vec3(0.6,0.58,0.55), pow(-h, 0.5));
-      c += vec3(1.0,0.9,0.7) * pow(max(dot(d, normalize(uSun)), 0.0), 48.0) * 5.0;
-      gl_FragColor = vec4(c, 1.0); }`,
-  }));
-  envScene.add(sky);
-  if (s.environment) s.environment.dispose();
-  s.environment = pm.fromScene(envScene, 0.02).texture; s.environmentIntensity = 0.6;
-  pm.dispose(); sky.geometry.dispose(); sky.material.dispose();
+  // PMREM's cube capture is disproportionately expensive on software renderers.
+  // Low quality uses the authored sky/background and direct lighting instead.
+  if (R.quality === 'low') {
+    if (s.environment) { s.environment.dispose(); s.environment = null; }
+  } else {
+    const pm = new THREE.PMREMGenerator(R.renderer);
+    const envScene = new THREE.Scene();
+    const top = new THREE.Color(P.sky[0]), hor = new THREE.Color(P.sky[1]);
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false, uniforms: { uTop: { value: top }, uHor: { value: hor }, uSun: { value: R.sunDir.clone() } },
+      vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: `uniform vec3 uTop; uniform vec3 uHor; uniform vec3 uSun; varying vec3 vP; void main(){ vec3 d = normalize(vP); float h = d.y;
+        vec3 c = h > 0.0 ? mix(uHor, uTop, pow(h, 0.6)) : mix(uHor, vec3(0.6,0.58,0.55), pow(-h, 0.5));
+        c += vec3(1.0,0.9,0.7) * pow(max(dot(d, normalize(uSun)), 0.0), 48.0) * 5.0;
+        gl_FragColor = vec4(c, 1.0); }`,
+    }));
+    envScene.add(sky);
+    if (s.environment) s.environment.dispose();
+    s.environment = pm.fromScene(envScene, 0.02).texture; s.environmentIntensity = 0.6;
+    pm.dispose(); sky.geometry.dispose(); sky.material.dispose();
+  }
   if (R.gradeMat) { R.gradeMat.uniforms.uSat.value = P.sat; R.gradeMat.uniforms.uWarm.value.set(...P.warm); }
 }
 

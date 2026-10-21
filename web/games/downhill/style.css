@@ -7,15 +7,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:'Nuni
 .ghost{padding:12px 24px;font-size:16px;border:1px solid #fff3;border-radius:12px;background:transparent;color:#fff;cursor:pointer}
 #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
 #hud.hidden{display:none}
-.top{position:absolute;top:env(safe-area-inset-top,8px);left:12px;right:12px;display:flex;justify-content:space-between;align-items:center}
-.speed b{font-size:34px;font-weight:900} .speed span{font-size:12px;margin-left:4px}
-.pos{font-size:22px;font-weight:900}
+.top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:center}
+.speed{display:flex;align-items:baseline;gap:5px;min-width:86px;justify-content:center;padding:4px 11px 5px;border:1px solid rgba(255,255,255,.26);border-radius:14px;background:rgba(9,19,35,.76);box-shadow:0 3px 10px rgba(0,0,0,.28);font-variant-numeric:tabular-nums;text-shadow:0 2px 4px rgba(0,0,0,.8)}
+.speed b{font-size:34px;line-height:1;font-weight:900;color:#fff} .speed span{font-size:12px;margin-left:4px;color:#c9e4ec;font-weight:800}
+.pos{font-size:20px;font-weight:900;padding:5px 10px;border-radius:12px;background:rgba(9,19,35,.7);border:1px solid rgba(255,255,255,.2);text-shadow:0 2px 4px rgba(0,0,0,.75)}
 .bars{position:absolute;top:70px;left:12px;width:200px;display:flex;flex-direction:column;gap:6px}
 .bar{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800}
 .bar .track{flex:1;height:10px;background:#0006;border-radius:5px;overflow:hidden}
 .bar i{display:block;height:100%;width:0%;background:#ff6a1a}
 #hp i{background:#3be06a}
 .time{position:absolute;top:70px;right:12px;font-size:18px;font-weight:800}
+.race-start{position:absolute;left:50%;top:43%;transform:translate(-50%,-50%);min-width:96px;padding:8px 22px;border:2px solid #fff9;border-radius:18px;background:rgba(9,19,35,.78);box-shadow:0 5px 18px #0008;text-align:center;font-family:'Bungee',sans-serif;font-size:clamp(38px,14vw,64px);line-height:1.2;color:#fff;text-shadow:0 3px 0 #1f6fe0,0 5px 10px #000b;pointer-events:none;animation:race-pop .22s ease-out}
+.race-start[aria-hidden="true"]{display:none}
+@keyframes race-pop{from{opacity:.4;transform:translate(-50%,-50%) scale(.72)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 #minimap{position:absolute;bottom:110px;right:12px;border-radius:8px;background:#0006}
 .controls{position:absolute;bottom:env(safe-area-inset-bottom,10px);left:0;right:0;height:100px;pointer-events:auto}
 .steer{position:absolute;left:0;top:0;width:55%;height:100%}

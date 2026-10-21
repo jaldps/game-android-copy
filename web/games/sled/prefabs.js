@@ -216,7 +216,7 @@ export function pine(tiers = 4, seed = 1) {
 
 export function rock(seed = 1) {
   const B = new Builder();
-  let g = jitter(new THREE.IcosahedronGeometry(1, 1).toNonIndexed(), 0.35, seed);
+  let g = jitter(new THREE.IcosahedronGeometry(1, 1), 0.35, seed);
   g = paint(g, (x, y, z, nx, ny) => ny > 0.45 ? lin('#f4f8ff') : ny > 0.2 ? lin('#c9d3e3') : lin('#77808f'));
   g.scale(1.3, 0.8, 1.1); B.addRaw('paint', g);
   return { parts: B.build() };
@@ -341,6 +341,8 @@ export function trackPiece() {
   const B = new Builder(), W = TRACK_HALF + 0.5, xs = [];
   for (let i = 0; i <= 12; i++) xs.push(-W + 2 * W * i / 12);
   strip(xs, xs.map(() => 0), 16, 'track', () => [1, 1, 1], x => (x + W) / (2 * W), CHUNK / 3, B);
+  // Inlaid blue-gray lane seams stay crisp at distance where the snow texture fades.
+  for (const x of [-1.05, 1.05]) B.add('paint', G.box(0.075, 0.022, CHUNK), '#7186a4', [x, 0.018, -CHUNK / 2], [0, 0, 0], [1, 1, 1], [1, 8]);
   // log curbs along both edges
   for (const s of [-1, 1]) B.add('bark', G.cyl(0.2, 0.2, CHUNK, 8, false), '#8a5a3a', [s * (W + 0.05), 0.12, -CHUNK / 2], [Math.PI / 2, 0, 0], [1, 1, 1], [1, 8]);
   for (const s of [-1, 1]) B.add('snowV', G.cyl(0.16, 0.16, CHUNK, 6, false), '#ffffff', [s * (W + 0.05), 0.3, -CHUNK / 2], [Math.PI / 2, 0, 0], [1.05, 1, 0.6]);

@@ -50,8 +50,8 @@ export const TODS = {
   },
   golden: {
     top: '#3c5ea8', mid: '#e98a7b', hor: '#ffc988', fog: '#f6c9a2', fogN: 60, fogF: 220,
-    sun: '#ffb873', sunI: 3.0, sunDir: [-0.65, 0.55, 0.45], sunSky: [0.25, 0.12, -0.96],
-    hemiS: '#ffd9bf', hemiG: '#7d7fb8', hemiI: 1.25, glow: 1.0, exp: 1.0, stars: 0, moon: 0, sunDisc: 1.6, aur: 0,
+    sun: '#ffb873', sunI: 2.15, sunDir: [-0.65, 0.55, 0.45], sunSky: [0.25, 0.12, -0.96],
+    hemiS: '#ffd9bf', hemiG: '#7d7fb8', hemiI: 1.0, glow: 1.0, exp: 0.92, stars: 0, moon: 0, sunDisc: 1.6, aur: 0,
     mtn: '#a77fa6', mtn2: '#e4a9a0', snowTint: '#fff4ea',
   },
   night: {
@@ -66,13 +66,15 @@ let sky, mtn, gradePass, bloomPass;
 export function initRender(canvas, quality) {
   R.quality = quality;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
-  R.pr = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1.25 : 2);
+  // Low quality targets mobile/SwiftShader: avoid the expensive shadow pass and
+  // keep its framebuffer at native CSS resolution. High quality is unchanged.
+  R.pr = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1 : 2);
   renderer.setPixelRatio(R.pr);
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = quality !== 'low';
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   R.renderer = renderer;
   const scene = new THREE.Scene(); R.scene = scene;
   scene.fog = new THREE.Fog('#ffffff', 60, 220);
@@ -192,7 +194,7 @@ export function applyTod(name) {
   R.hemi.color.set(T.hemiS); R.hemi.groundColor.set(T.hemiG); R.hemi.intensity = T.hemiI;
   R.renderer.toneMappingExposure = T.exp;
   GLOW.value = T.glow;
-  if (bloomPass) { bloomPass.strength = name === 'night' ? 0.75 : name === 'golden' ? 0.5 : 0.32; bloomPass.threshold = name === 'night' ? 0.62 : 0.82; }
+  if (bloomPass) { bloomPass.strength = name === 'night' ? 0.75 : name === 'golden' ? 0.34 : 0.32; bloomPass.threshold = name === 'night' ? 0.62 : name === 'golden' ? 0.9 : 0.86; }
   if (gradePass) { gradePass.uniforms.uWarm.value = name === 'golden' ? 0.05 : name === 'night' ? -0.02 : 0.0; gradePass.uniforms.uSat.value = name === 'night' ? 1.12 : 1.18; }
   // environment map from the sky palette for glossy materials (ice, coins)
   const pm = new THREE.PMREMGenerator(R.renderer); const es = new THREE.Scene();
@@ -238,7 +240,8 @@ function setupPost() {
 }
 export function setQuality(q) {
   R.quality = q;
-  R.pr = Math.min(window.devicePixelRatio || 1, q === 'low' ? 1.25 : 2);
+  R.pr = Math.min(window.devicePixelRatio || 1, q === 'low' ? 1 : 2);
+  R.renderer.shadowMap.enabled = q !== 'low';
   R.renderer.setPixelRatio(R.pr);
   if (R.composer) { R.composer.dispose?.(); R.composer = null; }
   bloomPass = null; gradePass = null; R.grade = null;

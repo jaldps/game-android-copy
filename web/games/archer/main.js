@@ -234,28 +234,86 @@ canvas.addEventListener('pointerup', e => {
 
 // rendering
 function drawBackground() {
-  // sky gradient
-  const g = ctx.createLinearGradient(0, 0, 0, Hh);
-  g.addColorStop(0, '#2c2560'); g.addColorStop(0.5, '#b04e7c'); g.addColorStop(1, '#ff8f6b');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, Hh);
-  // sun
+  const gy = groundY();
+  // Warm dusk sky with a broad atmospheric light falloff.
+  const sky = ctx.createLinearGradient(0, 0, 0, gy + 35);
+  sky.addColorStop(0, '#332653'); sky.addColorStop(0.52, '#a34f78'); sky.addColorStop(1, '#f28b70');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, Hh);
   const sx = W * 0.68, sy = Hh * 0.35;
-  const rg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 120);
-  rg.addColorStop(0, 'rgba(255,241,196,0.9)'); rg.addColorStop(1, 'rgba(255,176,112,0)');
-  ctx.fillStyle = rg; ctx.fillRect(sx - 120, sy - 120, 240, 240);
+  const rg = ctx.createRadialGradient(sx, sy, 8, sx, sy, Math.min(W * 0.34, 190));
+  rg.addColorStop(0, 'rgba(255,235,178,0.38)'); rg.addColorStop(1, 'rgba(255,176,112,0)');
+  ctx.fillStyle = rg; ctx.fillRect(sx - 190, sy - 190, 380, 380);
   ctx.fillStyle = '#fff1c4'; ctx.beginPath(); ctx.arc(sx, sy, 24, 0, TAU); ctx.fill();
-  // ground
-  ctx.fillStyle = '#5e2f5a';
-  ctx.fillRect(0, groundY(), W, Hh - groundY());
-  const gg = ctx.createLinearGradient(0, groundY(), 0, Hh);
-  gg.addColorStop(0, '#b0607a'); gg.addColorStop(1, '#3a1f45');
-  ctx.fillStyle = gg; ctx.fillRect(0, groundY() - 20, W, 40);
-  // platforms
+
+  // Distant mesas: soft silhouettes give the firing lane a clear horizon.
+  const ridge = (color, base, amp, phase, step) => {
+    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, gy);
+    for (let x = 0; x <= W + step; x += step) {
+      const y = base - Math.sin(x * 0.012 + phase) * amp * 0.45 - Math.sin(x * 0.027 + phase * 1.7) * amp * 0.18;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, gy); ctx.closePath(); ctx.fill();
+  };
+  ridge('rgba(91,55,104,0.42)', gy - 48, 72, 0.6, 10);
+  ridge('rgba(92,48,83,0.55)', gy - 23, 48, 2.2, 8);
+
+  // Far watchtowers and broken ramparts, kept low-contrast behind the combat lane.
+  const tower = (x, base, scale, tint) => {
+    ctx.fillStyle = tint;
+    ctx.fillRect(x - 13 * scale, base - 58 * scale, 26 * scale, 58 * scale);
+    ctx.fillRect(x - 19 * scale, base - 63 * scale, 38 * scale, 9 * scale);
+    ctx.beginPath(); ctx.moveTo(x - 14 * scale, base - 63 * scale); ctx.lineTo(x, base - 82 * scale); ctx.lineTo(x + 14 * scale, base - 63 * scale); ctx.fill();
+    ctx.fillStyle = 'rgba(255,208,157,0.42)';
+    ctx.fillRect(x - 3 * scale, base - 43 * scale, 6 * scale, 12 * scale);
+    ctx.fillRect(x - 3 * scale, base - 22 * scale, 6 * scale, 11 * scale);
+  };
+  const horizon = gy - 12;
+  tower(W * 0.27, horizon + 6, 0.72, 'rgba(75,43,78,0.66)');
+  tower(W * 0.73, horizon + 10, 0.88, 'rgba(69,39,76,0.72)');
+  // Broken wall segments form a recognizable old-range landmark without cluttering the aim arc.
+  ctx.fillStyle = 'rgba(83,45,78,0.7)';
+  ctx.fillRect(W * 0.37, horizon - 26, W * 0.12, 27);
+  ctx.fillRect(W * 0.39, horizon - 34, W * 0.035, 10);
+  ctx.fillRect(W * 0.445, horizon - 39, W * 0.035, 15);
+  ctx.fillRect(W * 0.48, horizon - 31, W * 0.035, 8);
+  // Narrow arch openings read as stonework at phone scale.
+  ctx.fillStyle = 'rgba(45,30,64,0.55)';
+  for (const x of [W * 0.4, W * 0.455]) {
+    ctx.beginPath(); ctx.arc(x, horizon - 1, 5, Math.PI, 0); ctx.lineTo(x + 5, horizon + 1); ctx.lineTo(x - 5, horizon + 1); ctx.fill();
+  }
+
+  // Broad, stratified arena floor: readable value bands and restrained ground texture.
+  const floor = ctx.createLinearGradient(0, gy - 8, 0, Hh);
+  floor.addColorStop(0, '#a95875'); floor.addColorStop(0.18, '#854766'); floor.addColorStop(1, '#452d52');
+  ctx.fillStyle = floor; ctx.fillRect(0, gy, W, Hh - gy);
+  ctx.fillStyle = 'rgba(255,203,151,0.24)';
+  ctx.beginPath(); ctx.moveTo(0, gy + 4);
+  for (let x = 0; x <= W + 12; x += 12) ctx.lineTo(x, gy + 4 + Math.sin(x * 0.018) * 3 + Math.sin(x * 0.043) * 1.5);
+  ctx.lineTo(W, gy + 13); ctx.lineTo(0, gy + 13); ctx.closePath(); ctx.fill();
+  // Softly receding cross-lane and scattered stones add scale, not visual noise.
+  ctx.strokeStyle = 'rgba(255,202,164,0.12)'; ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const y = gy + 25 + i * 18;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.quadraticCurveTo(W * 0.5, y - 6, W, y + 2); ctx.stroke();
+  }
+  for (let i = 0; i < Math.max(8, Math.floor(W / 36)); i++) {
+    const x = (i * 83 + 31) % W, y = gy + 22 + (i * 29) % Math.max(22, Hh - gy - 26);
+    ctx.fillStyle = i % 2 ? 'rgba(43,29,55,0.32)' : 'rgba(244,173,132,0.22)';
+    ctx.beginPath(); ctx.ellipse(x, y, 4 + (i % 3) * 2, 1.5 + (i % 2), -0.12, 0, TAU); ctx.fill();
+  }
+  // Small edge scrub and broken stakes frame the field, leaving the fighters unobscured.
+  for (const x of [W * 0.045, W * 0.95]) {
+    ctx.strokeStyle = 'rgba(42,35,58,0.7)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x, gy + 5); ctx.lineTo(x - 2, gy - 22); ctx.moveTo(x + 8, gy + 6); ctx.lineTo(x + 12, gy - 14); ctx.stroke();
+    ctx.fillStyle = 'rgba(67,105,68,0.78)';
+    for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.ellipse(x + k * 7, gy - 10 - (k === 0 ? 5 : 0), 7, 4, k * 0.3, 0, TAU); ctx.fill(); }
+  }
+  // Platforms remain the nearest, high-contrast footing under each archer.
   for (const f of G.fighters) {
-    ctx.fillStyle = '#6a3a6a';
-    ctx.fillRect(f.x - 60, f.y, 120, 12);
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(f.x - 60, f.y + 12, 120, 6);
+    ctx.fillStyle = 'rgba(39,24,49,0.42)'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 8, 68, 8, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#754268'; ctx.fillRect(f.x - 60, f.y, 120, 12);
+    ctx.fillStyle = 'rgba(37,25,47,0.72)'; ctx.fillRect(f.x - 60, f.y + 12, 120, 6);
+    ctx.fillStyle = 'rgba(255,199,157,0.38)'; ctx.fillRect(f.x - 58, f.y, 116, 2);
   }
 }
 
@@ -273,13 +331,25 @@ function draw() {
     const power = clamp(Math.hypot(dx, dy) / 180, 0.15, 1);
     const ang = Math.atan2(dy, Math.abs(dx));
     const pts = trajectoryPoints(G.aim.sx, G.aim.sy, clamp(ang, 0.1, 1.4), power, G.turn);
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.setLineDash([6, 6]);
-    ctx.lineWidth = 2;
+    ctx.save();
+    // Keep the preview out of the centered HUD stack; real shots still pass behind it.
+    ctx.beginPath(); ctx.rect(0, 110, W, Math.max(0, Hh - 110)); ctx.clip();
+    ctx.setLineDash([7, 6]); ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(28,22,48,0.64)'; ctx.lineWidth = 6;
+    ctx.beginPath();
+    if (pts.length) { ctx.moveTo(G.aim.sx, G.aim.sy); for (const p of pts) ctx.lineTo(p.x, p.y); }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,224,122,0.9)'; ctx.lineWidth = 2.5;
     ctx.beginPath();
     if (pts.length) { ctx.moveTo(G.aim.sx, G.aim.sy); for (const p of pts) ctx.lineTo(p.x, p.y); }
     ctx.stroke();
     ctx.setLineDash([]);
+    // A few bright flight markers help read the arc at small landscape sizes.
+    for (let i = 3; i < pts.length; i += 5) {
+      const p = pts[i]; ctx.globalAlpha = Math.max(0.25, 0.82 - i / (pts.length * 1.4));
+      ctx.fillStyle = '#fff0b2'; ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
   }
   // arrow
   if (G.arrow && G.arrow.alive) {

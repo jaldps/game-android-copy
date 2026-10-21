@@ -52,13 +52,16 @@ function makeTextures() {
     const groove = Math.max(0, 1 - dl / 0.95);                // 1 at lane centre
     const runner = Math.max(0, 1 - Math.abs(dl - 0.42) / 0.07);  // two runner lines per lane
     const edge = Math.max(0, (Math.abs(wx) - (W - 0.75)) / 0.75);
-    let r = 238, g = 244, b = 252;
-    // icy groove: blue, darker
-    r -= groove * 42; g -= groove * 26; b -= groove * 6;
-    r += runner * 26; g += runner * 24; b += runner * 14;
-    r += (n - 0.5) * 22 + (fine - 0.5) * 10; g += (n - 0.5) * 18 + (fine - 0.5) * 10; b += (n - 0.5) * 10;
+    let r = 224, g = 232, b = 244;
+    // Broad cool grooves hold their shape in the near field.
+    r -= groove * 58; g -= groove * 48; b -= groove * 30;
+    r += runner * 18; g += runner * 18; b += runner * 16;
+    r += (n - 0.5) * 18 + (fine - 0.5) * 8; g += (n - 0.5) * 16 + (fine - 0.5) * 8; b += (n - 0.5) * 12;
+    // Repeating short blue-gray lane ticks give a scale/approach cue without clutter.
+    const tick = (y % 128) < 5 && LANES.some(L => Math.abs(wx - L) < 0.62);
+    if (tick) { r = r * 0.58 + 92 * 0.42; g = g * 0.58 + 119 * 0.42; b = b * 0.58 + 155 * 0.42; }
     // scratch streaks along the direction of travel
-    const streak = fbm(x / 1.5, y / 60, 21, 2, 0); if (groove > 0.2) { const s = (streak - 0.5) * 30 * groove; r += s; g += s; b += s * 0.6; }
+    const streak = fbm(x / 1.5, y / 60, 21, 2, 0); if (groove > 0.2) { const s = (streak - 0.5) * 24 * groove; r += s; g += s; b += s * 0.7; }
     r -= edge * 10; g -= edge * 6;
     const sp = hash(x, y, 5) > 0.997 ? 30 : 0;
     return [cl(r + sp), cl(g + sp), cl(b + sp)];

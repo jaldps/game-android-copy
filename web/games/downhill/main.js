@@ -30,7 +30,7 @@ RR.scene.add(world);
 let T = null, course = COURSES[0], bio = BIOMES[course.biome];
 let racers = [], player = null, race = null, camTarget = new THREE.Vector3();
 let steerInput = 0, brakeInput = false, jumpBuf = 0, boostBuf = false;
-let paused = false, mode = 'menu', timeAcc = 0, fpsFrames = 0, fpsT = 0, fps = 60;
+let paused = false, mode = 'menu', timeAcc = 0, fpsFrames = 0, fpsT = 0, fps = 60, userGesture = false;
 let last = performance.now();
 
 function buildWorld(c) {
@@ -40,17 +40,17 @@ function buildWorld(c) {
   T = buildTrack(course);
   initTerrain(T, bio, course.seed);
   const S = foliageSet(course.biome, bio);
-  const P = planScenery(T, bio, course.biome, course.seed);
-  const terrMat = makeTerrainMaterial(bio, course.biome);
-  const trailMat = makeTrailMaterial(bio, course.biome);
+  const P = planScenery(T, bio, course.biome, course.seed, quality);
+  const terrMat = makeTerrainMaterial(bio, course.biome, quality);
+  const trailMat = makeTrailMaterial(bio, course.biome, quality);
   // terrain meshes need occluders already populated by planScenery
   // buildTerrain/buildTrail are exported from terrain.js
   // re-import dynamic? they are exports of terrain.js already imported partially; import now:
   // (already have makeTerrainMaterial etc; buildTerrain/buildTrail not imported) -> use window? 
   // We'll import them at top? Add imports.
-  buildTerrain(world, terrMat);
+  buildTerrain(world, terrMat, quality);
   buildTrail(world, trailMat);
-  buildScenery(world, T, bio, course.biome, S, P, course.seed);
+  if (quality !== 'low') buildScenery(world, T, bio, course.biome, S, P, course.seed);
   applyBiome(bio, course.seed);
   // racers
   racers.forEach(r => r.dispose(RR.scene));
@@ -68,16 +68,23 @@ function buildWorld(c) {
 const $ = id => document.getElementById(id);
 const hud = $('hud'), menu = $('menu'), pause = $('pause'), over = $('over');
 const speedEl = $('speed'), posEl = $('pos'), powerEl = $('power'), hpEl = $('hp'), timeEl = $('time');
+const raceStartEl = $('raceStart');
 const minimap = $('minimap'), mmctx = minimap.getContext('2d');
 
 function startRace() {
   buildWorld(course);
-  mode = 'play'; race.go = false; race.countdown = 3;
+  mode = 'play'; timeAcc = 0; race.go = false; race.countdown = 3; race.countdownElapsed = 0; race.goElapsed = 0;
   racers.forEach((r, i) => { if (i === 0) r.reset(T.start, 0); else r.reset(T.start + 0.4 * i, (i % 2 === 0 ? 1 : -1) * 0.5); });
   hud.classList.remove('hidden'); menu.classList.add('hidden'); over.classList.add('hidden'); pause.classList.add('hidden');
-  // countdown
-  let cd = 3;
-  const iv = setInterval(() => { cd--; if (cd <= 0) { race.go = true; clearInterval(iv); } }, 1000);
+  updateRaceStart();
+}
+
+function updateRaceStart() {
+  let label = '';
+  if (!race?.go && mode === 'play') label = String(Math.max(1, 3 - Math.floor(race.countdownElapsed)));
+  else if (race?.go && race.goElapsed < 0.7) label = 'GO!';
+  raceStartEl.textContent = label;
+  raceStartEl.setAttribute('aria-hidden', label ? 'false' : 'true');
 }
 
 function toMenu() {
@@ -122,8 +129,12 @@ onBack(() => { if (mode === 'play' && !paused) { paused = true; pause.classList.
 onPauseResume(() => { paused = true; }, () => { paused = false; });
 
 // game state exposed
-const G = { mode: () => mode, racers, race };
-window.__game = G;
+window.__game = {
+  get mode() { return mode; }, get racers() { return racers; }, get race() { return race; },
+  get countdownElapsed() { return race ? race.countdownElapsed : null; },
+  get go() { return race ? race.go : null; },
+  get timeAcc() { return timeAcc; },
+};
 window.__fps = 0;
 
 // minimap
@@ -148,7 +159,8 @@ function drawMinimap() {
 
 function updateHUD(dt) {
   if (!player) return;
-  speedEl.textContent = Math.round(player.speedKmh);
+  const kmh = Number(player.speedKmh);
+  speedEl.textContent = Number.isFinite(kmh) ? String(Math.max(0, Math.round(kmh))) : '0';
   const order = racers.slice().sort((a,b)=>b.s-a.s);
   posEl.textContent = POS_NAMES[order.indexOf(player)] || '';
   powerEl.style.width = (player.power / 5 * 100) + '%';
@@ -160,16 +172,27 @@ function updateHUD(dt) {
 
 // sim step
 function sim(dt) {
-  dt = Math.min(dt, 1/30);
+  dt = Math.max(0, Math.min(dt, 1/30));
   if (paused) return;
   if (mode !== 'play') {
     // menu backdrop: gentle player AI
     return;
   }
-  timeAcc += dt;
+  let raceDt = 0;
+  if (!race.go) {
+    const untilGo = Math.max(0, 3 - race.countdownElapsed);
+    const countdownDt = Math.min(dt, untilGo);
+    race.countdownElapsed += countdownDt;
+    race.countdown = Math.max(0, 3 - Math.floor(race.countdownElapsed));
+    raceDt = dt - countdownDt;
+    if (race.countdownElapsed >= 3) { race.go = true; race.goElapsed = 0; }
+  } else raceDt = dt;
+  if (race.go) {
+    race.goElapsed += raceDt;
+    timeAcc += raceDt;
+  }
   if (player && !player.finished) player.raceTime = timeAcc;
-  // countdown
-  if (!race.go) { /* wait */ } 
+  updateRaceStart();
   const inputFor = (r) => {
     if (r.isPlayer) {
       if (Q.autoplay) return r.think(dt, race, player);
@@ -217,10 +240,11 @@ function updateCamera() {
   // approximate heading
   frameAt(T, player.s, _f);
   const th = _f.th + player.psi;
-  const back = new THREE.Vector3(Math.sin(th), 0, Math.cos(th)).multiplyScalar(-7);
-  const camPos = p.clone().add(back).add(new THREE.Vector3(0, 3.2, 0));
-  RR.camera.position.lerp(camPos, 0.15);
-  RR.camera.lookAt(p.x, p.y + 1.2, p.z);
+  const back = new THREE.Vector3(Math.sin(th), 0, Math.cos(th)).multiplyScalar(-5.5);
+  const camPos = p.clone().add(back).add(new THREE.Vector3(0, 2.75, 0));
+  RR.camera.position.lerp(camPos, 0.2);
+  const lookAhead = 2.4 + clamp(player.v * 0.06, 0, 1.4);
+  RR.camera.lookAt(p.x + Math.sin(th) * lookAhead, p.y + 0.95, p.z + Math.cos(th) * lookAhead);
 }
 
 const _f = { x:0,z:0,y:0,th:0,k:0,bank:0,w:0 };
@@ -230,7 +254,7 @@ function loop(now) {
   requestAnimationFrame(loop);
   let dt = (now - last) / 1000; last = now;
   if (Q.fixed) dt = 1/60;
-  dt = Math.min(dt, 1/30);
+  dt = Math.max(0, Math.min(dt, 1/30));
   fpsFrames++; fpsT += dt; if (fpsT >= 1) { fps = fpsFrames / fpsT; fpsFrames = 0; fpsT = 0; window.__fps = fps; }
   if (!paused) {
     if (Q.warp > 0 && !window.__warped) {

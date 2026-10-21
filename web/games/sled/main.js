@@ -129,7 +129,7 @@ function spawnPattern(z) {
 function spawnAhead() {
   while (G.spawnCursor > G.z - 180) {
     spawnPattern(G.spawnCursor);
-    G.spawnCursor -= 12 + G.rng.range(0, 8);
+    G.spawnCursor -= 10 + G.rng.range(0, 7);
   }
 }
 
@@ -227,9 +227,11 @@ let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000; last = now;
+  // Clamp both ends: browsers may deliver an RAF timestamp behind the page clock
+  // after startup/resume, and negative dt reverses distance and score progression.
   if (dt > 0.25) dt = 0.25;
   if (Q.fixed) dt = 1 / 60;
-  dt = Math.min(dt, 1 / 30);
+  dt = Math.max(0, Math.min(dt, 1 / 30));
   if (Q.warp > 0) { let w = Q.warp; Q.warp = 0; while (w > 0) { const s = Math.min(w, 0.1); update(s, false); w -= s; } }
   update(dt, true);
 }
@@ -297,9 +299,11 @@ function update(dt, fx) {
     multEl.textContent = 'x' + G.mult + (G.x2 > 0 ? ' (2X)' : '');
     powerEl.textContent = [G.magnet > 0 ? '🧲' : '', G.kite > 0 ? '🪁' : '', G.shield ? '🛡️' : '', G.boots > 0 ? '👢' : ''].join(' ');
   }
+  const renderStart = performance.now();
   renderFrame(dt);
-
-  window.__game = { mode: G.mode, score: G.score, z: G.z, lane: G.lane, speed: G.speed };
+  const renderMs = performance.now() - renderStart;
+  const info = R.renderer.info;
+  window.__game = { mode: G.mode, score: G.score, z: G.z, lane: G.lane, speed: G.speed, rafMs: dt * 1000, renderMs, sceneObjects: R.scene.children.length, drawCalls: info.render.calls, triangles: info.render.triangles };
 }
 
 if (Q.scene === 'menu') showMenu();

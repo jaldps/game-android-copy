@@ -9,7 +9,7 @@ const N = SIM.MAX;
 let body = null, blob = null, iPos, iCol, iAnim;
 const hats = [];
 export const NEUTRAL = new THREE.Color('#eceff6');
-const LEADER_SCALE = 1.4;
+const LEADER_SCALE = 1.58;
 
 export function initPeople(scene, lo) {
   const base = person(lo);
@@ -47,9 +47,11 @@ export function updatePeople(vb, t) {
     P[o] = x; P[o + 1] = A.y[i]; P[o + 2] = z; P[o + 3] = A.yaw[i];
     let r, g, b;
     if (tm >= 0) { const c = teams[tm].color; r = c.r; g = c.g; b = c.b; } else { r = NEUTRAL.r; g = NEUTRAL.g; b = NEUTRAL.b; }
-    C[o] = r; C[o + 1] = g; C[o + 2] = b; C[o + 3] = A.flash[i] * 0.85;
+    const shade = 0.88 + ((A.wang[i] / 6.28) * 0.24);
+    C[o] = r * shade; C[o + 1] = g * shade; C[o + 2] = b * shade; C[o + 3] = A.flash[i] * 0.85;
     const hop = A.hop[i]; const hopv = hop > 0 ? Math.sin((1 - hop) * Math.PI) : 0;
-    let sc = A.leader[i] ? LEADER_SCALE : 1;
+    // Followers are deliberately a little oversized so individual runners read at phone scale.
+    let sc = A.leader[i] ? LEADER_SCALE : 1.32 + (A.wang[i] / 6.28 - 0.5) * 0.14;
     if (A.fade[i] > 0) sc *= 1 - A.fade[i];
     An[o] = A.phase[i]; An[o + 1] = A.run[i]; An[o + 2] = sc; An[o + 3] = hopv * 0.5;
     n++;

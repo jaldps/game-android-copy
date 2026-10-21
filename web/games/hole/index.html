@@ -21,6 +21,7 @@
 <div id="hud" class="hidden">
   <button id="btnPause" class="roundbtn" aria-label="Pause"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></button>
   <div id="timer"><svg viewBox="0 0 24 24" class="clock"><circle cx="12" cy="13" r="8.5" fill="#fff" stroke="#1d2a44" stroke-width="2.2"/><rect x="10" y="1.5" width="4" height="3" rx="1" fill="#1d2a44"/><path d="M12 13 L12 8.2" stroke="#ff4d4d" stroke-width="2.4" stroke-linecap="round"/><path d="M12 13 L15.2 14.8" stroke="#1d2a44" stroke-width="2.2" stroke-linecap="round"/></svg><span id="timeTxt">2:00</span></div>
+  <div id="objective"></div>
   <div id="board"></div>
   <div id="myscore"><div class="lbl">SCORE</div><div id="scoreTxt">0</div></div>
   <div id="sizebar"><div class="ringwrap"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" class="bg"/><circle cx="22" cy="22" r="18" class="fg" id="sizeArc"/></svg><span id="lvlTxt">1</span></div><div class="sizelbl">SIZE</div></div>
@@ -44,6 +45,18 @@
     <div class="l2">CITY</div>
     <div class="tag">Swallow everything. Grow. Rule the streets.</div>
   </div>
+  <section id="matchSetup" aria-label="Match setup">
+    <div class="setupLabel">MATCH RULES <span id="setupSummary"></span></div>
+    <div class="modeChoices">
+      <button class="modeChoice" data-mode="classic"><b>CLASSIC</b><span>Grow fast. Highest score wins.</span></button>
+      <button class="modeChoice" data-mode="standing"><b>LAST HOLE STANDING</b><span>Swallowed holes are out for good. No respawns; last alive wins.</span></button>
+      <button class="modeChoice" data-mode="bite"><b>LAST BITE</b><span>Eat the final static city object to win. Clock timeout uses score.</span></button>
+    </div>
+    <div class="durationChoices" aria-label="Match duration">
+      <span>TIME</span>
+      <button data-duration="60">60s</button><button data-duration="90">90s</button><button data-duration="120">120s</button><button data-duration="180">180s</button>
+    </div>
+  </section>
   <div class="menuBottom">
     <div class="best">BEST <b id="bestTxt">0</b></div>
     <button id="btnPlay" class="bigbtn yellow">PLAY</button>
