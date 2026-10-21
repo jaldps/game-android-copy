@@ -512,6 +512,22 @@ function loop(now) {
       playBeep(220, 0.2, 0.15);
       target.position.x += ar.fromLeft ? 2 : -2;
       spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 12, 0xffaa44);
+      // Damage number
+      const dmgNum = document.createElement('div');
+      dmgNum.textContent = '-' + dmg;
+      dmgNum.style.cssText = 'position:fixed;color:#ff4444;font-size:24px;font-weight:900;pointer-events:none;z-index:50;text-shadow:0 2px 4px rgba(0,0,0,0.8);';
+      dmgNum.style.left = (window.innerWidth/2) + 'px';
+      dmgNum.style.top = (window.innerHeight/2 - 50) + 'px';
+      document.body.appendChild(dmgNum);
+      G.damageNumbers.push({ el: dmgNum, life: 1.0, vy: -80 });
+      // Hit flash
+      if (target.userData.parts) {
+        const flashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+        const flash = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 8), flashMat);
+        flash.position.copy(target.position);
+        scene.add(flash);
+        setTimeout(() => { scene.remove(flash); flash.geometry.dispose(); flash.material.dispose(); }, 150);
+      }
       G.screenShake = 0.5;
       G.hitPause = 0.08;
       // Hit flash on target
@@ -593,6 +609,22 @@ function loop(now) {
         }
         // Spawn impact particles
         spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 12, 0xffaa44);
+      // Damage number
+      const dmgNum = document.createElement('div');
+      dmgNum.textContent = '-' + dmg;
+      dmgNum.style.cssText = 'position:fixed;color:#ff4444;font-size:24px;font-weight:900;pointer-events:none;z-index:50;text-shadow:0 2px 4px rgba(0,0,0,0.8);';
+      dmgNum.style.left = (window.innerWidth/2) + 'px';
+      dmgNum.style.top = (window.innerHeight/2 - 50) + 'px';
+      document.body.appendChild(dmgNum);
+      G.damageNumbers.push({ el: dmgNum, life: 1.0, vy: -80 });
+      // Hit flash
+      if (target.userData.parts) {
+        const flashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+        const flash = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 8), flashMat);
+        flash.position.copy(target.position);
+        scene.add(flash);
+        setTimeout(() => { scene.remove(flash); flash.geometry.dispose(); flash.material.dispose(); }, 150);
+      }
         G.screenShake = 0.5;
         if (G.hp[idx] <= 0) {
           G.gameOver = true;
@@ -650,6 +682,20 @@ function loop(now) {
       if (parts.hairGroup) {
         parts.hairGroup.rotation.z = Math.sin(t * 1.5) * 0.03;
       }
+    }
+  }
+
+  // Update damage numbers
+  for (let i = G.damageNumbers.length - 1; i >= 0; i--) {
+    const dn = G.damageNumbers[i];
+    dn.life -= dt * 1.5;
+    const rect = dn.el.getBoundingClientRect();
+    dn.el.style.top = (parseFloat(dn.el.style.top) + dn.vy * dt) + 'px';
+    dn.el.style.opacity = dn.life;
+    dn.el.style.transform = 'scale(' + (1 + (1 - dn.life) * 0.5) + ')';
+    if (dn.life <= 0) {
+      dn.el.remove();
+      G.damageNumbers.splice(i, 1);
     }
   }
 
