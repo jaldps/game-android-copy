@@ -4,6 +4,7 @@ import { RenderPass } from '../../lib/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../lib/addons/postprocessing/UnrealBloomPass.js';
 import { SSAOPass } from '../../lib/addons/postprocessing/SSAOPass.js';
 import { ShaderPass } from '../../lib/addons/postprocessing/ShaderPass.js';
+import { BokehPass } from '../../lib/addons/postprocessing/BokehPass.js';
 import { OutputPass } from '../../lib/addons/postprocessing/OutputPass.js';
 
 const canvas = document.getElementById('c');
@@ -95,6 +96,14 @@ const colorGradeShader = {
 };
 const colorGradePass = new ShaderPass(colorGradeShader);
 composer.addPass(colorGradePass);
+
+// Depth of Field
+const bokehPass = new BokehPass(scene, camera, {
+  focus: 60.0,
+  aperture: 0.0001,
+  maxblur: 0.01
+});
+composer.addPass(bokehPass);
 
 const outputPass = new OutputPass();
 composer.addPass(outputPass);
