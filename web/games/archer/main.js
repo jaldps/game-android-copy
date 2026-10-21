@@ -338,7 +338,12 @@ function fire() {
   const speed = G.power * 0.6;
   const vx = Math.cos(a) * speed * dir;
   const vy = Math.sin(a) * speed;
-  const arrow = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8), new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0x444400 }));
+  let arrowColor = 0xffff00;
+  let arrowEmissive = 0x444400;
+  if (G.arrowType === 'explosive') { arrowColor = 0xff4400; arrowEmissive = 0x441100; }
+  if (G.arrowType === 'multi') { arrowColor = 0x00ffff; arrowEmissive = 0x004444; }
+  if (G.arrowType === 'bounce') { arrowColor = 0x00ff00; arrowEmissive = 0x004400; }
+  const arrow = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8), new THREE.MeshStandardMaterial({ color: arrowColor, emissive: arrowEmissive }));
   const tip = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 8), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
   tip.position.y = 0.7;
   arrow.add(tip);
@@ -428,7 +433,23 @@ function loop(now) {
     }
     const ySurf = surfaceYWithCraters(ar.mesh.position.x, ar.mesh.position.z);
     if (ar.mesh.position.y <= ySurf) {
-      addCrater(ar.mesh.position.x, ar.mesh.position.z, 4, 3);
+      let craterRadius = 4, craterDepth = 3;
+      if (G.arrowType === 'explosive') { craterRadius = 8; craterDepth = 6; }
+      if (G.arrowType === 'multi') {
+        // Spawn 3 arrows in spread
+        for (let i = 0; i < 3; i++) {
+          const a2 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 6), new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x004444 }));
+          a2.position.copy(ar.mesh.position);
+          scene.add(a2);
+          // Simple fall
+          setTimeout(() => scene.remove(a2), 1000);
+        }
+      }
+      addCrater(ar.mesh.position.x, ar.mesh.position.z, craterRadius, craterDepth);
+      // Explosive: bigger particle burst
+      if (G.arrowType === 'explosive') {
+        spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 40, 0xff4400);
+      }
       ar.alive = false;
       scene.remove(ar.mesh);
       if (ar.trail) scene.remove(ar.trail);
@@ -565,6 +586,14 @@ function loop(now) {
   composer.render();
 }
 requestAnimationFrame(loop);
+
+// Arrow type selection (1-4)
+window.addEventListener('keydown', (e) => {
+  if (e.key === '1') G.arrowType = 'standard';
+  if (e.key === '2') G.arrowType = 'explosive';
+  if (e.key === '3') G.arrowType = 'multi';
+  if (e.key === '4') G.arrowType = 'bounce';
+});
 
 // Restart on R key
 window.addEventListener('keydown', (e) => {
