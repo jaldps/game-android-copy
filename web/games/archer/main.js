@@ -1,4 +1,8 @@
 import * as THREE from '../../lib/three.module.js';
+import { EffectComposer } from '../../lib/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from '../../lib/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../../lib/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../../lib/addons/postprocessing/OutputPass.js';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
@@ -31,6 +35,15 @@ scene.add(sun);
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 500);
 camera.position.set(0, 25, 60);
 camera.lookAt(0, 5, 0);
+
+// Post-processing
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.4, 0.85);
+composer.addPass(bloomPass);
+const outputPass = new OutputPass();
+composer.addPass(outputPass);
 
 // Ground
 const groundGeo = new THREE.PlaneGeometry(200, 200);
@@ -302,7 +315,7 @@ function loop(now) {
   updateAimIndicator();
   updateHUD();
 
-  renderer.render(scene, camera);
+  composer.render();
 }
 requestAnimationFrame(loop);
 
@@ -310,6 +323,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 updateHUD();
