@@ -1,17 +1,55 @@
-*{box-sizing:border-box;margin:0;padding:0;}
-body{overflow:hidden;background:#000;font-family:sans-serif;color:#fff;}
-#c{position:fixed;inset:0;width:100%;height:100%;touch-action:none;}
-#hud{position:fixed;top:10px;left:10px;right:10px;display:flex;align-items:center;gap:10px;z-index:10;}
-.hpbar{flex:1;height:14px;background:rgba(0,0,0,.5);border-radius:7px;overflow:hidden;}
-#hpL,#hpR{height:100%;width:100%;background:linear-gradient(90deg,#ff4fa3,#ff8fc7);}
-#hpR{background:linear-gradient(90deg,#4fa3ff,#8fc7ff);}
-#wind,#turn{padding:4px 8px;background:rgba(0,0,0,.5);border-radius:6px;font-size:12px;}
-#controls{position:fixed;bottom:10px;left:10px;right:10px;display:flex;gap:10px;align-items:center;z-index:10;background:rgba(0,0,0,.5);padding:8px;border-radius:8px;}
-#controls label{flex:1;font-size:12px;display:flex;align-items:center;gap:6px;}
-#controls input[type=range]{flex:1;}
-#fireBtn{padding:8px 16px;font-weight:bold;border:none;border-radius:6px;background:#ff4fa3;color:#fff;cursor:pointer;}
-#menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,.75);z-index:30;}
-#menu h1{font-size:48px;}
-#menu button{padding:10px 24px;font-size:16px;border:none;border-radius:8px;background:#ff4fa3;color:#fff;cursor:pointer;}
-#pauseOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;font-size:48px;font-weight:bold;background:rgba(0,0,0,.6);z-index:25;}
-#msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:32px;font-weight:bold;text-shadow:0 0 10px #000;z-index:20;}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+#c { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
+
+#hud {
+  position: fixed; top: 12px; left: 12px; right: 12px;
+  display: flex; align-items: center; gap: 12px;
+  pointer-events: none; z-index: 10;
+}
+.hpbar {
+  flex: 1; height: 16px; background: rgba(0,0,0,0.6);
+  border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2);
+}
+#hpL { height: 100%; background: linear-gradient(90deg, #ff4444, #ff8844); transition: width 0.3s; }
+#hpR { height: 100%; background: linear-gradient(90deg, #4444ff, #8844ff); transition: width 0.3s; }
+#wind {
+  color: #fff; font-size: 12px; font-weight: 600;
+  background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+#turn {
+  color: #fff; font-size: 12px; font-weight: 600;
+  background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+#controls {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 16px;
+  background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.15); z-index: 10;
+  backdrop-filter: blur(8px);
+}
+#controls label {
+  color: #fff; font-size: 12px; display: flex; align-items: center; gap: 6px;
+}
+#controls input[type="range"] {
+  width: 100px; accent-color: #ff8844;
+}
+#controls span { min-width: 24px; text-align: center; }
+#fireBtn {
+  background: linear-gradient(180deg, #ff6644, #cc3322);
+  color: #fff; border: none; padding: 8px 20px; border-radius: 8px;
+  font-weight: 700; font-size: 14px; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(200,50,30,0.5);
+  transition: transform 0.1s;
+}
+#fireBtn:active { transform: scale(0.95); }
+
+#msg {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: #fff; font-size: 32px; font-weight: 800;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  z-index: 20; pointer-events: none;
+}
