@@ -317,6 +317,22 @@ const angleVal = document.getElementById('angleVal');
 const powerVal = document.getElementById('powerVal');
 const fireBtn = document.getElementById('fireBtn');
 const msg = document.getElementById('msg');
+const menu = document.getElementById('menu');
+const startBtn = document.getElementById('startBtn');
+const pauseOverlay = document.getElementById('pauseOverlay');
+const arrowTypeEl = document.getElementById('arrowType');
+
+// Start with menu
+G.paused = true;
+if (menu) menu.style.display = 'flex';
+
+if (startBtn) {
+  startBtn.addEventListener('click', () => {
+    if (menu) menu.style.display = 'none';
+    G.paused = false;
+    updateHUD();
+  });
+}
 
 if (angleSlider) angleSlider.addEventListener('input', () => { G.angle = +angleSlider.value; if (angleVal) angleVal.textContent = G.angle; });
 if (powerSlider) powerSlider.addEventListener('input', () => { G.power = +powerSlider.value; if (powerVal) powerVal.textContent = G.power; });
@@ -579,6 +595,17 @@ function loop(now) {
     camera.position.y = 25;
   }
   camera.lookAt(0, 5, 0);
+
+  // Update arrow type display
+  if (arrowTypeEl) {
+    const names = { standard: 'Standard', explosive: 'Explosive', multi: 'Multi', bounce: 'Bounce' };
+    arrowTypeEl.textContent = 'Arrow: ' + (names[G.arrowType] || 'Standard') + ' (1-4)';
+  }
+
+  // Pause overlay
+  if (pauseOverlay) {
+    pauseOverlay.style.display = G.paused ? 'flex' : 'none';
+  }
 
   updateAimIndicator();
   updateHUD();

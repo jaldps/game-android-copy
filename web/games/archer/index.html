@@ -18,8 +18,16 @@
   <label>Angle <input id="angle" type="range" min="0" max="90" value="45"/><span id="angleVal">45</span></label>
   <label>Power <input id="power" type="range" min="10" max="100" value="60"/><span id="powerVal">60</span></label>
   <button id="fireBtn">FIRE</button>
+  <div id="arrowType" style="color:#fff;font-size:11px;">Arrow: Standard (1-4)</div>
 </div>
 <div id="msg"></div>
+<div id="menu">
+  <h1>BOWBRAWL 3D</h1>
+  <p>Left vs Right Archery Duel</p>
+  <button id="startBtn">START GAME</button>
+  <div class="hint">Controls: Angle/Power sliders + FIRE<br>Arrow types: 1=Standard 2=Explosive 3=Multi 4=Bounce<br>P=Pause R=Restart</div>
+</div>
+<div id="pauseOverlay">PAUSED<br><small>Press P to resume</small></div>
 <script type="module" src="main.js"></script>
 </body>
 </html>
