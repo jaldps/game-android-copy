@@ -480,13 +480,58 @@ function loop(now) {
   let dt = (now - last) / 1000;
   last = now;
   dt = Math.max(0, Math.min(dt, 1 / 30));
+  // Hit pause
+  if (G.hitPause > 0) {
+    G.hitPause -= dt;
+    dt = 0;
+  }
 
   for (const ar of G.arrows) {
     if (!ar.alive) continue;
     ar.vy -= 9.8 * dt;
     ar.vx += G.wind * 0.3 * dt;
+    // Continuous collision check
+    const prevPos = ar.mesh.position.clone();
     ar.mesh.position.x += ar.vx * dt;
     ar.mesh.position.y += ar.vy * dt;
+    // Check collision with target character
+    const target = ar.fromLeft ? archerR : archerL;
+    const targetPos = target.position;
+    const dist = ar.mesh.position.distanceTo(targetPos);
+    if (dist < 1.5 && ar.alive) {
+      // Hit!
+      ar.alive = false;
+      scene.remove(ar.mesh);
+      if (ar.trail) scene.remove(ar.trail);
+      let craterRadius = 4, craterDepth = 3;
+      if (G.arrowType === 'explosive') { craterRadius = 8; craterDepth = 6; }
+      addCrater(ar.mesh.position.x, ar.mesh.position.z, craterRadius, craterDepth);
+      const dmg = 20 + Math.round((Math.abs(ar.vx) + Math.abs(ar.vy)) * 0.5);
+      const idx = ar.fromLeft ? 1 : 0;
+      G.hp[idx] = Math.max(0, G.hp[idx] - dmg);
+      playBeep(220, 0.2, 0.15);
+      target.position.x += ar.fromLeft ? 2 : -2;
+      spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 12, 0xffaa44);
+      G.screenShake = 0.5;
+      G.hitPause = 0.08;
+      // Hit flash on target
+      if (target.userData.parts) {
+        target.userData.anim.state = 'hit';
+        target.userData.anim.time = 0;
+      }
+      if (G.hp[idx] <= 0) {
+        G.gameOver = true;
+        G.deathAnim = { target: target, time: 0 };
+        if (msg) msg.textContent = (ar.fromLeft ? 'Left' : 'Right') + ' wins!';
+        spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 30, 0xff4444);
+      }
+      G.flying = false;
+      G.turn = 1 - G.turn;
+      G.wind = (Math.random() - 0.5) * 6;
+      updateHUD();
+      // Skip terrain collision check
+      continue;
+    }
     // Trail
     if (ar.trailPoints) {
       ar.trailPoints.push(ar.mesh.position.clone());
@@ -499,6 +544,7 @@ function loop(now) {
     if (v.length() > 0.01) {
       ar.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.clone().normalize());
     }
+    if (!ar.alive) continue;
     const ySurf = surfaceYWithCraters(ar.mesh.position.x, ar.mesh.position.z);
     if (G.arrowType === 'bounce' && ar.mesh.position.y <= ySurf && ar.bounces < 3) {
       // Bounce off terrain
