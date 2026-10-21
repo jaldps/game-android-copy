@@ -217,23 +217,46 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// Simple rolling hills
-const tGeo = new THREE.PlaneGeometry(200, 200, 60, 60);
+// Improved terrain with mountains, valleys, peaks
+const tGeo = new THREE.PlaneGeometry(200, 200, 120, 120);
 tGeo.rotateX(-Math.PI / 2);
 const tPos = tGeo.attributes.position;
+function terrainHeight(x, z) {
+  let h = 0;
+  h += Math.sin(x * 0.03) * 5;
+  h += Math.cos(z * 0.04) * 4;
+  h += Math.sin((x + z) * 0.02) * 6;
+  h += Math.sin(x * 0.08) * 2;
+  h += Math.cos(z * 0.1) * 1.5;
+  h += Math.sin(x * 0.2 + z * 0.15) * 0.8;
+  const peakDist1 = Math.sqrt((x + 40) ** 2 + (z - 30) ** 2);
+  if (peakDist1 < 25) h += (25 - peakDist1) * 0.8;
+  const peakDist2 = Math.sqrt((x - 50) ** 2 + (z + 20) ** 2);
+  if (peakDist2 < 20) h += (20 - peakDist2) * 0.6;
+  const valleyDist = Math.sqrt(x ** 2 + (z + 10) ** 2);
+  if (valleyDist < 30) h -= (30 - valleyDist) * 0.3;
+  return h;
+}
 for (let i = 0; i < tPos.count; i++) {
   const x = tPos.getX(i), z = tPos.getZ(i);
-  const h = Math.sin(x*0.05)*3 + Math.cos(z*0.07)*2 + Math.sin((x+z)*0.03)*4;
-  tPos.setY(i, h);
+  tPos.setY(i, terrainHeight(x, z));
 }
 tGeo.computeVertexNormals();
-const tMat = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 0.85 });
+const tMat = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 0.85, metalness: 0.0 });
 const terrain = new THREE.Mesh(tGeo, tMat);
 terrain.receiveShadow = true;
 scene.add(terrain);
 
 function surfaceYWithCraters(x, z) {
-  return Math.sin(x*0.05)*3 + Math.cos(z*0.07)*2 + Math.sin((x+z)*0.03)*4;
+  let h = terrainHeight(x, z);
+  for (const c of craters) {
+    const d = Math.sqrt((x-c.cx)**2 + (z-c.cz)**2);
+    if (d < c.radius) {
+      const falloff = 1 - d/c.radius;
+      h -= c.depth * falloff * falloff;
+    }
+  }
+  return h;
 }
 
 // Destructible terrain - crater deformation
