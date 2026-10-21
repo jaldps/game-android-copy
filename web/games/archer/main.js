@@ -399,6 +399,11 @@ function updateAimIndicator() {
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
+  if (G.paused) {
+    // Still render but don't update
+    composer.render();
+    return;
+  }
   let dt = (now - last) / 1000;
   last = now;
   dt = Math.max(0, Math.min(dt, 1 / 30));
@@ -456,7 +461,10 @@ function loop(now) {
         G.screenShake = 0.5;
         if (G.hp[idx] <= 0) {
           G.gameOver = true;
+          G.deathAnim = { target: target, time: 0 };
           if (msg) msg.textContent = (ar.fromLeft ? 'Left' : 'Right') + ' wins!';
+          // Big particle burst
+          spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 30, 0xff4444);
         }
       } else {
         spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 8, 0x886644);
@@ -487,6 +495,18 @@ function loop(now) {
     }
   }
   G.arrows = G.arrows.filter(a => a.alive);
+
+  // Death animation
+  if (G.deathAnim) {
+    G.deathAnim.time += 0.016;
+    const target = G.deathAnim.target;
+    const progress = Math.min(1, G.deathAnim.time / 1.5);
+    target.rotation.x = progress * Math.PI / 2;
+    target.position.y -= 0.02;
+    if (progress >= 1) {
+      G.deathAnim = null;
+    }
+  }
 
   // Character idle animation
   const t = now * 0.001;
@@ -545,6 +565,29 @@ function loop(now) {
   composer.render();
 }
 requestAnimationFrame(loop);
+
+// Restart on R key
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'r' || e.key === 'R') {
+    if (G.gameOver) {
+      G.hp = [100, 100];
+      G.turn = 0;
+      G.gameOver = false;
+      G.deathAnim = null;
+      G.wind = (Math.random() - 0.5) * 6;
+      // Reset positions
+      archerL.position.set(-60, surfaceYWithCraters(-60, 0) + 1.0, 0);
+      archerR.position.set(60, surfaceYWithCraters(60, 0) + 1.0, 0);
+      archerL.rotation.set(0, 0, 0);
+      archerR.rotation.set(0, Math.PI, 0);
+      if (msg) msg.textContent = '';
+      updateHUD();
+    }
+  }
+  if (e.key === 'p' || e.key === 'P') {
+    G.paused = !G.paused;
+  }
+});
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
