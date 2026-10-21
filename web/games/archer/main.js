@@ -1,21 +1,41 @@
-// main.js
 import * as THREE from '../../lib/three.module.js';
-import { createRenderer, createScene, createCamera, createComposer, handleResize } from './render.js';
-import { buildTerrain, surfaceY, addCrater } from './terrain.js';
-import { buildArcher } from './characters.js';
+import { createRenderer, createScene, createCamera, handleResize } from './render.js';
 import { mat } from './materials.js';
-import { store } from './store.js';
 import { beep } from './audio.js';
-import { clamp, rand } from './util.js';
 
 const canvas = document.getElementById('c');
 const renderer = createRenderer(canvas);
 const scene = createScene();
 const camera = createCamera();
-const composer = createComposer(renderer, scene, camera);
 
-buildTerrain(scene);
+// Simple ground
+const groundGeo = new THREE.PlaneGeometry(200, 200);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 0.85 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
 
+// Simple terrain (rolling hills)
+const tGeo = new THREE.PlaneGeometry(200, 200, 60, 60);
+tGeo.rotateX(-Math.PI / 2);
+const tPos = tGeo.attributes.position;
+for (let i = 0; i < tPos.count; i++) {
+  const x = tPos.getX(i), z = tPos.getZ(i);
+  const h = Math.sin(x*0.05)*3 + Math.cos(z*0.07)*2 + Math.sin((x+z)*0.03)*4;
+  tPos.setY(i, h);
+}
+tGeo.computeVertexNormals();
+const tMat = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 0.85 });
+const terrain = new THREE.Mesh(tGeo, tMat);
+terrain.receiveShadow = true;
+scene.add(terrain);
+
+function surfaceY(x, z) {
+  return Math.sin(x*0.05)*3 + Math.cos(z*0.07)*2 + Math.sin((x+z)*0.03)*4;
+}
+
+// Platforms
 const platGeo = new THREE.BoxGeometry(6, 1, 6);
 const p1 = new THREE.Mesh(platGeo, mat.platform.clone());
 p1.position.set(-60, surfaceY(-60,0)+0.5, 0);
@@ -26,11 +46,18 @@ p2.position.set(60, surfaceY(60,0)+0.5, 0);
 p2.castShadow = true; p2.receiveShadow = true;
 scene.add(p2);
 
-const archerL = buildArcher(scene, {female:false});
-archerL.position.set(-60, surfaceY(-60,0)+1, 0);
-const archerR = buildArcher(scene, {female:true});
-archerR.position.set(60, surfaceY(60,0)+1, 0);
-archerR.rotation.y = Math.PI;
+// Simple characters (boxes)
+const boxGeo = new THREE.BoxGeometry(1, 2, 1);
+const redMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.7 });
+const blueMat = new THREE.MeshStandardMaterial({ color: 0x0000ff, roughness: 0.7 });
+const archerL = new THREE.Mesh(boxGeo, redMat);
+archerL.position.set(-60, surfaceY(-60,0)+1.5, 0);
+archerL.castShadow = true;
+scene.add(archerL);
+const archerR = new THREE.Mesh(boxGeo, blueMat);
+archerR.position.set(60, surfaceY(60,0)+1.5, 0);
+archerR.castShadow = true;
+scene.add(archerR);
 
 const G = {
   turn: 0,
@@ -54,14 +81,14 @@ const powerVal = document.getElementById('powerVal');
 const fireBtn = document.getElementById('fireBtn');
 const msg = document.getElementById('msg');
 
-angleSlider.addEventListener('input', ()=>{ G.angle = +angleSlider.value; angleVal.textContent = G.angle; });
-powerSlider.addEventListener('input', ()=>{ G.power = +powerSlider.value; powerVal.textContent = G.power; });
+if (angleSlider) angleSlider.addEventListener('input', ()=>{ G.angle = +angleSlider.value; if(angleVal) angleVal.textContent = G.angle; });
+if (powerSlider) powerSlider.addEventListener('input', ()=>{ G.power = +powerSlider.value; if(powerVal) powerVal.textContent = G.power; });
 
 function updateHUD(){
-  hpL.style.width = G.hp[0]+'%';
-  hpR.style.width = G.hp[1]+'%';
-  windEl.textContent = 'Wind: '+G.wind.toFixed(1);
-  turnEl.textContent = 'Turn: '+(G.turn===0?'Left':'Right');
+  if (hpL) hpL.style.width = G.hp[0]+'%';
+  if (hpR) hpR.style.width = G.hp[1]+'%';
+  if (windEl) windEl.textContent = 'Wind: '+G.wind.toFixed(1);
+  if (turnEl) turnEl.textContent = 'Turn: '+(G.turn===0?'Left':'Right');
 }
 
 function fire(){
@@ -74,19 +101,18 @@ function fire(){
   const speed = G.power*0.6;
   const vx = Math.cos(a)*speed*dir;
   const vy = Math.sin(a)*speed;
-  const vz = 0;
   const arrow = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,1.2,8), mat.arrow.clone());
   const tip = new THREE.Mesh(new THREE.ConeGeometry(0.08,0.25,8), mat.arrowTip.clone());
   tip.position.y = 0.7;
   arrow.add(tip);
   arrow.position.set(startX, startY, 0);
   scene.add(arrow);
-  G.arrows.push({mesh:arrow, vx,vy,vz, alive:true, fromLeft});
+  G.arrows.push({mesh:arrow, vx,vy,vz:0, alive:true, fromLeft});
   G.flying = true;
   beep(600,0.08);
 }
 
-fireBtn.addEventListener('click', fire);
+if (fireBtn) fireBtn.addEventListener('click', fire);
 
 const aimLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({color:0xffff00}));
 scene.add(aimLine);
@@ -121,7 +147,6 @@ function loop(now){
     ar.vx += G.wind*0.3*dt;
     ar.mesh.position.x += ar.vx*dt;
     ar.mesh.position.y += ar.vy*dt;
-    ar.mesh.position.z += ar.vz*dt;
     const v = new THREE.Vector3(ar.vx,ar.vy,ar.vz);
     if(v.length()>0.01){
       ar.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), v.clone().normalize());
@@ -130,16 +155,15 @@ function loop(now){
     if(ar.mesh.position.y <= ySurf){
       ar.alive = false;
       scene.remove(ar.mesh);
-      addCrater(ar.mesh.position.x, ar.mesh.position.z, 4, 3);
       const target = ar.fromLeft? archerR : archerL;
       const d = target.position.distanceTo(ar.mesh.position);
-      if(d < 2.5){
+      if(d < 3.0){
         const dmg = 20 + Math.round((Math.abs(ar.vx)+Math.abs(ar.vy))*0.5);
         const idx = ar.fromLeft?1:0;
         G.hp[idx] = Math.max(0, G.hp[idx]-dmg);
         beep(220,0.2);
         target.position.x += ar.fromLeft? 2 : -2;
-        if(G.hp[idx]<=0){ G.gameOver=true; msg.textContent = (ar.fromLeft?'Left':'Right')+' wins!'; }
+        if(G.hp[idx]<=0){ G.gameOver=true; if(msg) msg.textContent = (ar.fromLeft?'Left':'Right')+' wins!'; }
       } else {
         beep(120,0.1);
       }
@@ -155,10 +179,11 @@ function loop(now){
   updateAimIndicator();
   updateHUD();
 
-  composer.render();
+  renderer.render(scene, camera);
 }
 requestAnimationFrame(loop);
 
-window.addEventListener('resize', ()=>handleResize(camera,renderer,composer));
+window.addEventListener('resize', ()=>handleResize(camera,renderer));
 
 updateHUD();
+console.log('Bowbrawl 3D loaded');
