@@ -9,7 +9,28 @@ import { OutputPass } from '../../lib/addons/postprocessing/OutputPass.js';
 import { buildArcher } from './characters.js';
 
 const canvas = document.getElementById('c');
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { return null; }
+  }
+  return _audioCtx;
+}
+function playBeep(freq, dur, vol) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.value = freq;
+  gain.gain.value = vol || 0.1;
+  osc.start();
+  osc.stop(ctx.currentTime + dur);
+}
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -186,10 +207,10 @@ const colorGradeShader = {
       // Warmth
       c.r += warmth;
       c.b -= warmth * 0.5;
-      // Vignette
-      vec2 uv = vUv * (1.0 - vUv.yx);
-      float vig = uv.x * uv.y * 15.0;
-      vig = pow(vig, vignette);
+      // Vignette (proper radial)
+      vec2 center = vUv - 0.5;
+      float dist = length(center);
+      float vig = 1.0 - smoothstep(0.3, 0.8, dist) * vignette;
       c.rgb *= vig;
       gl_FragColor = c;
     }
@@ -281,18 +302,6 @@ function addCrater(cx, cz, radius, depth) {
 }
 
 // Modified surfaceY that accounts for craters
-function surfaceYWithCraters(x, z) {
-  let h = Math.sin(x*0.05)*3 + Math.cos(z*0.07)*2 + Math.sin((x+z)*0.03)*4;
-  for (const c of craters) {
-    const d = Math.sqrt((x-c.cx)**2 + (z-c.cz)**2);
-    if (d < c.radius) {
-      const falloff = 1 - d/c.radius;
-      h -= c.depth * falloff * falloff;
-    }
-  }
-  return h;
-}
-
 // Platforms
 const platGeo = new THREE.BoxGeometry(6, 1, 6);
 const p1 = new THREE.Mesh(platGeo, new THREE.MeshStandardMaterial({ color: 0x8b7355 }));
@@ -388,7 +397,7 @@ function fire() {
   arrow.add(tip);
   arrow.position.set(startX, startY, 0);
   scene.add(arrow);
-  const arrowData = { mesh: arrow, vx, vy, vz: 0, alive: true, fromLeft, trailPoints: [] };
+  const arrowData = { mesh: arrow, vx, vy, vz: 0, alive: true, fromLeft, trailPoints: [], bounces: 0 };
   // Create trail line
   const trailGeo = new THREE.BufferGeometry();
   const trailMat = new THREE.LineBasicMaterial({ color: 0xffff88, transparent: true, opacity: 0.7 });
@@ -404,18 +413,7 @@ function fire() {
   if (shooter.userData.parts) {
     shooter.userData.parts.armR.rotation.x = -1.2;
   }
-  // Simple beep
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 600;
-    gain.gain.value = 0.1;
-    osc.start();
-    osc.stop(ctx.currentTime + 0.08);
-  } catch(e) {}
+  playBeep(600, 0.08, 0.1);
 }
 
 if (fireBtn) fireBtn.addEventListener('click', fire);
@@ -471,6 +469,17 @@ function loop(now) {
       ar.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.clone().normalize());
     }
     const ySurf = surfaceYWithCraters(ar.mesh.position.x, ar.mesh.position.z);
+    if (G.arrowType === 'bounce' && ar.mesh.position.y <= ySurf && ar.bounces < 3) {
+      // Bounce off terrain
+      ar.vy = Math.abs(ar.vy) * 0.6;
+      ar.vx *= 0.8;
+      ar.mesh.position.y = ySurf + 0.1;
+      ar.bounces = (ar.bounces || 0) + 1;
+      playBeep(300, 0.05, 0.08);
+      spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 6, 0x00ff00);
+      // Don't process as hit
+      continue;
+    }
     if (ar.mesh.position.y <= ySurf) {
       let craterRadius = 4, craterDepth = 3;
       if (G.arrowType === 'explosive') { craterRadius = 8; craterDepth = 6; }
@@ -498,18 +507,7 @@ function loop(now) {
         const dmg = 20 + Math.round((Math.abs(ar.vx) + Math.abs(ar.vy)) * 0.5);
         const idx = ar.fromLeft ? 1 : 0;
         G.hp[idx] = Math.max(0, G.hp[idx] - dmg);
-        // Beep
-        try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.value = 220;
-          gain.gain.value = 0.15;
-          osc.start();
-          osc.stop(ctx.currentTime + 0.2);
-        } catch (e) {}
+        playBeep(220, 0.2, 0.15);
         target.position.x += ar.fromLeft ? 2 : -2;
         // Hit reaction
         if (target.userData.parts) {
@@ -528,17 +526,7 @@ function loop(now) {
         }
       } else {
         spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 8, 0x886644);
-        try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.value = 120;
-          gain.gain.value = 0.08;
-          osc.start();
-          osc.stop(ctx.currentTime + 0.1);
-        } catch (e) {}
+        playBeep(120, 0.1, 0.08);
       }
       G.flying = false;
       G.turn = 1 - G.turn;
@@ -588,16 +576,20 @@ function loop(now) {
     }
   }
 
-  // Update particles
+  // Update particles (dt-based)
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.life -= 0.02;
-    p.vel.y -= 9.8 * 0.016;
-    p.mesh.position.add(p.vel.clone().multiplyScalar(0.016));
-    p.mesh.material.opacity = p.life;
-    p.mesh.scale.setScalar(p.life);
+    p.life -= dt * 2.0;
+    p.vel.y -= 9.8 * dt;
+    p.mesh.position.x += p.vel.x * dt;
+    p.mesh.position.y += p.vel.y * dt;
+    p.mesh.position.z += p.vel.z * dt;
+    p.mesh.material.opacity = Math.max(0, p.life);
+    p.mesh.scale.setScalar(Math.max(0.01, p.life));
     if (p.life <= 0) {
       scene.remove(p.mesh);
+      if (p.mesh.geometry) p.mesh.geometry.dispose();
+      if (p.mesh.material) p.mesh.material.dispose();
       particles.splice(i, 1);
     }
   }
@@ -608,14 +600,17 @@ function loop(now) {
     if (G.fireRecoil <= 0) G.firing = false;
   }
 
-  // Screen shake
+  // Screen shake (trauma-based, decays)
   if (G.screenShake > 0) {
-    G.screenShake *= 0.9;
-    camera.position.x = (Math.random() - 0.5) * G.screenShake * 2;
-    camera.position.y = 25 + (Math.random() - 0.5) * G.screenShake * 2;
+    G.screenShake = Math.max(0, G.screenShake - dt * 2);
+    const shake = G.screenShake * G.screenShake;
+    camera.position.x = (Math.random() - 0.5) * shake * 3;
+    camera.position.y = 25 + (Math.random() - 0.5) * shake * 3;
+    camera.rotation.z = (Math.random() - 0.5) * shake * 0.05;
   } else {
     camera.position.x = 0;
     camera.position.y = 25;
+    camera.rotation.z = 0;
   }
   camera.lookAt(0, 5, 0);
 
