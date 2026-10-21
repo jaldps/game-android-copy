@@ -2,11 +2,24 @@ import * as THREE from '../../lib/three.module.js';
 
 export function buildArcher(scene, opts = {}) {
   const female = opts.female || false;
+  const outfit = opts.outfit || (female ? 'bikini' : 'armor');
   const group = new THREE.Group();
 
   // Materials
   const skinMat = new THREE.MeshStandardMaterial({ color: female ? 0xffccaa : 0xe8b88a, roughness: 0.6, metalness: 0.0 });
   const bodyMat = new THREE.MeshStandardMaterial({ color: female ? 0xcc3366 : 0x2244aa, roughness: 0.7, metalness: 0.1 });
+
+  // Outfit materials
+  const outfitMats = {
+    bikini: new THREE.MeshStandardMaterial({ color: female ? 0xff69b4 : 0x3366cc, roughness: 0.6, metalness: 0.1 }),
+    armor: new THREE.MeshStandardMaterial({ color: female ? 0xffd700 : 0x888888, roughness: 0.3, metalness: 0.7 }),
+    leather: new THREE.MeshStandardMaterial({ color: 0x654321, roughness: 0.8, metalness: 0.2 }),
+    silk: new THREE.MeshStandardMaterial({ color: female ? 0x9933ff : 0x3399ff, roughness: 0.4, metalness: 0.0 })
+  };
+  const outfitMat = outfitMats[outfit] || outfitMats.bikini;
+
+  // Apply outfit to torso
+  const torsoMat = outfit === 'bikini' ? outfitMat : (outfit === 'armor' ? outfitMat : bodyMat);
   const armorMat = new THREE.MeshStandardMaterial({ color: female ? 0xffd700 : 0x888888, roughness: 0.3, metalness: 0.6 });
   const hairMat = new THREE.MeshStandardMaterial({ color: female ? 0x8b4513 : 0x332211, roughness: 0.8, metalness: 0.0 });
   const eyeMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.2, metalness: 0.0 });
@@ -25,7 +38,7 @@ export function buildArcher(scene, opts = {}) {
   // Torso (upper)
   const upperTorso = new THREE.Mesh(
     new THREE.CylinderGeometry(shoulderW * 0.5, waistW * 0.5, bodyH * 0.5, 16),
-    bodyMat
+    torsoMat
   );
   upperTorso.position.y = bodyH * 0.75 + legLen;
   upperTorso.castShadow = true;
@@ -34,7 +47,7 @@ export function buildArcher(scene, opts = {}) {
   // Torso (lower/hips)
   const lowerTorso = new THREE.Mesh(
     new THREE.CylinderGeometry(waistW * 0.5, hipW * 0.5, bodyH * 0.25, 16),
-    bodyMat
+    torsoMat
   );
   lowerTorso.position.y = bodyH * 0.5 + legLen;
   lowerTorso.castShadow = true;
