@@ -36,6 +36,34 @@ sun.shadow.camera.near = 0.5;
 sun.shadow.camera.far = 300;
 scene.add(sun);
 
+// Fill light
+const fillLight = new THREE.DirectionalLight(0x88aaff, 0.4);
+fillLight.position.set(-40, 30, -30);
+scene.add(fillLight);
+
+// Rim light
+const rimLight = new THREE.DirectionalLight(0xffaa88, 0.3);
+rimLight.position.set(0, 20, -60);
+scene.add(rimLight);
+
+// Particle system for impacts
+const particles = [];
+function spawnParticles(x, y, z, count, color) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.SphereGeometry(0.05, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
+    const p = new THREE.Mesh(geo, mat);
+    p.position.set(x, y, z);
+    const vel = new THREE.Vector3(
+      (Math.random() - 0.5) * 4,
+      Math.random() * 3 + 1,
+      (Math.random() - 0.5) * 4
+    );
+    scene.add(p);
+    particles.push({ mesh: p, vel, life: 1.0, maxLife: 1.0 });
+  }
+}
+
 // Point lights for atmosphere
 const pl1 = new THREE.PointLight(0xff8844, 0.8, 40);
 pl1.position.set(-30, 10, 20);
@@ -194,6 +222,8 @@ scene.add(archerR);
 // Game state
 const G = {
   turn: 0,
+  firing: false,
+  fireRecoil: 0,
   hp: [100, 100],
   wind: (Math.random() - 0.5) * 6,
   angle: 45,
@@ -243,6 +273,13 @@ function fire() {
   scene.add(arrow);
   G.arrows.push({ mesh: arrow, vx, vy, vz: 0, alive: true, fromLeft });
   G.flying = true;
+  G.firing = true;
+  G.fireRecoil = 1.0;
+  // Trigger archer animation
+  const shooter = G.turn === 0 ? archerL : archerR;
+  if (shooter.userData.parts) {
+    shooter.userData.parts.armR.rotation.x = -1.2;
+  }
   // Simple beep
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -320,11 +357,19 @@ function loop(now) {
           osc.stop(ctx.currentTime + 0.2);
         } catch (e) {}
         target.position.x += ar.fromLeft ? 2 : -2;
+        // Hit reaction
+        if (target.userData.parts) {
+          target.userData.anim.state = 'hit';
+          target.userData.anim.time = 0;
+        }
+        // Spawn impact particles
+        spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 12, 0xffaa44);
         if (G.hp[idx] <= 0) {
           G.gameOver = true;
           if (msg) msg.textContent = (ar.fromLeft ? 'Left' : 'Right') + ' wins!';
         }
       } else {
+        spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 8, 0x886644);
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = ctx.createOscillator();
@@ -370,6 +415,26 @@ function loop(now) {
         parts.hairGroup.rotation.z = Math.sin(t * 1.5) * 0.03;
       }
     }
+  }
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= 0.02;
+    p.vel.y -= 9.8 * 0.016;
+    p.mesh.position.add(p.vel.clone().multiplyScalar(0.016));
+    p.mesh.material.opacity = p.life;
+    p.mesh.scale.setScalar(p.life);
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      particles.splice(i, 1);
+    }
+  }
+
+  // Fire recoil animation (decay)
+  if (G.firing) {
+    G.fireRecoil = Math.max(0, (G.fireRecoil || 0) - 0.05);
+    if (G.fireRecoil <= 0) G.firing = false;
   }
 
   updateAimIndicator();
