@@ -163,10 +163,10 @@ scene.add(rimLight);
 const particles = [];
 function spawnParticles(x, y, z, count, color) {
   for (let i = 0; i < count; i++) {
-    const geo = new THREE.SphereGeometry(0.05, 4, 4);
-    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
-    const p = new THREE.Mesh(geo, mat);
+    const mat = new THREE.SpriteMaterial({ color, transparent: true, opacity: 1, depthWrite: false });
+    const p = new THREE.Sprite(mat);
     p.position.set(x, y, z);
+    p.scale.set(0.3, 0.3, 0.3);
     const vel = new THREE.Vector3(
       (Math.random() - 0.5) * 4,
       Math.random() * 3 + 1,
@@ -722,7 +722,7 @@ function loop(now) {
     p.mesh.position.y += p.vel.y * dt;
     p.mesh.position.z += p.vel.z * dt;
     p.mesh.material.opacity = Math.max(0, p.life);
-    p.mesh.scale.setScalar(Math.max(0.01, p.life));
+    p.mesh.scale.setScalar(Math.max(0.01, p.life) * 0.3);
     if (p.life <= 0) {
       scene.remove(p.mesh);
       if (p.mesh.geometry) p.mesh.geometry.dispose();
