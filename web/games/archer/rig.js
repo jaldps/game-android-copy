@@ -60,7 +60,7 @@ export class Fighter {
     this.lean = 0; this.leanV = 0; this.squash = 0; this.squashV = 0;
     this.hitT = 9; this.dizzy = 0; this.blinkT = 2; this.topple = 0; this.toppleV = 0;
     this.look = { x: 1, y: 0 }; this.stuck = []; this.headTilt = 0; this.jump = 0;
-    this.capeSway = 0; this.wind = 0; this.recoil = 0;
+    this.capeSway = 0; this.wind = 0; this.recoil = 0; this.knockV = 0;
     this.setLight(DEF_LIGHT);
     this.arrowLook = { shaft: '#ecd09a', fletch: def.shirt, fletch2: '#ffffff', outline: '#21152c' };
   }
@@ -87,6 +87,9 @@ export class Fighter {
     this.leanV += (-k * this.lean - d * this.leanV) * dt; this.lean += this.leanV * dt; this.lean = clamp(this.lean, -0.5, 0.5);
     this.squashV += (-120 * this.squash - 10 * this.squashV) * dt; this.squash += this.squashV * dt;
     this.recoil = Math.max(0, this.recoil - dt * 3);
+    // knockback from arrow impacts
+    this.x += this.knockV * dt;
+    this.knockV *= Math.max(0, 1 - 3.2 * dt);
     const aiming = this.mode === 'aim';
     this.aimBlend = lerp(this.aimBlend, aiming ? 1 : 0, 1 - Math.exp(-12 * dt));
     if (!aiming) this.drawAmt = lerp(this.drawAmt, 0, 1 - Math.exp(-14 * dt));

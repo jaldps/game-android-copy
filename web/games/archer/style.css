@@ -70,3 +70,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a1428;color:#fff;fon
   #menu .logo{font-size:clamp(38px,12vw,56px);}
   #menu .modes{width:min(360px,88vw);}
 }
+#aimControls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,.55); padding: 8px 12px; border-radius: 10px; z-index: 6; pointer-events: auto; }
+#aimControls.hidden { display: none; }
+#aimControls label { color: #fff; font-size: 11px; display: flex; flex-direction: column; }
+#aimControls input[type=range] { width: 120px; }

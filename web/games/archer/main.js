@@ -42,7 +42,7 @@ const G = {
   playerSide: 0, // index into fighters
   fighters: [],
   arrow: null,
-  aim: { active: false, px: 0, py: 0, sx: 0, sy: 0, power: 0, ang: 0 },
+  aim: { active: false, px: 0, py: 0, sx: 0, sy: 0, power: 0.6, ang: 0.6 },
   wind: 0,
   hp: [100, 100],
   dmgDealt: [0, 0], hits: [0, 0], heads: [0, 0],
@@ -73,47 +73,56 @@ function makeFighter(heroId, bowId, side, hp = 100) {
 let terrainH = null; // array indexed by x (px), surface y
 function genTerrain() {
   terrainH = new Float32Array(W + 1);
-  const base = Hh * 0.78;
-  const n = mulberry(Q.seed + (G.floor || 0) * 7 + Math.floor(rng() * 999));
-  // base rolling ground
+  const base = Hh * (0.74 + Math.random() * 0.06);
+  const n = mulberry(Q.seed + (G.floor || 0) * 7 + Math.floor(rng() * 9999));
+  // base rolling ground with more harmonics
   for (let x = 0; x <= W; x++) {
     const t = x / W;
-    let h = base + Math.sin(t * Math.PI * 2.3) * 18 + Math.sin(t * Math.PI * 5.7 + 1.2) * 9;
+    let h = base + Math.sin(t * Math.PI * 2.3) * 22 + Math.sin(t * Math.PI * 5.7 + 1.2) * 11 + Math.sin(t * Math.PI * 9.1 + 0.7) * 6;
     terrainH[x] = h;
   }
-  // mountains between players (3-5)
-  const mid0 = W * 0.28, mid1 = W * 0.72;
-  const mcount = 3 + Math.floor(n() * 3);
-  for (let m = 0; m < mcount; m++) {
-    const cx = W * (0.32 + n() * 0.36);
-    const mw = 60 + n() * 90;
-    const mh = 40 + n() * 110;
+  // random mountains/hills/valleys
+  const features = 5 + Math.floor(n() * 6);
+  for (let m = 0; m < features; m++) {
+    const cx = W * (0.15 + n() * 0.7);
+    const mw = 50 + n() * 110;
+    const mh = (n() * 2 - 0.3) * 120; // can be negative (valley)
     for (let x = 0; x <= W; x++) {
       const d = Math.abs(x - cx);
       if (d < mw) {
         const k = 1 - d / mw;
         const bump = mh * (k * k * (3 - 2 * k));
-        terrainH[x] = Math.min(terrainH[x], terrainH[x] - bump); // raise (lower y)
+        terrainH[x] -= bump; // raise if positive
       }
     }
   }
-  // flatten platforms under fighters
-  const flats = [W * 0.15, W * 0.85];
-  for (const fx of flats) {
-    for (let x = fx - 70; x <= fx + 70; x++) {
-      if (x < 0 || x > W) continue;
-      terrainH[x] = Math.max(terrainH[x], base - 2); // keep not too high
+  // plateaus
+  const plats = Math.floor(n() * 3);
+  for (let p = 0; p < plats; p++) {
+    const cx = W * (0.2 + n() * 0.6);
+    const pw = 80 + n() * 120;
+    const py = base - 20 - n() * 60;
+    for (let x = Math.max(0, cx - pw); x <= Math.min(W, cx + pw); x++) {
+      terrainH[x] = Math.min(terrainH[x], py);
     }
   }
-  // ensure monotonic-ish smoothness
-  for (let pass = 0; pass < 2; pass++) {
+  // flatten platforms under fighters (will be set after positions? approximate)
+  const flats = [W * 0.15, W * 0.85];
+  for (const fx of flats) {
+    for (let x = fx - 80; x <= fx + 80; x++) {
+      if (x < 0 || x > W) continue;
+      terrainH[x] = Math.max(terrainH[x], base - 4);
+    }
+  }
+  // smooth
+  for (let pass = 0; pass < 3; pass++) {
     for (let x = 1; x < W; x++) {
       terrainH[x] = (terrainH[x - 1] + terrainH[x] + terrainH[x + 1]) / 3;
     }
   }
   // clamp
   for (let x = 0; x <= W; x++) {
-    terrainH[x] = clamp(terrainH[x], Hh * 0.45, Hh * 0.86);
+    terrainH[x] = clamp(terrainH[x], Hh * 0.4, Hh * 0.88);
   }
 }
 function surfaceY(x) {
@@ -152,7 +161,16 @@ function startTurn(who) {
   const f = G.fighters[who];
   f.setMode('aim');
   f.drawAmt = 0;
-  G.aim.active = false;
+  G.aim.active = (who === 0 || G.modeType === '2p');
+  const ac = document.getElementById('aimControls');
+  if (ac) {
+    if (G.aim.active) ac.classList.remove('hidden'); else ac.classList.add('hidden');
+  }
+  // sync sliders to current aim
+  const angSl = document.getElementById('angSlider');
+  const powSl = document.getElementById('powSlider');
+  if (angSl) { angSl.value = Math.round((G.aim.ang || 0.6) * 57.2958); }
+  if (powSl) { powSl.value = Math.round((G.aim.power || 0.6) * 100); }
   $('turn').classList.remove('hidden');
   $('turn').textContent = who === 0 ? 'YOUR TURN' : (G.modeType === '2p' ? 'PLAYER 2' : 'ENEMY TURN');
   if (who !== 0 && G.modeType !== '2p') {
@@ -302,48 +320,30 @@ function trajectoryPoints(sx, sy, ang, power, who) {
   return out;
 }
 
-// pointer input
-let dragging = false;
-canvas.addEventListener('pointerdown', e => {
-  e.preventDefault();
+// pointer input replaced by angle/power controls
+const angSlider = document.getElementById('angSlider');
+const powSlider = document.getElementById('powSlider');
+const btnFire = document.getElementById('btnFire');
+function syncAimFromControls() {
+  if (!angSlider || !powSlider) return;
+  G.aim.ang = clamp(parseInt(angSlider.value, 10) / 57.2958, 0.1, 1.4);
+  G.aim.power = clamp(parseInt(powSlider.value, 10) / 100, 0.1, 1);
+  const f = G.fighters[G.turn];
+  if (f) { f.aim = G.aim.ang; f.drawAmt = G.aim.power; }
+}
+if (angSlider) angSlider.addEventListener('input', syncAimFromControls);
+if (powSlider) powSlider.addEventListener('input', syncAimFromControls);
+if (btnFire) btnFire.addEventListener('click', () => {
   if (G.mode !== 'play' || G.paused) return;
   if (G.arrow && G.arrow.alive) return;
   const who = G.turn;
   if (G.modeType !== '2p' && who !== 0) return;
+  syncAimFromControls();
   const f = G.fighters[who];
-  const rect = canvas.getBoundingClientRect();
-  const px = (e.clientX - rect.left), py = (e.clientY - rect.top);
-  // start drag near shooter? allow anywhere left half for p0, right for p1
-  dragging = true;
-  G.aim.active = true;
-  G.aim.sx = f.x; G.aim.sy = f.y - 90;
-  G.aim.px = px; G.aim.py = py;
-  try { canvas.setPointerCapture(e.pointerId); } catch (ex) {}
-  A.SFX.draw();
-});
-canvas.addEventListener('pointermove', e => {
-  e.preventDefault();
-  if (!dragging) return;
-  const rect = canvas.getBoundingClientRect();
-  G.aim.px = e.clientX - rect.left;
-  G.aim.py = e.clientY - rect.top;
-});
-canvas.addEventListener('pointerup', e => {
-  e.preventDefault();
-  if (!dragging) return;
-  dragging = false;
-  const who = G.turn;
-  const f = G.fighters[who];
-  const dx = G.aim.sx - G.aim.px;
-  const dy = G.aim.sy - G.aim.py;
-  const power = clamp(Math.hypot(dx, dy) / 180, 0.15, 1);
-  const ang = Math.atan2(dy, Math.abs(dx));
-  if (power > 0.18 && ang > 0.05) {
-    releaseArrow(who, clamp(ang, 0.1, 1.4), power);
-    G.aim.active = false;
-  } else {
-    G.aim.active = false;
-  }
+  f.setMode('idle');
+  releaseArrow(who, G.aim.ang, G.aim.power);
+  G.aim.active = false;
+  const ac = document.getElementById('aimControls'); if (ac) ac.classList.add('hidden');
 });
 
 // rendering
@@ -453,32 +453,20 @@ function draw() {
   for (const f of G.fighters) {
     f.draw(ctx);
   }
-  // aim trajectory hint
+// aim indicator (short)
   if (G.aim.active && G.mode === 'play') {
     const f = G.fighters[G.turn];
-    const dx = G.aim.sx - G.aim.px;
-    const dy = G.aim.sy - G.aim.py;
-    const power = clamp(Math.hypot(dx, dy) / 180, 0.15, 1);
-    const ang = Math.atan2(dy, Math.abs(dx));
-    const pts = trajectoryPoints(G.aim.sx, G.aim.sy, clamp(ang, 0.1, 1.4), power, G.turn);
+    const sx = f.x, sy = f.y - 90;
+    const dir = (f.x < G.fighters[1 - G.turn].x) ? 1 : -1;
+    const ang = G.aim.ang || 0.6;
+    const len = 50;
+    const ex = sx + Math.cos(ang) * len * dir;
+    const ey = sy - Math.sin(ang) * len;
     ctx.save();
-    // Keep the preview out of the centered HUD stack; real shots still pass behind it.
-    ctx.beginPath(); ctx.rect(0, 110, W, Math.max(0, Hh - 110)); ctx.clip();
-    ctx.setLineDash([7, 6]); ctx.lineCap = 'round';
-    ctx.strokeStyle = 'rgba(28,22,48,0.64)'; ctx.lineWidth = 6;
-    ctx.beginPath();
-    if (pts.length) { ctx.moveTo(G.aim.sx, G.aim.sy); for (const p of pts) ctx.lineTo(p.x, p.y); }
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,224,122,0.9)'; ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    if (pts.length) { ctx.moveTo(G.aim.sx, G.aim.sy); for (const p of pts) ctx.lineTo(p.x, p.y); }
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // A few bright flight markers help read the arc at small landscape sizes.
-    for (let i = 3; i < pts.length; i += 5) {
-      const p = pts[i]; ctx.globalAlpha = Math.max(0.25, 0.82 - i / (pts.length * 1.4));
-      ctx.fillStyle = '#fff0b2'; ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, TAU); ctx.fill();
-    }
+    ctx.strokeStyle = 'rgba(255,224,122,0.9)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.fillStyle = '#fff0b2'; ctx.beginPath(); ctx.arc(ex, ey, 3, 0, TAU); ctx.fill();
     ctx.restore();
   }
   // arrow
@@ -525,11 +513,14 @@ function applyHit(arrow, part) {
   const armor = (outfitById(store.outfit).perk === 'armor') ? 0.7 : 1.0;
   dmg = Math.round(dmg * armor);
   target.hp = Math.max(0, target.hp - dmg);
-  G.dmgDealt[arrow.who] += dmg;
-  G.hits[arrow.who]++;
-  target.hit(part, arrow.x < target.x ? -1 : 1, 1);
-  target.addStuck && target.addStuck(part, arrow.x, arrow.y, Math.atan2(arrow.vy, arrow.vx));
-  target.leanV += (arrow.x < target.x ? -1 : 1) * 0.3;
+    G.dmgDealt[arrow.who] += dmg;
+    G.hits[arrow.who]++;
+    target.hit(part, arrow.x < target.x ? -1 : 1, 1);
+    // knockback: push target backward
+    const kbDir = arrow.x < target.x ? 1 : -1;
+    target.knockV = (target.knockV || 0) + kbDir * (part === 'head' ? 420 : 260);
+    target.leanV += (arrow.x < target.x ? -1 : 1) * 0.3;
+target.addStuck && target.addStuck(part, arrow.x, arrow.y, Math.atan2(arrow.vy, arrow.vx));
   spawnImpact(arrow.x, arrow.y);
   endTurnCheck();
 }
@@ -537,7 +528,15 @@ function applyHit(arrow, part) {
 let last = performance.now();
 function sim(dt) {
   G.time += dt;
-  for (const f of G.fighters) f.update(dt);
+  for (const f of G.fighters) {
+    f.update(dt);
+    // settle onto terrain after knockback / impacts
+    if (f.mode !== 'dead') {
+      const targetY = surfaceY(f.x);
+      f.y = lerp(f.y, targetY, 1 - Math.exp(-10 * dt));
+      f.x = clamp(f.x, 40, W - 40);
+    }
+  }
   // arrow physics
   if (G.arrow && G.arrow.alive) {
     const a = G.arrow;
@@ -671,7 +670,8 @@ function spawnImpact(x, y, miss = false) {
 function showMenu() {
   G.mode = 'menu';
   $('hud').classList.add('hidden');
-  $('menu').classList.remove('hidden');
+    $('menu').classList.remove('hidden');
+    const ac = document.getElementById('aimControls'); if (ac) ac.classList.add('hidden');
   $('over').classList.add('hidden');
   $('shop').classList.add('hidden');
   $('pause').classList.add('hidden');
