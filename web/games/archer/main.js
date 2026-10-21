@@ -6,6 +6,7 @@ import { SSAOPass } from '../../lib/addons/postprocessing/SSAOPass.js';
 import { ShaderPass } from '../../lib/addons/postprocessing/ShaderPass.js';
 import { BokehPass } from '../../lib/addons/postprocessing/BokehPass.js';
 import { OutputPass } from '../../lib/addons/postprocessing/OutputPass.js';
+import { buildArcher } from './characters.js';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
@@ -181,70 +182,11 @@ p2.castShadow = true; p2.receiveShadow = true;
 scene.add(p2);
 
 // Characters - simple but nice
-function makeArcher(isFemale, color) {
-  const g = new THREE.Group();
-  // Body
-  const bodyGeo = new THREE.CylinderGeometry(0.4, 0.5, 1.5, 12);
-  const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.7 });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.75;
-  body.castShadow = true;
-  g.add(body);
-  // Head
-  const headGeo = new THREE.SphereGeometry(0.35, 16, 16);
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xffcc99, roughness: 0.6 });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 1.85;
-  head.castShadow = true;
-  g.add(head);
-  // Eyes
-  const eyeGeo = new THREE.SphereGeometry(0.06, 8, 8);
-  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-  const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-  eyeL.position.set(-0.12, 1.9, 0.3);
-  g.add(eyeL);
-  const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-  eyeR.position.set(0.12, 1.9, 0.3);
-  g.add(eyeR);
-  // Arms
-  const armGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 8);
-  const armMat = new THREE.MeshStandardMaterial({ color, roughness: 0.7 });
-  const armL = new THREE.Mesh(armGeo, armMat);
-  armL.position.set(-0.5, 1.0, 0);
-  armL.rotation.z = 0.5;
-  armL.castShadow = true;
-  g.add(armL);
-  const armR = new THREE.Mesh(armGeo, armMat);
-  armR.position.set(0.5, 1.0, 0);
-  armR.rotation.z = -0.5;
-  armR.castShadow = true;
-  g.add(armR);
-  // Legs
-  const legGeo = new THREE.CylinderGeometry(0.12, 0.1, 1.0, 8);
-  const legMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
-  const legL = new THREE.Mesh(legGeo, legMat);
-  legL.position.set(-0.2, -0.5, 0);
-  legL.castShadow = true;
-  g.add(legL);
-  const legR = new THREE.Mesh(legGeo, legMat);
-  legR.position.set(0.2, -0.5, 0);
-  legR.castShadow = true;
-  g.add(legR);
-  // Bow
-  const bowGeo = new THREE.TorusGeometry(0.5, 0.03, 8, 16, Math.PI);
-  const bowMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.6 });
-  const bow = new THREE.Mesh(bowGeo, bowMat);
-  bow.position.set(0.6, 1.0, 0);
-  bow.rotation.z = Math.PI / 2;
-  g.add(bow);
-  return g;
-}
-
-const archerL = makeArcher(false, 0xcc2222);
+const archerL = buildArcher(scene, {female:false});
 archerL.position.set(-60, surfaceYWithCraters(-60,0)+1.0, 0);
 scene.add(archerL);
 
-const archerR = makeArcher(true, 0x2222cc);
+const archerR = buildArcher(scene, {female:true});
 archerR.position.set(60, surfaceYWithCraters(60,0)+1.0, 0);
 archerR.rotation.y = Math.PI;
 scene.add(archerR);
@@ -409,6 +351,26 @@ function loop(now) {
     }
   }
   G.arrows = G.arrows.filter(a => a.alive);
+
+  // Character idle animation
+  const t = now * 0.001;
+  for (const archer of [archerL, archerR]) {
+    const parts = archer.userData.parts;
+    if (parts) {
+      // Breathing
+      parts.upperTorso.scale.y = 1 + Math.sin(t * 2) * 0.02;
+      const isFemale = (archer === archerR);
+      // Weight shift
+      archer.rotation.z = Math.sin(t * 0.7) * 0.02;
+      // Arm sway
+      parts.armL.rotation.x = Math.sin(t * 1.2) * 0.05;
+      parts.armR.rotation.x = Math.sin(t * 1.2 + 1) * 0.05;
+      // Hair sway
+      if (parts.hairGroup) {
+        parts.hairGroup.rotation.z = Math.sin(t * 1.5) * 0.03;
+      }
+    }
+  }
 
   updateAimIndicator();
   updateHUD();
