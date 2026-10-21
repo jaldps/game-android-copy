@@ -299,6 +299,20 @@ const terrain = new THREE.Mesh(tGeo, tMat);
 terrain.receiveShadow = true;
 scene.add(terrain);
 
+// Vertex colors based on height
+const colors = [];
+for (let i = 0; i < tPos.count; i++) {
+  const y = tPos.getY(i);
+  let r, g, b;
+  if (y < 2) { r = 0.3; g = 0.6; b = 0.2; } // grass
+  else if (y < 6) { r = 0.5; g = 0.45; b = 0.3; } // dirt
+  else if (y < 10) { r = 0.6; g = 0.55; b = 0.5; } // rock
+  else { r = 0.9; g = 0.9; b = 0.95; } // snow
+  colors.push(r, g, b);
+}
+tGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+tMat.vertexColors = true;
+
 function surfaceYWithCraters(x, z) {
   let h = terrainHeight(x, z);
   for (const c of craters) {
