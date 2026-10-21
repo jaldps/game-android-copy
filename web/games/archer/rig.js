@@ -52,7 +52,8 @@ export function drawArrow(c, len, from, look, scale = 1) {
 export class Fighter {
   constructor(def, bow, side, opts = {}) {
     this.def = def; this.bow = bow; this.side = side; this.face = side < 0 ? 1 : -1;
-    this.S = opts.scale || 1; this.x = 0; this.y = 0;
+        this.S = opts.scale || 1; this.x = 0; this.y = 0;
+        this.outfit = opts.outfit || 'none'; this.outfitColor = opts.outfitColor || null;
     this.maxHp = opts.hp || 100; this.hp = this.maxHp; this.hpShown = this.hp;
     this.t = Math.random() * 10; this.mode = 'idle'; this.modeT = 0;
     this.aim = 0.6; this.drawAmt = 0; this.aimBlend = 0; this.hasArrow = true;
@@ -288,7 +289,9 @@ export class Fighter {
 
   drawTorso(c, g, L) {
     const d = this.def, ol = this.ol, P = this.P.bind(this);
-    const sP = P(d.shirt);
+    const isBikini = this.outfit && String(this.outfit).startsWith('bikini');
+    const baseShirt = isBikini ? d.skin : d.shirt;
+    const sP = P(baseShirt);
     if (d.robe) { // long royal robe covers legs
       const rt = this.torsoTrace(g, -g.hipY - 12);
       cel(c, rt, { ...P(d.shirt), L, size: 26, outline: ol, lw: 3.4 });
@@ -334,6 +337,16 @@ export class Fighter {
       // quiver strap
       c.strokeStyle = shade(d.belt, -0.1); c.lineWidth = 4.5; c.beginPath(); c.moveTo(-g.bw * 0.45, g.shY + 4); c.lineTo(g.bw * 0.5, g.hipY - 4); c.stroke();
       c.strokeStyle = ol; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-g.bw * 0.45, g.shY + 1.8); c.lineTo(g.bw * 0.5, g.hipY - 6.2); c.moveTo(-g.bw * 0.45, g.shY + 6.2); c.lineTo(g.bw * 0.5, g.hipY - 1.8); c.stroke();
+    }
+    // bikini overlay
+    if (isBikini) {
+      const col = this.outfitColor || '#d8342b';
+      const bp = P(col);
+      // top cups
+      cel(c, (cc,dx,dy)=>{ cc.moveTo(-g.bw*0.35+dx, g.shY+4+dy); cc.quadraticCurveTo(-g.bw*0.1+dx, g.shY-2+dy, g.bw*0.15+dx, g.shY+4+dy); cc.quadraticCurveTo(dx, g.shY+8+dy, -g.bw*0.35+dx, g.shY+4+dy); cc.closePath(); }, { ...bp, L, size:8, outline:ol, lw:2.2 });
+      cel(c, (cc,dx,dy)=>{ cc.moveTo(g.bw*0.05+dx, g.shY+4+dy); cc.quadraticCurveTo(g.bw*0.3+dx, g.shY-2+dy, g.bw*0.55+dx, g.shY+4+dy); cc.quadraticCurveTo(g.bw*0.3+dx, g.shY+8+dy, g.bw*0.05+dx, g.shY+4+dy); cc.closePath(); }, { ...bp, L, size:8, outline:ol, lw:2.2 });
+      // bottom
+      cel(c, (cc,dx,dy)=>{ cc.moveTo(-g.bw*0.4+dx, g.hipY-4+dy); cc.quadraticCurveTo(dx, g.hipY-10+dy, g.bw*0.4+dx, g.hipY-4+dy); cc.quadraticCurveTo(dx, g.hipY+2+dy, -g.bw*0.4+dx, g.hipY-4+dy); cc.closePath(); }, { ...bp, L, size:8, outline:ol, lw:2.2 });
     }
     // belt
     if (!d.robe) {
@@ -481,8 +494,9 @@ export class Fighter {
     const eyes = [{ x: R * 0.5, y: -R * 0.08, s: 1 }, { x: R * 0.02, y: -R * 0.1, s: 0.88 }];
     const narrow = d.eyes === 'narrow' ? 0.6 : 1;
     const beady = d.eyes === 'beady';
+    const eyeScale = d.eyeSize || (d.gender === 'female' ? 1.35 : 1);
     for (let i = 0; i < 2; i++) {
-      const e = eyes[i], rx = R * 0.21 * e.s, ry = R * 0.26 * e.s * narrow;
+      const e = eyes[i], rx = R * 0.21 * e.s * eyeScale, ry = R * 0.26 * e.s * narrow * eyeScale;
       if (d.eyes === 'patch' && i === 0) { // eye patch on front eye
         c.fillStyle = '#16121c'; c.beginPath(); c.ellipse(e.x, e.y, rx * 1.1, ry * 1.0, 0, 0, TAU); c.fill();
         c.strokeStyle = '#16121c'; c.lineWidth = 2.4; c.beginPath(); c.moveTo(e.x - rx, e.y - ry * 0.5); c.lineTo(-R * 0.9, -R * 0.55); c.moveTo(e.x + rx * 0.9, e.y - ry * 0.4); c.lineTo(R * 0.95, -R * 0.4); c.stroke();
@@ -554,6 +568,7 @@ export class Fighter {
 
   drawMouth(c, R, ex) {
     const d = this.def, ol = this.ol; const mx = R * 0.5, my = R * 0.56;
+    const lipScale = (d.lips || d.gender === 'female') ? 1.25 : 1;
     c.lineWidth = 2.6; c.strokeStyle = ol; c.lineJoin = 'round';
     const dark = '#5a1f2a', tongue = '#ff7a8a';
     const openShape = (w, h, yoff = 0, teethTop = true) => {

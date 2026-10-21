@@ -56,10 +56,15 @@ window.__fps = 0;
 
 // fighters setup
 function makeFighter(heroId, bowId, side, hp = 100) {
-  const f = new Fighter(heroById(heroId), bowById(bowId), side < 0 ? -1 : 1, { hp, scale: 1.1 });
+  const outfit = outfitById(store.outfit);
+  const hpBonus = outfit.hpBonus || 0;
+  const f = new Fighter(heroById(heroId), bowById(bowId), side < 0 ? -1 : 1, { hp: hp + hpBonus, scale: 1.1, outfit: store.outfit });
   f.x = side < 0 ? W * 0.15 : W * 0.85;
   f.y = surfaceY(f.x);
-  f.maxHp = hp; f.hp = hp; f.hpShown = hp;
+  f.maxHp = hp + hpBonus; f.hp = hp + hpBonus; f.hpShown = hp + hpBonus;
+  f.outfit = store.outfit;
+  f.outfitColor = outfit.color || null;
+  f.drawSpeed = outfit.drawSpeed || 1;
   const Aa = ARENA_LIGHT();
   f.setLight(Aa);
   return f;
@@ -300,6 +305,7 @@ function trajectoryPoints(sx, sy, ang, power, who) {
 // pointer input
 let dragging = false;
 canvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
   if (G.mode !== 'play' || G.paused) return;
   if (G.arrow && G.arrow.alive) return;
   const who = G.turn;
@@ -316,12 +322,14 @@ canvas.addEventListener('pointerdown', e => {
   A.SFX.draw();
 });
 canvas.addEventListener('pointermove', e => {
+  e.preventDefault();
   if (!dragging) return;
   const rect = canvas.getBoundingClientRect();
   G.aim.px = e.clientX - rect.left;
   G.aim.py = e.clientY - rect.top;
 });
 canvas.addEventListener('pointerup', e => {
+  e.preventDefault();
   if (!dragging) return;
   dragging = false;
   const who = G.turn;
@@ -514,7 +522,7 @@ function applyHit(arrow, part) {
   else { A.SFX.hit(); }
   dmg *= (shooter.bow.dmg || 1);
   // outfit perk armor
-  const armor = (store.outfit === 'armor') ? 0.7 : 1.0;
+  const armor = (outfitById(store.outfit).perk === 'armor') ? 0.7 : 1.0;
   dmg = Math.round(dmg * armor);
   target.hp = Math.max(0, target.hp - dmg);
   G.dmgDealt[arrow.who] += dmg;
@@ -683,7 +691,7 @@ function renderShop(tab) {
   if (tab === 'heroes') { items = HEROES; owned = store.heroes; selected = store.hero; isListOwned = true; }
   else if (tab === 'bows') { items = BOWS; owned = store.bows; selected = store.bow; isListOwned = true; }
   else if (tab === 'arrows') { items = ARROW_TYPES; owned = [store.arrowType]; selected = store.arrowType; isListOwned = false; }
-  else if (tab === 'outfits') { items = OUTFITS; owned = [store.outfit]; selected = store.outfit; isListOwned = false; }
+  else if (tab === 'outfits') { items = OUTFITS; owned = store.outfits; selected = store.outfit; isListOwned = true; }
   for (const it of items) {
     const card = document.createElement('div'); card.className = 'shopcard';
     const isOwned = isListOwned ? owned.includes(it.id) : true;
@@ -698,7 +706,8 @@ function renderShop(tab) {
         if (store.coins >= it.price) {
           store.coins = store.coins - it.price;
           if (tab === 'heroes') { const h = store.heroes; h.push(it.id); store.heroes = h; }
-          else { const b = store.bows; b.push(it.id); store.bows = b; }
+          else if (tab === 'bows') { const b = store.bows; b.push(it.id); store.bows = b; }
+          else if (tab === 'outfits') { const o = store.outfits; if (!o.includes(it.id)) o.push(it.id); store.outfits = o; }
           A.SFX.coin();
         } else { renderShop(tab); return; }
       }

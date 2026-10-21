@@ -9,10 +9,9 @@ export const store = {
   get stars() { return get('stars', {}); }, set stars(v) { set('stars', v); },           // floorIndex -> best stars
   get heroes() { return get('heroes', ['finn']); }, set heroes(v) { set('heroes', v); },
   get bows() { return get('bows', ['twig']); }, set bows(v) { set('bows', v); },
+  get outfits() { return get('outfits', ['none']); }, set outfits(v) { set('outfits', v); },
   get hero() { return get('hero', 'finn'); }, set hero(v) { set('hero', v); },
   get bow() { return get('bow', 'twig'); }, set bow(v) { set('bow', v); },
-  get arrowType() { return get('arrowType', 'standard'); }, set arrowType(v) { set('arrowType', v); },
-  get outfit() { return get('outfit', 'none'); }, set outfit(v) { set('outfit', v); },
   get arrowType() { return get('arrowType', 'standard'); }, set arrowType(v) { set('arrowType', v); },
   get outfit() { return get('outfit', 'none'); }, set outfit(v) { set('outfit', v); },
   get muted() { return get('muted', false); }, set muted(v) { set('muted', !!v); },
