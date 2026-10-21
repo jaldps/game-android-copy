@@ -32,6 +32,26 @@ function playBeep(freq, dur, vol) {
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+
+// IBL / Environment map
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene();
+// Simple gradient environment
+const envGeo = new THREE.SphereGeometry(100, 32, 16);
+const envMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  uniforms: {
+    topColor: { value: new THREE.Color(0x4488ff) },
+    bottomColor: { value: new THREE.Color(0x224422) }
+  },
+  vertexShader: 'varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: 'uniform vec3 topColor; uniform vec3 bottomColor; varying vec3 vPos; void main(){ float h = normalize(vPos).y * 0.5 + 0.5; gl_FragColor = vec4(mix(bottomColor, topColor, h), 1.0); }'
+});
+const envMesh = new THREE.Mesh(envGeo, envMat);
+envScene.add(envMesh);
+const envMap = pmremGenerator.fromScene(envScene, 0.04).texture;
+scene.environment = envMap;
+pmremGenerator.dispose();
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -229,6 +249,17 @@ composer.addPass(bokehPass);
 
 const outputPass = new OutputPass();
 composer.addPass(outputPass);
+
+// Contact shadows (ground AO decal)
+const contactShadowGeo = new THREE.PlaneGeometry(200, 200);
+const contactShadowMat = new THREE.MeshBasicMaterial({
+  color: 0x000000, transparent: true, opacity: 0.3,
+  depthWrite: false
+});
+const contactShadow = new THREE.Mesh(contactShadowGeo, contactShadowMat);
+contactShadow.rotation.x = -Math.PI / 2;
+contactShadow.position.y = 0.01;
+scene.add(contactShadow);
 
 // Ground
 const groundGeo = new THREE.PlaneGeometry(200, 200);
