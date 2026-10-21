@@ -54,6 +54,48 @@ for (let i = 0; i < 8; i++) {
   scene.add(cloud);
 }
 
+// Environment: rocks
+for (let i = 0; i < 30; i++) {
+  const rockGeo = new THREE.DodecahedronGeometry(0.5 + Math.random() * 1.5, 0);
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.9, metalness: 0.1 });
+  const rock = new THREE.Mesh(rockGeo, rockMat);
+  rock.position.set(
+    (Math.random() - 0.5) * 180,
+    0,
+    (Math.random() - 0.5) * 180
+  );
+  rock.position.y = surfaceYWithCraters(rock.position.x, rock.position.z);
+  rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+  rock.scale.set(1 + Math.random(), 0.6 + Math.random() * 0.4, 1 + Math.random());
+  rock.castShadow = true;
+  rock.receiveShadow = true;
+  scene.add(rock);
+}
+
+// Environment: trees
+for (let i = 0; i < 20; i++) {
+  const treeGroup = new THREE.Group();
+  const trunkGeo = new THREE.CylinderGeometry(0.15, 0.25, 2 + Math.random(), 8);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x553311, roughness: 0.9 });
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.y = 1;
+  trunk.castShadow = true;
+  treeGroup.add(trunk);
+  const leafGeo = new THREE.SphereGeometry(1.5 + Math.random(), 8, 6);
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x228833, roughness: 0.8 });
+  const leaves = new THREE.Mesh(leafGeo, leafMat);
+  leaves.position.y = 3;
+  leaves.castShadow = true;
+  treeGroup.add(leaves);
+  treeGroup.position.set(
+    (Math.random() - 0.5) * 160,
+    0,
+    (Math.random() - 0.5) * 160
+  );
+  treeGroup.position.y = surfaceYWithCraters(treeGroup.position.x, treeGroup.position.z);
+  scene.add(treeGroup);
+}
+
 const sun = new THREE.DirectionalLight(0xfff8e7, 1.4);
 sun.position.set(60,80,40);
 sun.castShadow = true;
@@ -302,7 +344,14 @@ function fire() {
   arrow.add(tip);
   arrow.position.set(startX, startY, 0);
   scene.add(arrow);
-  G.arrows.push({ mesh: arrow, vx, vy, vz: 0, alive: true, fromLeft });
+  const arrowData = { mesh: arrow, vx, vy, vz: 0, alive: true, fromLeft, trailPoints: [] };
+  // Create trail line
+  const trailGeo = new THREE.BufferGeometry();
+  const trailMat = new THREE.LineBasicMaterial({ color: 0xffff88, transparent: true, opacity: 0.7 });
+  const trail = new THREE.Line(trailGeo, trailMat);
+  scene.add(trail);
+  arrowData.trail = trail;
+  G.arrows.push(arrowData);
   G.flying = true;
   G.firing = true;
   G.fireRecoil = 1.0;
@@ -360,6 +409,14 @@ function loop(now) {
     ar.vx += G.wind * 0.3 * dt;
     ar.mesh.position.x += ar.vx * dt;
     ar.mesh.position.y += ar.vy * dt;
+    // Trail
+    if (ar.trailPoints) {
+      ar.trailPoints.push(ar.mesh.position.clone());
+      if (ar.trailPoints.length > 30) ar.trailPoints.shift();
+      if (ar.trail && ar.trailPoints.length > 1) {
+        ar.trail.geometry.setFromPoints(ar.trailPoints);
+      }
+    }
     const v = new THREE.Vector3(ar.vx, ar.vy, ar.vz);
     if (v.length() > 0.01) {
       ar.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.clone().normalize());
@@ -369,6 +426,7 @@ function loop(now) {
       addCrater(ar.mesh.position.x, ar.mesh.position.z, 4, 3);
       ar.alive = false;
       scene.remove(ar.mesh);
+      if (ar.trail) scene.remove(ar.trail);
       const target = ar.fromLeft ? archerR : archerL;
       const d = target.position.distanceTo(ar.mesh.position);
       if (d < 3.0) {
@@ -422,6 +480,7 @@ function loop(now) {
     if (Math.abs(ar.mesh.position.x) > 120) {
       ar.alive = false;
       scene.remove(ar.mesh);
+      if (ar.trail) scene.remove(ar.trail);
       G.flying = false;
       G.turn = 1 - G.turn;
       updateHUD();
