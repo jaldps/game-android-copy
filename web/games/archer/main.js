@@ -2,6 +2,8 @@ import * as THREE from '../../lib/three.module.js';
 import { EffectComposer } from '../../lib/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from '../../lib/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../lib/addons/postprocessing/UnrealBloomPass.js';
+import { SSAOPass } from '../../lib/addons/postprocessing/SSAOPass.js';
+import { ShaderPass } from '../../lib/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from '../../lib/addons/postprocessing/OutputPass.js';
 
 const canvas = document.getElementById('c');
@@ -32,6 +34,14 @@ sun.shadow.camera.near = 0.5;
 sun.shadow.camera.far = 300;
 scene.add(sun);
 
+// Point lights for atmosphere
+const pl1 = new THREE.PointLight(0xff8844, 0.8, 40);
+pl1.position.set(-30, 10, 20);
+scene.add(pl1);
+const pl2 = new THREE.PointLight(0x4488ff, 0.6, 40);
+pl2.position.set(30, 10, -20);
+scene.add(pl2);
+
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 500);
 camera.position.set(0, 25, 60);
 camera.lookAt(0, 5, 0);
@@ -42,6 +52,50 @@ const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.4, 0.85);
 composer.addPass(bloomPass);
+
+// SSAO
+const ssaoPass = new SSAOPass(scene, camera, window.innerWidth, window.innerHeight);
+ssaoPass.kernelRadius = 4;
+ssaoPass.minDistance = 0.005;
+ssaoPass.maxDistance = 0.1;
+composer.addPass(ssaoPass);
+
+// Color grade pass
+const colorGradeShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    saturation: { value: 1.15 },
+    contrast: { value: 1.1 },
+    warmth: { value: 0.05 },
+    vignette: { value: 0.3 }
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float saturation, contrast, warmth, vignette;
+    varying vec2 vUv;
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      // Saturation
+      float l = dot(c.rgb, vec3(0.299,0.587,0.114));
+      c.rgb = mix(vec3(l), c.rgb, saturation);
+      // Contrast
+      c.rgb = (c.rgb - 0.5) * contrast + 0.5;
+      // Warmth
+      c.r += warmth;
+      c.b -= warmth * 0.5;
+      // Vignette
+      vec2 uv = vUv * (1.0 - vUv.yx);
+      float vig = uv.x * uv.y * 15.0;
+      vig = pow(vig, vignette);
+      c.rgb *= vig;
+      gl_FragColor = c;
+    }
+  `
+};
+const colorGradePass = new ShaderPass(colorGradeShader);
+composer.addPass(colorGradePass);
+
 const outputPass = new OutputPass();
 composer.addPass(outputPass);
 
@@ -68,18 +122,52 @@ const terrain = new THREE.Mesh(tGeo, tMat);
 terrain.receiveShadow = true;
 scene.add(terrain);
 
-function surfaceY(x, z) {
+function surfaceYWithCraters(x, z) {
   return Math.sin(x*0.05)*3 + Math.cos(z*0.07)*2 + Math.sin((x+z)*0.03)*4;
+}
+
+// Destructible terrain - crater deformation
+const craters = [];
+function addCrater(cx, cz, radius, depth) {
+  craters.push({cx, cz, radius, depth});
+  // Deform terrain mesh
+  const pos = terrain.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const d = Math.sqrt((x-cx)**2 + (z-cz)**2);
+    if (d < radius) {
+      const falloff = 1 - d/radius;
+      const craterDepth = depth * falloff * falloff;
+      const currentY = pos.getY(i);
+      pos.setY(i, currentY - craterDepth);
+    }
+  }
+  terrain.geometry.attributes.position.needsUpdate = true;
+  terrain.geometry.computeVertexNormals();
+}
+
+// Modified surfaceY that accounts for craters
+function surfaceYWithCraters(x, z) {
+  let h = Math.sin(x*0.05)*3 + Math.cos(z*0.07)*2 + Math.sin((x+z)*0.03)*4;
+  for (const c of craters) {
+    const d = Math.sqrt((x-c.cx)**2 + (z-c.cz)**2);
+    if (d < c.radius) {
+      const falloff = 1 - d/c.radius;
+      h -= c.depth * falloff * falloff;
+    }
+  }
+  return h;
 }
 
 // Platforms
 const platGeo = new THREE.BoxGeometry(6, 1, 6);
 const p1 = new THREE.Mesh(platGeo, new THREE.MeshStandardMaterial({ color: 0x8b7355 }));
-p1.position.set(-60, surfaceY(-60,0)+0.5, 0);
+p1.position.set(-60, surfaceYWithCraters(-60,0)+0.5, 0);
 p1.castShadow = true; p1.receiveShadow = true;
 scene.add(p1);
 const p2 = new THREE.Mesh(platGeo, new THREE.MeshStandardMaterial({ color: 0x8b7355 }));
-p2.position.set(60, surfaceY(60,0)+0.5, 0);
+p2.position.set(60, surfaceYWithCraters(60,0)+0.5, 0);
 p2.castShadow = true; p2.receiveShadow = true;
 scene.add(p2);
 
@@ -144,11 +232,11 @@ function makeArcher(isFemale, color) {
 }
 
 const archerL = makeArcher(false, 0xcc2222);
-archerL.position.set(-60, surfaceY(-60,0)+1.0, 0);
+archerL.position.set(-60, surfaceYWithCraters(-60,0)+1.0, 0);
 scene.add(archerL);
 
 const archerR = makeArcher(true, 0x2222cc);
-archerR.position.set(60, surfaceY(60,0)+1.0, 0);
+archerR.position.set(60, surfaceYWithCraters(60,0)+1.0, 0);
 archerR.rotation.y = Math.PI;
 scene.add(archerR);
 
@@ -190,7 +278,7 @@ function fire() {
   if (G.flying || G.gameOver) return;
   const fromLeft = G.turn === 0;
   const startX = fromLeft ? -60 : 60;
-  const startY = surfaceY(startX, 0) + 2;
+  const startY = surfaceYWithCraters(startX, 0) + 2;
   const dir = fromLeft ? 1 : -1;
   const a = G.angle * Math.PI / 180;
   const speed = G.power * 0.6;
@@ -226,7 +314,7 @@ scene.add(aimLine);
 function updateAimIndicator() {
   const fromLeft = G.turn === 0;
   const sx = fromLeft ? -60 : 60;
-  const sy = surfaceY(sx, 0) + 2;
+  const sy = surfaceYWithCraters(sx, 0) + 2;
   const a = G.angle * Math.PI / 180;
   const dir = fromLeft ? 1 : -1;
   const pts = [];
@@ -235,7 +323,7 @@ function updateAimIndicator() {
     const x = sx + Math.cos(a) * t * 20 * dir;
     const y = sy + Math.sin(a) * t * 20 - 0.5 * 9.8 * t * t * 0.5;
     pts.push(new THREE.Vector3(x, y, 0));
-    if (y < surfaceY(x, 0)) break;
+    if (y < surfaceYWithCraters(x, 0)) break;
   }
   aimLine.geometry.setFromPoints(pts);
 }
@@ -257,8 +345,9 @@ function loop(now) {
     if (v.length() > 0.01) {
       ar.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.clone().normalize());
     }
-    const ySurf = surfaceY(ar.mesh.position.x, ar.mesh.position.z);
+    const ySurf = surfaceYWithCraters(ar.mesh.position.x, ar.mesh.position.z);
     if (ar.mesh.position.y <= ySurf) {
+      addCrater(ar.mesh.position.x, ar.mesh.position.z, 4, 3);
       ar.alive = false;
       scene.remove(ar.mesh);
       const target = ar.fromLeft ? archerR : archerL;
