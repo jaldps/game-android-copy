@@ -24,6 +24,36 @@ const amb = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(amb);
 const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3f8f4a, 0.4);
 scene.add(hemi);
+// Sky dome
+const skyGeo = new THREE.SphereGeometry(300, 32, 16);
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: {
+    topColor: { value: new THREE.Color(0x0077ff) },
+    bottomColor: { value: new THREE.Color(0x88ccff) },
+    offset: { value: 33 },
+    exponent: { value: 0.6 }
+  },
+  vertexShader: `varying vec3 vWorldPosition; void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vWorldPosition = wp.xyz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform vec3 topColor; uniform vec3 bottomColor; uniform float offset; uniform float exponent; varying vec3 vWorldPosition; void main(){ float h = normalize(vWorldPosition + vec3(0,offset,0)).y; gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h,0.0), exponent), 0.0)), 1.0); }`,
+  side: THREE.BackSide
+});
+const sky = new THREE.Mesh(skyGeo, skyMat);
+scene.add(sky);
+
+// Clouds
+for (let i = 0; i < 8; i++) {
+  const cloudGeo = new THREE.SphereGeometry(8 + Math.random() * 6, 8, 6);
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+  const cloud = new THREE.Mesh(cloudGeo, cloudMat);
+  cloud.position.set(
+    (Math.random() - 0.5) * 200,
+    60 + Math.random() * 30,
+    (Math.random() - 0.5) * 200
+  );
+  cloud.scale.set(1 + Math.random(), 0.4, 1 + Math.random());
+  scene.add(cloud);
+}
+
 const sun = new THREE.DirectionalLight(0xfff8e7, 1.4);
 sun.position.set(60,80,40);
 sun.castShadow = true;
@@ -222,6 +252,7 @@ scene.add(archerR);
 // Game state
 const G = {
   turn: 0,
+  screenShake: 0,
   firing: false,
   fireRecoil: 0,
   hp: [100, 100],
@@ -364,6 +395,7 @@ function loop(now) {
         }
         // Spawn impact particles
         spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 12, 0xffaa44);
+        G.screenShake = 0.5;
         if (G.hp[idx] <= 0) {
           G.gameOver = true;
           if (msg) msg.textContent = (ar.fromLeft ? 'Left' : 'Right') + ' wins!';
@@ -436,6 +468,17 @@ function loop(now) {
     G.fireRecoil = Math.max(0, (G.fireRecoil || 0) - 0.05);
     if (G.fireRecoil <= 0) G.firing = false;
   }
+
+  // Screen shake
+  if (G.screenShake > 0) {
+    G.screenShake *= 0.9;
+    camera.position.x = (Math.random() - 0.5) * G.screenShake * 2;
+    camera.position.y = 25 + (Math.random() - 0.5) * G.screenShake * 2;
+  } else {
+    camera.position.x = 0;
+    camera.position.y = 25;
+  }
+  camera.lookAt(0, 5, 0);
 
   updateAimIndicator();
   updateHUD();
