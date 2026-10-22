@@ -175,7 +175,7 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  arenaFn=arenaFn.slice(0,close)+cinematic+arenaFn.slice(close);
  source=source.slice(0,arenaStart)+arenaFn+source.slice(arenaStop);
  source=source.replace('const aspect=innerWidth/Math.max(1,innerHeight),h=11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);',
- 'const aspect=innerWidth/Math.max(1,innerHeight),h=innerHeight<430?12.2:11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();camera.position.y=innerHeight<430?7.6:7;camera.lookAt(0,innerHeight<430?2.45:2,0);renderer.setSize(innerWidth,innerHeight);');
+ 'const aspect=innerWidth/Math.max(1,innerHeight),h=innerHeight<430?12.2:11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();camera.position.y=innerHeight<430?8.2:7;camera.lookAt(0,innerHeight<430?3.05:2,0);renderer.setSize(innerWidth,innerHeight);');
  if(!source.includes('const art={')||!source.includes('g.rotation.y=side===0?.38:-.38')) throw new Error('Cinematic art-direction modifications did not apply.');
 
 
