@@ -147,7 +147,7 @@ function makeTexture(kind, salt) {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(kind === 'rock' ? 1.15 : 2, kind === 'rock' ? 1.0 : 2);
+  tex.repeat.set(kind === 'rock' ? .16 : 2, kind === 'rock' ? .24 : 2);
   tex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
   return tex;
 }
