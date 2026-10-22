@@ -34,7 +34,7 @@ export function jointPositions(B) {
 // Material: standard PBR + per-vertex roughness/metalness/emissive (aPbr), fresnel rim and hit flash.
 export function createCharacterMaterial() {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 1 });
-  const u = { uRim: { value: new THREE.Color(0xfff2dd) }, uRimAmt: { value: 0.32 }, uFlash: { value: new THREE.Color(0xffffff) }, uFlashAmt: { value: 0 } };
+  const u = { uRim: { value: new THREE.Color(0xfff2dd) }, uRimAmt: { value: 0.45 }, uFlash: { value: new THREE.Color(0xffffff) }, uFlashAmt: { value: 0 } };
   mat.userData.u = u;
   mat.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, u);
@@ -51,6 +51,17 @@ export function createCharacterMaterial() {
   };
   mat.customProgramCacheKey = () => 'archer-char-v1';
   return mat;
+}
+
+export function createOutlineMaterial(width, color) {
+  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+  m.onBeforeCompile = (s) => {
+    s.uniforms.uOutline = { value: width };
+    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nuniform float uOutline;')
+      .replace('#include <skinning_vertex>', '#include <skinning_vertex>\ntransformed += normalize(objectNormal) * uOutline;');
+  };
+  m.customProgramCacheKey = () => 'archer-outline';
+  return m;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -107,9 +118,14 @@ export class RigBuilder {
     const mesh = new THREE.SkinnedMesh(geo, material);
     mesh.add(bones[0]);
     mesh.updateMatrixWorld(true);
-    mesh.bind(new THREE.Skeleton(bones));
+    const skeleton = new THREE.Skeleton(bones);
+    mesh.bind(skeleton);
     mesh.castShadow = true; mesh.receiveShadow = false; mesh.frustumCulled = false;
-    return { mesh, bones };
+    // toon outline: inverted hull sharing the skeleton (1 extra draw, no shadow)
+    const outline = new THREE.SkinnedMesh(geo, createOutlineMaterial(this.outline ?? 0.011, this.outlineColor ?? 0x1a1030));
+    outline.bind(skeleton, mesh.bindMatrix); outline.castShadow = false; outline.frustumCulled = false; outline.renderOrder = -1;
+    mesh.add(outline);
+    return { mesh, bones, outline };
   }
 }
 function flipWinding(g) {
@@ -138,7 +154,7 @@ export class Character {
     this.root = new THREE.Group(); this.root.name = 'character:' + def.id;
     this.tilt = new THREE.Group(); this.yawNode = new THREE.Group();
     this.root.add(this.tilt); this.tilt.add(this.yawNode);
-    this.mesh = parts.mesh; this.bones = {}; parts.bones.forEach((b) => (this.bones[b.name] = b));
+    this.mesh = parts.mesh; this.outline = parts.outline; this.bones = {}; parts.bones.forEach((b) => (this.bones[b.name] = b));
     this.yawNode.add(this.mesh);
     this.boneList = parts.bones; this.rest = parts.bones.map((b) => b.position.clone());
     this.rig = parts.bones.map(() => new THREE.Matrix4());
@@ -355,5 +371,5 @@ export class Character {
     this._toWorld(_v.copy(this.bowNode.position).addScaledVector(_d, 0.3), _v3);
     out.x = _v3.x; out.y = _v3.y; return out;
   }
-  dispose() { this.mesh.geometry.dispose(); this.material.dispose(); this.bow.dispose?.(); }
+  dispose() { this.mesh.geometry.dispose(); this.material.dispose(); this.outline?.material.dispose(); this.bow.dispose?.(); }
 }
