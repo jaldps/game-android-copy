@@ -79,6 +79,7 @@ jobs:
               await page.locator('#startBtn').click(); await page.waitForFunction(()=>window.__game.state.screen==='play');
               const initial=await page.evaluate(()=>window.__game.getSnapshot());
               assert(initial.distance>0,'CRITIC FAIL: distance is missing');
+              assert(initial.aimPreviewVisible===true&&initial.aimPoints>=2,'CRITIC FAIL: wind-aware trajectory preview is missing while aiming');
               const solution=await page.evaluate(()=>window.__game.aimSolution());
               await page.evaluate(s=>window.__game.setAim(s.angle,s.power),solution);
               await page.locator('#fireBtn').click(); await page.evaluate(()=>window.__game.tick(45));
