@@ -221,5 +221,13 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  'getSnapshot:snapshot,getLayout:()=>{camera.updateProjectionMatrix();camera.updateMatrixWorld(true);return {heads:fighters.map(f=>{const p=new THREE.Vector3(f.root.position.x,f.root.position.y+3.15,f.root.position.z);p.project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}})}},aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:');
  if(!source.includes('getLayout:()=>{camera.updateProjectionMatrix();camera.updateMatrixWorld(true);return {heads:fighters.map')) throw new Error('Mobile layout diagnostics did not apply');
 
+
+ // Keep the frame-loop camera settle from undoing the mobile camera target every render.
+ const oldCameraSettle="if(state.cameraKick>.001){state.cameraKick*=Math.pow(.025,dt);camera.position.x=(rnd()-.5)*state.cameraKick;camera.position.y=7+(rnd()-.5)*state.cameraKick;camera.lookAt(0,2,0)}else{camera.position.x*=.88;camera.position.y=7+(camera.position.y-7)*.88;camera.lookAt(0,2,0)}";
+ const newCameraSettle="if(state.cameraKick>.001){state.cameraKick*=Math.pow(.025,dt);camera.position.x=(rnd()-.5)*state.cameraKick;camera.position.y=(innerHeight<430?8.2:7)+(rnd()-.5)*state.cameraKick;camera.lookAt(0,innerHeight<430?4.6:2,0)}else{camera.position.x*=.88;const baseCamY=innerHeight<430?8.2:7;camera.position.y=baseCamY+(camera.position.y-baseCamY)*.88;camera.lookAt(0,innerHeight<430?4.6:2,0)}";
+ if(!source.includes(oldCameraSettle)) throw new Error('Frame-loop camera reset target not found');
+ source=source.replace(oldCameraSettle,newCameraSettle);
+ if(!source.includes('camera.lookAt(0,innerHeight<430?4.6:2,0)}else{camera.position.x*=.88;const baseCamY')) throw new Error('Mobile camera target was not wired into frame loop');
+
 fs.writeFileSync(target,source,'utf8');
 console.log('critic polish applied:',target,source.length,'bytes');
