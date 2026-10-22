@@ -593,7 +593,7 @@ function calculateTrajectory(actor, angle, power, count) {
   const pts=[];
   for(let i=0;i<count;i++){
     const t=i*.065;
-    const x=start.x+dx*t+state.wind*.13*t*t;
+    const x=start.x+dx*t+state.wind*.065*t*t;
     const y=start.y+vy*t-.5*9.5*t*t;
     pts.push(new THREE.Vector3(x,y,start.z));
     if(y<-.2||Math.abs(x)>13) break;
@@ -686,16 +686,21 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.scre
 
 function chooseAIShot(actor, target) {
   const launch=getLaunch(actor);
-  const dx=Math.abs(target.root.position.x-launch.x);
-  const targetY=target.root.position.y+2.1;
+  const signedDistance=target.root.position.x-launch.x;
+  const dx=Math.abs(signedDistance);
+  const targetY=target.root.position.y+2.62;
   let best={score:Infinity,angle:23,power:56};
   for(let angle=7;angle<=66;angle+=1) {
     const rad=angle*Math.PI/180;
     for(let power=24;power<=100;power+=2) {
       const speed=arrowSpeed(power);
-      const vx=speed*Math.cos(rad);
-      const t=dx/Math.max(.1,vx);
-      const y=launch.y+speed*Math.sin(rad)*t-.5*9.5*t*t + state.wind*.10*t*t;
+      let t=dx/Math.max(.1,speed*Math.cos(rad));
+      // Solve the horizontal wind drift iteratively, then score the actual ballistic height.
+      for(let it=0;it<3;it++) {
+        const alongWind=actor.dir*state.wind*.065*t;
+        t=dx/Math.max(.1,speed*Math.cos(rad)+alongWind);
+      }
+      const y=launch.y+speed*Math.sin(rad)*t-.5*9.5*t*t;
       const error=Math.abs(y-targetY);
       const score=error + power*.002 + Math.abs(angle-25)*.0015;
       if(score<best.score) best={score,angle,power};
@@ -722,7 +727,7 @@ function shoot(side, automated) {
   mesh.position.copy(pos); mesh.position.z=pos.z;
   const vel=new THREE.Vector3(actor.dir*speed*Math.cos(angle),speed*Math.sin(angle),0);
   state.projectile={
-    mesh, vel, side, type:arrowType, age:0,
+    mesh, vel, side, type:arrowType, age:0, lastPos:pos.clone(),
     trail:Array.from({length:8},()=>new THREE.Vector3()), trailCount:0, trailCursor:0,
     wind:state.wind
   };
@@ -742,11 +747,17 @@ function actorSurfaceAt(x) {
 }
 function hitActor(projectile, actor) {
   const p=projectile.mesh.position;
-  const xDistance=Math.abs(p.x-actor.root.position.x);
-  if(xDistance>.58) return false;
-  if(p.y < actor.root.position.y+1.1 || p.y > actor.root.position.y+4.05) return false;
-  if(Math.abs(p.z-actor.root.position.z)>1.45) return false;
-  const headshot=p.y>actor.root.position.y+3.02 && p.y<actor.root.position.y+3.8;
+  const previous=projectile.lastPos;
+  const centerX=actor.root.position.x;
+  const minX=Math.min(previous.x,p.x), maxX=Math.max(previous.x,p.x);
+  if(minX>centerX+.58 || maxX<centerX-.58) return false;
+  const segmentX=p.x-previous.x;
+  const crossT=Math.abs(segmentX)<.0001?1:clamp((centerX-previous.x)/segmentX,0,1);
+  const hitY=lerp(previous.y,p.y,crossT);
+  const hitZ=lerp(previous.z,p.z,crossT);
+  if(hitY < actor.root.position.y+1.1 || hitY > actor.root.position.y+4.05) return false;
+  if(Math.abs(hitZ-actor.root.position.z)>1.45) return false;
+  const headshot=hitY>actor.root.position.y+3.02 && hitY<actor.root.position.y+3.8;
   const baseDamage=projectile.type==='ember'?32:projectile.type==='frost'?21:26;
   const damage=Math.round(headshot?baseDamage*1.75:baseDamage);
   actor.hp=clamp(actor.hp-damage,0,100);
@@ -757,7 +768,7 @@ function hitActor(projectile, actor) {
   actor.root.rotation.z=actor.side===0?-.07:.07;
   state.hitStop = headshot ? .15 : .07;
   state.cameraKick=.22;
-  const point=p.clone(); point.z+=.1;
+  const point=new THREE.Vector3(centerX,hitY,hitZ+.1);
   spawnSparks(point,projectile.type,headshot?34:22);
   const hitLabel = headshot ? 'HEADSHOT!' : projectile.type === 'ember' ? 'EMBER HIT!' : projectile.type === 'frost' ? 'FROST HIT!' : 'SOLID HIT!';
   showMessage(hitLabel + '  −' + damage, headshot ? '' : 'damage');
@@ -823,6 +834,7 @@ function tickProjectile(dt) {
   const p=state.projectile;
   if(!p) return;
   p.age+=dt;
+  p.lastPos.copy(p.mesh.position);
   p.vel.x+=p.wind*.13*dt;
   p.vel.y-=9.5*dt;
   p.mesh.position.addScaledVector(p.vel,dt);
