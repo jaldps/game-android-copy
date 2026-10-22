@@ -157,6 +157,7 @@ jobs:
 
       - name: Build the full release APK
         run: |
+          mkdir -p artifacts
           bash tools/apk.sh
           test -s dist/ClearplayArcade.apk
           unzip -l dist/ClearplayArcade.apk | grep -q "assets/games/archer/index.html"
