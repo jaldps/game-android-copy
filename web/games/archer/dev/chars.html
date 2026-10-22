@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Character Viewer</title>
+<script type="importmap">{"imports":{"three":"../../../lib/three.module.js","three/addons/":"../../../lib/addons/"}}</script>
+<style>html,body{margin:0;height:100%;background:#8ec9ee;overflow:hidden}canvas{display:block;width:100%;height:100%}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// Dev-only character turntable for the Characters specialist: ?anim=idle|walk|aim|victory|defeat|dead|fall&angle=40&draw=1&yaw=0.95
+import * as THREE from 'three';
+import { CHARACTERS, OUTFITS, createCharacter } from '../characters/index.js';
+const q = new URLSearchParams(location.search);
+const r = new THREE.WebGLRenderer({ canvas: c, antialias: true }); r.setPixelRatio(Math.min(2, devicePixelRatio)); r.setSize(innerWidth, innerHeight, false);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true;
+const s = new THREE.Scene(); s.background = new THREE.Color(0x8ec9ee); { const pm = new THREE.PMREMGenerator(r); s.environment = pm.fromScene(new (await import("three/addons/environments/RoomEnvironment.js")).RoomEnvironment(), 0.04).texture; s.environmentIntensity = 0.5; }
+const cam = new THREE.PerspectiveCamera(26, innerWidth / innerHeight, 0.1, 100); cam.position.set(0, 1.6, 13); cam.lookAt(0, 1.1, 0);
+s.add(new THREE.HemisphereLight(0xcfe6ff, 0xb0906a, 1.1));
+const sun = new THREE.DirectionalLight(0xffe0b0, 3.2); sun.position.set(-4, 8, 6); sun.castShadow = true; s.add(sun);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(8, 32), new THREE.MeshStandardMaterial({ color: 0x7cc35a })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
+const list = [];
+const outs = Object.values(OUTFITS);
+outs.forEach((o, i) => {
+  const ch = createCharacter(CHARACTERS.find((d) => d.id === o.char), o);
+  ch.root.position.set((i - (outs.length - 1) / 2) * 2.1, 0, 0);
+  ch.setFacing(i % 2 ? -1 : 1); ch.root.scale.multiplyScalar(1);
+  ch.setAnim(q.get('anim') || 'idle'); ch.setAim((+(q.get('angle') || 35)) * Math.PI / 180 * 1 + (i % 2 ? Math.PI - 2 * (+(q.get('angle') || 35)) * Math.PI / 180 : 0), +(q.get('draw') || 1));
+  s.add(ch.root); list.push(ch);
+});
+let last = performance.now();
+function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; for (const ch of list) ch.update(dt); r.render(s, cam); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script></body></html>

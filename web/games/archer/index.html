@@ -2,132 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#10172b">
-  <meta name="build-revision" content="2026-10-22-v4-critic-passed">
-  <title>Bowbrawl — Skyfall Circuit</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0d1630">
+  <title>Bowbrawl</title>
   <script type="importmap">{"imports":{"three":"../../lib/three.module.js","three/addons/":"../../lib/addons/"}}</script>
   <link rel="stylesheet" href="../../shared/fonts.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="meta/meta.css">
+  <link rel="icon" href="data:,">
 </head>
 <body>
-  <main id="gameRoot" aria-label="Bowbrawl archery duel">
-    <canvas id="c" aria-label="3D archery arena"></canvas>
-    <div class="atmosphere" aria-hidden="true"></div>
-
-    <header class="topbar">
-      <div class="brand-lockup">
-        <button class="icon-button" id="homeBtn" aria-label="Back to arcade" title="Arcade home">⌂</button>
-        <div class="brand-copy">
-          <strong>BOW<span>BRAWL</span></strong>
-          <small>SKYFALL CIRCUIT <i></i> DUEL 01</small>
-        </div>
-      </div>
-      <div class="round-badge"><span>ROUND</span><b id="roundNum">01</b><em>/ ∞</em></div>
-      <div class="top-actions">
-        <div class="wind-pill"><span class="wind-glyph" id="windGlyph">➜</span><span id="wind">WIND · 2</span></div>
-        <button class="icon-button" id="muteBtn" aria-label="Toggle sound" title="Toggle sound">♫</button>
-        <button class="icon-button" id="pauseBtn" aria-label="Pause game" title="Pause">Ⅱ</button>
-      </div>
-    </header>
-
-    <section class="combat-hud" aria-label="Fighter status">
-      <article class="fighter-card fighter-left" id="leftPanel">
-        <div class="fighter-emblem raven-emblem"><span>R</span><i></i></div>
-        <div class="fighter-stats">
-          <div class="fighter-heading"><div><small>SHADOW CLAN</small><strong id="leftName">RAVEN</strong></div><b id="leftHpText">100</b></div>
-          <div class="health-track"><i id="hpL"></i><span></span></div>
-          <div class="fighter-subline"><span>RONIN · LV 07</span><span id="leftStatus">READY</span></div>
-        </div>
-      </article>
-      <div class="versus-mark" aria-hidden="true"><span>V</span><i>S</i></div>
-      <article class="fighter-card fighter-right" id="rightPanel">
-        <div class="fighter-stats">
-          <div class="fighter-heading"><div><small>EMBER ORDER</small><strong id="rightName">VEXA</strong></div><b id="rightHpText">100</b></div>
-          <div class="health-track"><i id="hpR"></i><span></span></div>
-          <div class="fighter-subline"><span id="rightStatus">READY</span><span>DUELIST · LV 09</span></div>
-        </div>
-        <div class="fighter-emblem vexa-emblem"><span>V</span><i></i></div>
-      </article>
-    </section>
-
-    <div class="turn-banner" id="turnBanner"><i></i><span id="turn">YOUR TURN</span><i></i></div>
-    <div class="aim-hint" id="aimHint"><span class="hint-dot"></span> DRAG TO AIM <b>·</b> RELEASE TO SET POWER</div>
-    <div class="event-callout" id="msg" aria-live="polite"></div>
-
-    <section class="control-dock" id="controls" aria-label="Aim and shoot controls">
-      <div class="aim-control">
-        <div class="control-heading"><label for="angle">ANGLE</label><output id="angleVal" for="angle">23°</output></div>
-        <input id="angle" type="range" min="5" max="70" value="23" aria-label="Shot angle">
-        <div class="range-ends"><span>LOW ARC</span><span>HIGH ARC</span></div>
-      </div>
-      <div class="power-control">
-        <div class="control-heading"><label for="power">DRAW POWER</label><output id="powerVal" for="power">56%</output></div>
-        <input id="power" type="range" min="20" max="100" value="56" aria-label="Draw power">
-        <div class="range-ends"><span>SOFT</span><span>FULL DRAW</span></div>
-      </div>
-      <div class="ammo-control">
-        <div class="ammo-label">ARROWHEAD</div>
-        <div class="arrow-options" role="group" aria-label="Arrow type">
-          <button class="arrow-option selected" data-arrow="standard" aria-pressed="true"><i class="arrow-symbol standard-symbol"></i><span>STANDARD</span></button>
-          <button class="arrow-option" data-arrow="ember" aria-pressed="false"><i class="arrow-symbol ember-symbol"></i><span>EMBER</span></button>
-          <button class="arrow-option" data-arrow="frost" aria-pressed="false"><i class="arrow-symbol frost-symbol"></i><span>FROST</span></button>
-        </div>
-      </div>
-      <button id="fireBtn" class="fire-button">
-        <span class="fire-rune">➤</span>
-        <span class="fire-copy"><b>RELEASE</b><small id="fireSub">LOOSE YOUR ARROW</small></span>
-        <span class="fire-key">SPACE</span>
-      </button>
-    </section>
-
-    <div class="bottom-meta"><span><i></i> WIND AFFECTS FLIGHT</span><span>HEADSHOTS DEAL BONUS DAMAGE</span><span id="fpsTag">SKYFALL · LIVE</span></div>
-
-    <section id="menu" class="screen-overlay menu-overlay">
-      <div class="menu-backdrop"></div>
-      <div class="menu-content">
-        <div class="eyebrow"><i></i> THE FLOATING KINGDOMS <i></i></div>
-        <h1>BOW<span>BRAWL</span></h1>
-        <p class="menu-subtitle">One arrow. One opening. One legend.</p>
-        <div class="hero-showcase">
-          <article class="hero-card">
-            <div class="hero-token token-raven">R</div>
-            <div><small>SHADOW CLAN</small><strong>RAVEN</strong><span>Silent blade · Precision</span></div>
-          </article>
-          <div class="showcase-cross">VS</div>
-          <article class="hero-card">
-            <div class="hero-token token-vexa">V</div>
-            <div><small>EMBER ORDER</small><strong>VEXA</strong><span>Sunforged · Aggression</span></div>
-          </article>
-        </div>
-        <button id="startBtn" class="primary-button"><span>ENTER THE ARENA</span><b>↗</b></button>
-        <div class="menu-footer"><span>TURN-BASED ARCHERY DUEL</span><span>DRAG · AIM · RELEASE</span></div>
-      </div>
-      <div class="menu-side-note"><b>01</b><span>THE SKYFALL<br>CITADEL</span><i></i><small>WIND IS NEVER<br>ON YOUR SIDE</small></div>
-    </section>
-
-    <section id="pauseOverlay" class="screen-overlay modal-overlay hidden">
-      <div class="modal-card">
-        <div class="eyebrow">TAKE A BREATH</div>
-        <h2>PAUSED</h2>
-        <p>The wind won't wait forever.</p>
-        <button id="resumeBtn" class="primary-button"><span>BACK TO THE DUEL</span><b>↗</b></button>
-        <button id="pauseHomeBtn" class="secondary-button">LEAVE ARENA</button>
-      </div>
-    </section>
-
-    <section id="victory" class="screen-overlay modal-overlay hidden">
-      <div class="modal-card result-card">
-        <div class="result-sigil" id="resultSigil">✦</div>
-        <div class="eyebrow" id="resultEyebrow">DUEL COMPLETE</div>
-        <h2 class="winner" id="winner">VICTORY</h2>
-        <p id="resultLine">The sky remembers your shot.</p>
-        <div class="result-stats"><div><small>HEADSHOTS</small><b id="headshotCount">00</b></div><div><small>DAMAGE DEALT</small><b id="damageCount">000</b></div><div><small>BEST STREAK</small><b id="streakCount">01</b></div></div>
-        <button id="rematchBtn" class="primary-button"><span>REMATCH</span><b>↗</b></button>
-        <button id="resultHomeBtn" class="secondary-button">BACK TO ARCADE</button>
-      </div>
-    </section>
-  </main>
+  <canvas id="c" aria-label="Bowbrawl battlefield"></canvas>
+  <div id="hud" class="hud hidden"></div>
+  <div id="screens"></div>
+  <div id="boot"><div class="boot-logo">BOW<span>BRAWL</span></div><div class="boot-bar"><i></i></div></div>
   <script type="module" src="main.js"></script>
 </body>
 </html>
