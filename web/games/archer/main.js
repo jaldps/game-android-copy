@@ -473,7 +473,7 @@ function fire() {
   const arrowData = { mesh: arrow, vx, vy, vz: 0, alive: true, fromLeft, trailPoints: [], bounces: 0 };
   // Create trail line
   const trailGeo = new THREE.BufferGeometry();
-  const trailMat = new THREE.LineBasicMaterial({ color: 0xffff88, transparent: true, opacity: 0.7 });
+  const trailMat = new THREE.LineBasicMaterial({ color: 0xffff88, transparent: true, opacity: 0.8, linewidth: 2 });
   const trail = new THREE.Line(trailGeo, trailMat);
   scene.add(trail);
   arrowData.trail = trail;
@@ -829,6 +829,13 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.key === 'p' || e.key === 'P') {
     G.paused = !G.paused;
+  }
+});
+
+// Pause when tab hidden
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    G.paused = true;
   }
 });
 
