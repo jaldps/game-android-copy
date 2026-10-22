@@ -178,5 +178,18 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  'const aspect=innerWidth/Math.max(1,innerHeight),h=innerHeight<430?12.2:11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();camera.position.y=innerHeight<430?7.6:7;camera.lookAt(0,innerHeight<430?2.45:2,0);renderer.setSize(innerWidth,innerHeight);');
  if(!source.includes('const art={')||!source.includes('g.rotation.y=side===0?.38:-.38')) throw new Error('Cinematic art-direction modifications did not apply.');
 
+
+ // Turn-based artillery clarity: show the actual wind-adjusted arrow arc while the player aims.
+ source=source.replace('scene.add(trailLine);const fx=[];',
+ 'scene.add(trailLine);const aimGuide=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:0x6bf1df,dashSize:.17,gapSize:.10,transparent:true,opacity:.88,depthTest:false,depthWrite:false}));aimGuide.visible=false;aimGuide.renderOrder=12;scene.add(aimGuide);const fx=[];');
+ const aimFunction = "function updateAimPreview(){const visible=state.screen==='play'&&state.turn==='player'&&!state.projectile&&!state.autoPilot;aimGuide.visible=visible;if(!visible)return;const start=new THREE.Vector3();fighters[0].launcher.getWorldPosition(start);const angle=state.angle*Math.PI/180,v=speed(state.power),wind=state.selected.arrow==='storm'?state.wind*.2:state.wind,pts=[];for(let i=0;i<75;i++){const t=i*.045,x=start.x+v*Math.cos(angle)*t+wind*.07*t*t,y=start.y+v*Math.sin(angle)*t-4.8*t*t;pts.push(new THREE.Vector3(x,y,1.12));if(i>2&&x>fighters[1].root.position.x+1.15)break;const floor=terrainHeight(x);if(floor>-50&&y<floor+.1)break;if(y< -3.8)break;}const old=aimGuide.geometry;aimGuide.geometry=new THREE.BufferGeometry().setFromPoints(pts);aimGuide.computeLineDistances();old.dispose();aimGuide.material.color.setHex(state.selected.arrow==='ember'?0xff9862:state.selected.arrow==='frost'?0x71edff:state.selected.arrow==='storm'?0x9effb0:0x6bf1df);}";
+ if(!source.includes('function updateHUD(){')) throw new Error('Aim-preview patch could not find HUD function');
+ source=source.replace('function updateHUD(){',aimFunction+'\\nfunction updateHUD(){');
+ source=source.replace("if(l)l.textContent=state.selected.character.toUpperCase()+' · '+state.selected.bow.toUpperCase()}",
+ "if(l)l.textContent=state.selected.character.toUpperCase()+' · '+state.selected.bow.toUpperCase();updateAimPreview()}");
+ source=source.replace("projectileActive:!!state.projectile,points:state.points",
+ "projectileActive:!!state.projectile,aimPreviewVisible:!!aimGuide.visible,aimPoints:aimGuide.geometry.attributes.position?.count||0,points:state.points");
+ if(!source.includes('function updateAimPreview()')||!source.includes('aimPreviewVisible:!!aimGuide.visible')) throw new Error('Aim-preview patch did not apply');
+
 fs.writeFileSync(target,source,'utf8');
 console.log('critic polish applied:',target,source.length,'bytes');
