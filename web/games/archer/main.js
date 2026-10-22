@@ -147,7 +147,7 @@ function makeTexture(kind, salt) {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(kind === 'rock' ? 2.5 : 2, kind === 'rock' ? 1.1 : 2);
+  tex.repeat.set(kind === 'rock' ? 1.15 : 2, kind === 'rock' ? 1.0 : 2);
   tex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
   return tex;
 }
@@ -155,7 +155,7 @@ const rockTexture = makeTexture('rock', 1);
 const grassTexture = makeTexture('grass', 2);
 const woodTexture = makeTexture('wood', 3);
 const rockMat = new THREE.MeshStandardMaterial({ map: rockTexture, color: 0xd4c0b7, roughness: .93, metalness: .015 });
-const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture, color: 0xe1e3bd, roughness: .96 });
+const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture, color: 0xffffff, roughness: .96 });
 const woodMat = new THREE.MeshStandardMaterial({ map: woodTexture, color: 0xc5a07c, roughness: .72 });
 const darkMetal = new THREE.MeshStandardMaterial({ color: 0x344258, roughness: .38, metalness: .72 });
 const goldMetal = new THREE.MeshStandardMaterial({ color: 0xe1b36f, roughness: .31, metalness: .7, emissive: 0x2f1607, emissiveIntensity: .18 });
@@ -248,14 +248,14 @@ addRuin(10.3, .4, -5.8, 1.5, emberMat);
 addRuin(-12.6, -1, -7.7, .7, crystalMat);
 addRuin(12.5, -.8, -7.7, .8, emberMat);
 
-const platformSurfaceY = .52;
+const platformSurfaceY = .63;
 function buildIsland(isLeft) {
   const island = new THREE.Group();
   island.position.set(isLeft ? -9.3 : 9.3, 0, -2.3);
   island.scale.x = isLeft ? 1 : -1;
   const shape = new THREE.Shape();
-  shape.moveTo(-.7, .43);
-  shape.lineTo(7.25, .43);
+  shape.moveTo(-.7, .58);
+  shape.lineTo(7.25, .58);
   shape.lineTo(7.42, .02);
   shape.lineTo(6.97, -.66);
   shape.lineTo(7.3, -1.2);
@@ -276,17 +276,41 @@ function buildIsland(isLeft) {
   geo.computeVertexNormals();
   const body = new THREE.Mesh(geo, rockMat);
   body.castShadow = true; body.receiveShadow = true; island.add(body);
-  const turf = new THREE.Mesh(new THREE.PlaneGeometry(7.76, 4.35), grassMat);
+  const turf = new THREE.Mesh(new THREE.PlaneGeometry(7.76, 4.5), grassMat);
   turf.rotation.x = -Math.PI/2;
-  turf.position.set(3.27, platformSurfaceY, 2.23);
+  turf.position.set(3.27, platformSurfaceY, 2.27);
   turf.receiveShadow = true; island.add(turf);
 
-  // Hand-built lip stones, tiny banners, rivets and luminous seams break up the silhouette.
-  for (let i = 0; i < 13; i++) {
-    const x = .05 + random() * 6.9;
-    const y = -.6 - random() * 2.8;
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(.25 + random() * .6, .035 + random() * .035, .045), i % 4 === 0 ? goldMetal : darkMetal);
-    seam.position.set(x, y, 2.34);
+  // A fringe of grass tufts catches the sunset and gives the islands a soft organic edge.
+  const tuftGeo = new THREE.ConeGeometry(.045, .2, 4);
+  const tuftMat = new THREE.MeshStandardMaterial({ color: 0x82ba69, roughness: .94, side: THREE.DoubleSide });
+  const tuftMesh = new THREE.InstancedMesh(tuftGeo, tuftMat, 72);
+  const tuftDummy = new THREE.Object3D();
+  for (let i = 0; i < 72; i++) {
+    const x = .12 + random() * 6.75;
+    const z = random() < .58 ? 3.92 + random() * .3 : .14 + random() * .28;
+    tuftDummy.position.set(x, platformSurfaceY + .1, z);
+    tuftDummy.rotation.set((random()-.5)*.18, random()*Math.PI, (random()-.5)*.18);
+    const s = .65 + random()*.75;
+    tuftDummy.scale.set(s, s, s);
+    tuftDummy.updateMatrix();
+    tuftMesh.setMatrixAt(i, tuftDummy.matrix);
+    tuftMesh.setColorAt(i, new THREE.Color().setHSL(.23 + random()*.035, .31 + random()*.2, .4 + random()*.17));
+  }
+  tuftMesh.instanceMatrix.needsUpdate = true;
+  tuftMesh.castShadow = false;
+  tuftMesh.receiveShadow = true;
+  island.add(tuftMesh);
+
+  // Raised strata sit on the visible rock face (the camera-facing side of the extrusion).
+  // Alternating dark seams, warm mineral bands and small energized fissures break up the tiled look.
+  for (let i = 0; i < 18; i++) {
+    const x = .2 + random() * 6.65;
+    const depth = Math.max(.7, 3.85 - .04*x*x - .03*x);
+    const y = -.52 - random() * depth;
+    const seamMaterial = i % 6 === 0 ? (isLeft ? crystalMat : emberMat) : i % 4 === 0 ? goldMetal : darkMetal;
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(.24 + random() * .72, .028 + random() * .038, .045), seamMaterial);
+    seam.position.set(x, y, 4.68);
     seam.rotation.z = (random() - .5) * .18;
     island.add(seam);
   }
