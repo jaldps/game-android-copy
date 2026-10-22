@@ -306,5 +306,27 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  "window.addEventListener('resize',()=>{const a=innerWidth/Math.max(1,innerHeight),h=innerHeight<430?12.2:11.3;camera.left=-h*a/2;camera.right=h*a/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();camera.position.y=innerHeight<430?8.2:7;camera.lookAt(0,innerHeight<430?4.6:2,0);renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7))});");
  if(!source.includes('new THREE.LatheGeometry(muscleProfile,36)')||!source.includes('new THREE.LatheGeometry(hourglassProfile,40)')||!source.includes('maskShape=new THREE.Shape()')||!source.includes('waveL=new THREE.CatmullRomCurve3')||!source.includes('function makeBow(){'))throw new Error('Sculpted model validation failed.');
 
+
+ // Screenshot-driven environment pass: eliminate the foreground-looking cone forest and floaty black bridge bricks.
+ const oldColumns="for(let i=0;i<9;i++){const h=1.5+rnd()*4.5;part(decor,new THREE.CylinderGeometry(.28+rnd()*.25,.5+rnd()*.35,h,7),new THREE.MeshStandardMaterial({color:colors[arena.theme],roughness:.8}),[-12+i*3+rnd()*.7,-1.6,-4.4-rnd()*2])}";
+ if(!source.includes(oldColumns))throw new Error("Environment polish could not locate the repetitive background columns.");
+ source=source.replace(oldColumns,"");
+ const oldBridge="if(arena.theme==='bridge')for(let x=arena.L.x+arena.L.w/2+.3;x<arena.R.x-arena.R.w/2-.3;x+=1.05)part(decor,new THREE.BoxGeometry(.78,.16,2.8),M.metal,[x,.08,-1.9]);";
+ const newBridge="if(arena.theme==='bridge'){const bridgeY=(arena.L.y+arena.R.y)/2+.7;const plankColors=[0x79513d,0x8a6045,0x6c4738,0x95694a];for(let x=arena.L.x+arena.L.w/2+.25;x<arena.R.x-arena.R.w/2-.2;x+=.92){const plankIndex=Math.abs(Math.floor(x*10))%plankColors.length;const wood=new THREE.MeshStandardMaterial({color:plankColors[plankIndex],roughness:.78,metalness:.06});part(decor,new THREE.BoxGeometry(.88,.095,1.35),wood,[x,bridgeY,-.12]);for(const side of[-1,1])part(decor,new THREE.SphereGeometry(.026,8,6),M.gold,[x+side*.31,bridgeY+.052,.47]);}const railMat=new THREE.MeshStandardMaterial({color:0x3a2830,roughness:.9});for(const z of[-.78,.54]){const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(arena.L.x+arena.L.w/2,bridgeY+.31,z),new THREE.Vector3(0,bridgeY+.16,z),new THREE.Vector3(arena.R.x-arena.R.w/2,bridgeY+.31,z)]);const cable=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.025,7,false),railMat);decor.add(cable);}}";
+ if(!source.includes(oldBridge))throw new Error("Environment polish could not locate the bridge plank loop.");
+ source=source.replace(oldBridge,newBridge);
+ const oldMountains="for(let i=0;i<17;i++){const x=-18+i*2.25+(rnd()-.5)*.65,h=2.1+rnd()*4.8,depth=-9.8-rnd()*2.5;const mountain=part(decor,new THREE.ConeGeometry(.85+rnd()*.8,h,5),mountainMats[i%3],[x,-2.1+h*.43,depth],[1,1,.36]);mountain.rotation.y=rnd()*Math.PI;if(i%4===0)part(decor,new THREE.ConeGeometry(.13,.65,5),warmAura,[x,-2.1+h*.43+h*.34,depth+.08],[1,1,.3]);}";
+ const newMountains=[
+ "const ridgeBack=new THREE.MeshBasicMaterial({color:art.top,transparent:true,opacity:.88,depthWrite:false,side:THREE.DoubleSide});",
+ "const ridgeFront=new THREE.MeshBasicMaterial({color:art.fog,transparent:true,opacity:.62,depthWrite:false,side:THREE.DoubleSide});",
+ "const makeRidge=(tops,z,mat)=>{const s=new THREE.Shape();s.moveTo(-20,-4.15);for(let i=0;i<tops.length;i++)s.lineTo(-20+i*2.5,tops[i]);s.lineTo(20,-4.15);s.closePath();const m=new THREE.Mesh(new THREE.ShapeGeometry(s),mat);m.position.z=z;decor.add(m);return m;};",
+ "makeRidge([-1.6,-.8,-1.1,.1,-.6,.6,-.4,-.1,.5,-.3,-1,.4,-.5,.9,-.1,-.6,-1.3],-11.5,ridgeBack);",
+ "makeRidge([-2.3,-1.4,-1.7,-.8,-1.5,-.5,-1.2,-.75,-.2,-.8,-1.5,-.4,-1,-.1,-.7,-1.4,-2.1],-9.7,ridgeFront);",
+ "for(const x of[-17,-13,-9,9,13,17]){const h=1.9+rnd()*1.15;const towerMat=new THREE.MeshBasicMaterial({color:art.top,transparent:true,opacity:.78});part(decor,new THREE.CylinderGeometry(.12,.25,h,7),towerMat,[x,-3.25+h/2,-8.8]);part(decor,new THREE.ConeGeometry(.22,.5,6),towerMat,[x,-3.25+h+.22,-8.8]);}"
+ ].join("");
+ if(!source.includes(oldMountains))throw new Error("Environment polish could not locate the repeated cone-mountain loop.");
+ source=source.replace(oldMountains,newMountains);
+ if(source.includes(oldColumns)||source.includes(oldBridge)||source.includes(oldMountains)||!source.includes("const bridgeY=(arena.L.y+arena.R.y)/2+.7")||!source.includes("const makeRidge=(tops,z,mat)=>"))throw new Error("Environment polish verification failed.");
+
 fs.writeFileSync(target,source,'utf8');
 console.log('critic polish applied:',target,source.length,'bytes');
