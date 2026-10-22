@@ -327,6 +327,41 @@ const terrain = new THREE.Mesh(tGeo, tMat);
 terrain.receiveShadow = true;
 scene.add(terrain);
 
+// Grass blades with wind
+const grassCount = 2000;
+const grassGeo = new THREE.PlaneGeometry(0.1, 0.5);
+const grassMat = new THREE.MeshStandardMaterial({
+  color: 0x44aa33, side: THREE.DoubleSide, roughness: 0.9
+});
+const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
+const dummy = new THREE.Object3D();
+for (let i = 0; i < grassCount; i++) {
+  const x = (Math.random() - 0.5) * 180;
+  const z = (Math.random() - 0.5) * 180;
+  const y = surfaceYWithCraters(x, z);
+  dummy.position.set(x, y + 0.25, z);
+  dummy.rotation.y = Math.random() * Math.PI;
+  dummy.scale.set(1, 0.5 + Math.random() * 0.5, 1);
+  dummy.updateMatrix();
+  grassMesh.setMatrixAt(i, dummy.matrix);
+}
+grassMesh.instanceMatrix.needsUpdate = true;
+grassMesh.castShadow = false;
+grassMesh.receiveShadow = true;
+scene.add(grassMesh);
+
+// Wind animation for grass (vertex shader would be better, but this is a simple approach)
+function updateGrassWind(t) {
+  for (let i = 0; i < grassCount; i++) {
+    grassMesh.getMatrixAt(i, dummy.matrix);
+    dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+    dummy.rotation.z = Math.sin(t * 2 + i * 0.1) * 0.15;
+    dummy.updateMatrix();
+    grassMesh.setMatrixAt(i, dummy.matrix);
+  }
+  grassMesh.instanceMatrix.needsUpdate = true;
+}
+
 // Vertex colors based on height
 const colors = [];
 for (let i = 0; i < tPos.count; i++) {
@@ -799,6 +834,7 @@ function loop(now) {
   }
 
   updateClouds(dt);
+  updateGrassWind(t);
   updateAimIndicator();
   updateHUD();
 
