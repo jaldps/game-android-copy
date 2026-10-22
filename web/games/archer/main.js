@@ -38,6 +38,11 @@ function random() {
 }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
+// Desktop browsers often log a warning for navigator.vibrate outside a trusted tap.
+// The Android app exposes a native vibration bridge, so keep haptics native-only.
+function haptic(ms) {
+  if (window.AndroidHost) vibrate(ms);
+}
 
 const renderer = new THREE.WebGLRenderer({
   canvas, antialias: true, alpha: false, powerPreference: 'high-performance'
@@ -831,7 +836,7 @@ function shoot(side, automated) {
   flightTrail.visible=false;
   state.turn='flight'; state.shots++;
   trajectory.visible=false; ui.aimHint.classList.add('hidden'); updateHud();
-  soundFire(); vibrate(18);
+  soundFire(); haptic(18);
   // A small tension snap is visible before the arrow crosses the frame.
   showMessage(side===0?'DRAW. RELEASE.':'COUNTERSHOT',side===0?'':'damage');
 }
@@ -867,7 +872,7 @@ function hitActor(projectile, actor) {
   spawnSparks(point,projectile.type,headshot?34:22);
   const hitLabel = headshot ? 'HEADSHOT!' : projectile.type === 'ember' ? 'EMBER HIT!' : projectile.type === 'frost' ? 'FROST HIT!' : 'SOLID HIT!';
   showMessage(hitLabel + '  −' + damage, headshot ? '' : 'damage');
-  soundHit(headshot); vibrate(headshot?42:24);
+  soundHit(headshot); haptic(headshot?42:24);
   if(headshot) sound(1040,.22,'triangle',.055,520);
   updateHud();
   endProjectile(true, actor);
