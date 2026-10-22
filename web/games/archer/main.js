@@ -25,7 +25,7 @@ const state = {
   screen: 'menu', turn: 'player', round: 1, selectedArrow: 'standard',
   angle: 23, power: 56, wind: 1.8, muted: false,
   projectile: null, pending: 0, aiWait: 0, autoWait: 0, resetWait: 0,
-  time: 0, cameraKick: 0, totalDamage: 0, headshots: 0, streak: 0,
+  time: 0, cameraKick: 0, hitStop: 0, totalDamage: 0, headshots: 0, streak: 0,
   bestStreak: 0, shots: 0, lastHit: '', autoPilot: params.get('autoplay') === '1',
   fixedStep: params.get('fixedstep') === '1', disposed: false
 };
@@ -382,9 +382,17 @@ function makeCharacter(side) {
     panel.position.set(-.3+i*.2,.95,.28); panel.rotation.z=(i-1.5)*.08; panel.castShadow=true; root.add(panel);
   }
 
-  const torso = sphere(root,new THREE.CapsuleGeometry(.38,.76,5,10),cloth,[0,1.85,0],[1.08,1.02,.85]);
-  const chest = sphere(root,new THREE.SphereGeometry(.43,14,10),male?actorMats.armor:actorMats.trimB,[0,2.02,.19],[1.02,.75,.35]);
-  const inner = sphere(root,new THREE.SphereGeometry(.31,12,8),cloth,[0,2.02,.34],[.85,.6,.18]);
+  const torso = sphere(root,new THREE.CapsuleGeometry(.38,.76,5,10),cloth,[0,1.85,0],male?[1.16,1.02,.9]:[.9,1.02,.82]);
+  const chest = sphere(root,new THREE.SphereGeometry(.43,14,10),male?actorMats.armor:actorMats.trimB,[0,2.02,.19],male?[1.06,.75,.38]:[.97,.82,.4]);
+  const inner = sphere(root,new THREE.SphereGeometry(.31,12,8),cloth,[0,2.02,.34],male?[.88,.6,.2]:[.9,.62,.22]);
+  if (!male) {
+    // An intentional hourglass armor silhouette: fitted waist, articulated breastplate and flared hips.
+    sphere(root,new THREE.SphereGeometry(.29,14,10),cloth,[0,1.71,.2],[.78,.95,.75]);
+    sphere(root,new THREE.SphereGeometry(.2,12,8),actorMats.armor,[-.19,2.05,.39],[1.04,1.18,.52]);
+    sphere(root,new THREE.SphereGeometry(.2,12,8),actorMats.armor,[.19,2.05,.39],[1.04,1.18,.52]);
+    const chestBadge = new THREE.Mesh(new THREE.OctahedronGeometry(.11,0), emberMat);
+    chestBadge.position.set(0,2.22,.51); root.add(chestBadge);
+  }
   const belt = new THREE.Mesh(new THREE.CylinderGeometry(.36,.35,.16,12),goldMetal);
   belt.position.y=1.47; belt.castShadow=true; root.add(belt);
   sphere(root,new THREE.OctahedronGeometry(.12,0),male?crystalMat:emberMat,[0,1.48,.39],[1,1,.55]);
@@ -481,6 +489,20 @@ const trajectory = new THREE.Line(new THREE.BufferGeometry(),trailMat);
 trajectory.frustumCulled = false;
 trajectory.visible = false;
 scene.add(trajectory);
+
+// A tiny fixed-size dynamic buffer avoids allocating new trail geometry every rendered frame.
+const flightTrailGeometry = new THREE.BufferGeometry();
+const flightTrailPositions = new Float32Array(8 * 3);
+const flightTrailAttribute = new THREE.BufferAttribute(flightTrailPositions, 3);
+flightTrailAttribute.setUsage(THREE.DynamicDrawUsage);
+flightTrailGeometry.setAttribute('position', flightTrailAttribute);
+flightTrailGeometry.setDrawRange(0, 0);
+const flightTrailMaterial = new THREE.LineBasicMaterial({ color: 0xffe0a7, transparent: true, opacity: .68, depthWrite: false });
+const flightTrail = new THREE.Line(flightTrailGeometry, flightTrailMaterial);
+flightTrail.frustumCulled = false;
+flightTrail.visible = false;
+scene.add(flightTrail);
+
 const arrowLight = new THREE.PointLight(0xffce91, .8, 3.5);
 scene.add(arrowLight);
 
@@ -695,10 +717,18 @@ function shoot(side, automated) {
   } else { actor.angle=state.angle; actor.power=state.power; }
   const angle=actor.angle*Math.PI/180, speed=arrowSpeed(actor.power);
   const pos=getLaunch(actor);
-  const mesh=makeProjectile(side,state.selectedArrow);
+  const arrowType = side === 0 ? state.selectedArrow : (random() < .14 ? 'ember' : random() < .12 ? 'frost' : 'standard');
+  const mesh=makeProjectile(side,arrowType);
   mesh.position.copy(pos); mesh.position.z=pos.z;
   const vel=new THREE.Vector3(actor.dir*speed*Math.cos(angle),speed*Math.sin(angle),0);
-  state.projectile={mesh,vel,side,type:state.selectedArrow,age:0,trail:[],wind:state.wind};
+  state.projectile={
+    mesh, vel, side, type:arrowType, age:0,
+    trail:Array.from({length:8},()=>new THREE.Vector3()), trailCount:0, trailCursor:0,
+    wind:state.wind
+  };
+  flightTrailMaterial.color.setHex(arrowType==='ember'?0xff9a53:arrowType==='frost'?0x8deaff:0xffe0a7);
+  flightTrail.geometry.setDrawRange(0,0);
+  flightTrail.visible=false;
   state.turn='flight'; state.shots++;
   trajectory.visible=false; ui.aimHint.classList.add('hidden'); updateHud();
   soundFire(); vibrate(18);
@@ -725,6 +755,7 @@ function hitActor(projectile, actor) {
   else state.streak=0;
   actor.hitUntil=state.time+.72;
   actor.root.rotation.z=actor.side===0?-.07:.07;
+  state.hitStop = headshot ? .15 : .07;
   state.cameraKick=.22;
   const point=p.clone(); point.z+=.1;
   spawnSparks(point,projectile.type,headshot?34:22);
@@ -743,6 +774,8 @@ function endProjectile(hit, target) {
   scene.remove(shot.mesh);
   shot.mesh.traverse(o => { if (o.geometry && o.geometry !== sparkGeo) o.geometry.dispose?.(); });
   state.projectile = null;
+  flightTrail.visible = false;
+  flightTrail.geometry.setDrawRange(0, 0);
   arrowLight.intensity = 0;
   if (state.screen === 'over') return;
 
@@ -796,8 +829,17 @@ function tickProjectile(dt) {
   p.mesh.rotation.z=Math.atan2(p.vel.y,p.vel.x);
   p.mesh.rotation.y=Math.sin(p.age*2)*.035;
   arrowLight.position.copy(p.mesh.position); arrowLight.intensity=.75;
-  p.trail.push(p.mesh.position.clone());
-  if(p.trail.length>7)p.trail.shift();
+  p.trail[p.trailCursor].copy(p.mesh.position);
+  p.trailCursor=(p.trailCursor+1)%p.trail.length;
+  p.trailCount=Math.min(p.trailCount+1,p.trail.length);
+  for(let i=0;i<p.trailCount;i++){
+    const index=(p.trailCursor-p.trailCount+i+p.trail.length)%p.trail.length;
+    const v=p.trail[index];
+    flightTrailAttribute.setXYZ(i,v.x,v.y,v.z);
+  }
+  flightTrailAttribute.needsUpdate=true;
+  flightTrail.geometry.setDrawRange(0,p.trailCount);
+  flightTrail.visible=p.trailCount>1;
   const target=actors[1-p.side];
   if(hitActor(p,target)) return;
   const surface=actorSurfaceAt(p.mesh.position.x);
@@ -812,6 +854,10 @@ function tickProjectile(dt) {
   if(p.age>.22) ui.aimHint.classList.add('hidden');
 }
 function advanceGame(dt) {
+  if (state.hitStop > 0) {
+    state.hitStop = Math.max(0, state.hitStop - dt);
+    dt *= .18;
+  }
   state.time+=dt;
   if(state.screen==='play') {
     if(state.projectile) tickProjectile(dt);
