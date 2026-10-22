@@ -277,9 +277,10 @@ export class Match {
       this._updateActors(dt);
       this.projectiles.update(dt, this);
       this.settleT += dt;
-      const moving = this.actors.some((x) => x.alive && !x.grounded) || this.projectiles.active > 0;
+      let faller = null;
+      for (let i = 0; i < this.actors.length; i++) { const x = this.actors[i]; if (x.alive && !x.grounded) { faller = x; break; } }
+      const moving = !!faller || this.projectiles.active > 0;
       if (this.lastImpact && this.settleT < 0.5) lookAt(this.lastImpact.x, this.lastImpact.y + 1, Math.max(cam.th, 15), 3);
-      const faller = this.actors.find((x) => x.alive && !x.grounded);
       if (faller) lookAt(faller.x, faller.y + 1, 15, 3);
       if (!moving && this.settleT > 0.85) {
         if (!this._checkWin()) this._beginTurn(this._nextActor());

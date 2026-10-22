@@ -16,7 +16,7 @@ export default {
 
   generate(T, rng) {
     const s = Math.floor(rng() * 1000);
-    const hL = 9 + rng() * 3, hM = 2 + rng() * 3, hR = 5 + rng() * 3;
+    const hR = 3.5 + rng() * 2.5, hL = hR + 4.5 + rng() * 2.5, hM = 1.5 + rng() * 2.5;
     const flip = rng() < 0.5;
     const A = flip ? hR : hL, C = flip ? hL : hR;
     const gap1 = -18 + (rng() - 0.5) * 4, gap2 = 17 + (rng() - 0.5) * 4;
