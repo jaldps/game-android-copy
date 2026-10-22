@@ -114,9 +114,11 @@ jobs:
               await page.locator('#startBtn').click();
               await page.waitForFunction(()=>window.__game?.state?.screen==='play',{timeout:30000});
               const mobileCheck=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,fire:document.querySelector('#fireBtn').getBoundingClientRect().toJSON(),canvas:document.querySelector('#c').getBoundingClientRect().toJSON(),heads:window.__game.getLayout().heads,hud:document.querySelector('.combat-hud').getBoundingClientRect().toJSON()}));
+              await page.screenshot({path:'bowbrawl-mobile.png',fullPage:true});
+              console.log('MOBILE FRAME DEBUG '+JSON.stringify({heads:mobileCheck.heads,hudTop:mobileCheck.hud.top,hudBottom:mobileCheck.hud.bottom,height:390,width:mobileCheck.width,fire:mobileCheck.fire}));
               assert(mobileCheck.scrollWidth<=mobileCheck.width+3,'CRITIC FAIL: mobile layout has horizontal overflow');
               assert(mobileCheck.fire.width>60&&mobileCheck.fire.height>28&&mobileCheck.fire.right<=mobileCheck.width+3,'CRITIC FAIL: mobile fire control is too small or clipped');
-              assert(mobileCheck.heads.every(h=>h.y>mobileCheck.hud.bottom+2&&h.y<390-82),'CRITIC FAIL: mobile fighter heads are hidden behind the combat HUD or aim dock');
+              assert(mobileCheck.heads.every(h=>h.y>mobileCheck.hud.bottom+2&&h.y<390-82),'CRITIC FAIL: mobile fighter heads overlap HUD/aim dock: '+JSON.stringify({heads:mobileCheck.heads,hudBottom:mobileCheck.hud.bottom,height:390}));
               await page.screenshot({path:'bowbrawl-mobile.png',fullPage:true});
               assert.equal(errors.length,0,'CRITIC FAIL: browser errors: '+errors.join(' | '));
               for(const f of ['bowbrawl-menu.png','bowbrawl-live.png','bowbrawl-autoplay.png','bowbrawl-mobile.png']) assert(fs.statSync(f).size>10000,'CRITIC FAIL: visual capture is suspiciously empty: '+f);

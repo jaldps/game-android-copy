@@ -218,7 +218,7 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  source=source.replace("new THREE.TorusGeometry(1.02,.022,7,48),aura,[0,5.72,-9.25],[1,1,.3]","new THREE.TorusGeometry(.76,.015,7,48),aura,[0,5.85,-9.25],[1,1,.3]");
  source=source.replace("state.selected.bow==='moonpiercer'?M.frost:M.dark;updateHUD()","state.selected.bow==='moonpiercer'?M.frost:M.leather;updateHUD()");
  source=source.replace('getSnapshot:snapshot,aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:',
- 'getSnapshot:snapshot,getLayout:()=>({heads:fighters.map(f=>{const p=new THREE.Vector3(f.root.position.x,f.root.position.y+3.15,f.root.position.z);p.project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}})}),aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:');
+ 'getSnapshot:snapshot,getLayout:()=>{camera.updateProjectionMatrix();camera.updateMatrixWorld(true);return {heads:fighters.map(f=>{const p=new THREE.Vector3(f.root.position.x,f.root.position.y+3.15,f.root.position.z);p.project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}})}},aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:');
  if(!source.includes('getLayout:()=>({heads:fighters.map')) throw new Error('Mobile layout diagnostics did not apply');
 
 fs.writeFileSync(target,source,'utf8');
