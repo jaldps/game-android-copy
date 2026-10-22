@@ -39,20 +39,16 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
-
       - name: Install JavaScript dependencies
         run: npm ci
-
       - name: Install a headless browser
         if: github.event_name != 'push'
         run: npx playwright install --with-deps chromium
-
       - name: Start local game server
         if: github.event_name != 'push'
         run: |
@@ -63,7 +59,6 @@ jobs:
           done
           cat /tmp/bowbrawl-server.log
           exit 1
-
       - name: Run menu, controls, turn-loop and rendering smoke tests
         if: github.event_name != 'push'
         run: |
@@ -89,22 +84,19 @@ jobs:
           NODE
           node bowbrawl-smoke.mjs
           rm -f bowbrawl-smoke.mjs
-
       - name: Set up Java
         uses: actions/setup-java@v6
-        with: distribution: temurin
+        with:
+          distribution: temurin
           java-version: "17"
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-
       - name: Install Android API 35 packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v6
-        with: gradle-version: "8.9"
-
+        with:
+          gradle-version: "8.9"
       - name: Build the full release APK
         run: |
           mkdir -p artifacts
@@ -114,7 +106,6 @@ jobs:
           unzip -p dist/ClearplayArcade.apk assets/games/archer/index.html | grep -q "SKYFALL CIRCUIT"
           sha256sum dist/ClearplayArcade.apk | tee artifacts/apk-sha256.txt
           ls -lh dist/ClearplayArcade.apk
-
       - name: Update the tracked APK on the current branch
         if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'feat/bowbrawl-visual-rebuild')
         run: |
@@ -133,7 +124,6 @@ jobs:
           cp "$apk_tmp" dist/ClearplayArcade.apk
           git add dist/ClearplayArcade.apk
           if git diff --cached --quiet; then echo "APK bytes match current tracked build; no binary commit needed."; else git commit -m "Build Clearplay Arcade APK with Bowbrawl"; git push origin HEAD:"$GITHUB_REF_NAME"; fi
-
       - name: Upload screenshots and installable APK
         if: always()
         uses: actions/upload-artifact@v7
