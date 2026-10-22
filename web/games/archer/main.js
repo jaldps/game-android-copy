@@ -728,8 +728,8 @@ function hitActor(projectile, actor) {
   state.cameraKick=.22;
   const point=p.clone(); point.z+=.1;
   spawnSparks(point,projectile.type,headshot?34:22);
-  showMessage(headshot?'HEADSHOT!':projectile.type==='ember'?'EMBER HIT!':projectile.type==='frost'?'FROST HIT!':'SOLID HIT!',headshot?'':'damage');
-  showMessage('−'+damage, 'damage');
+  const hitLabel = headshot ? 'HEADSHOT!' : projectile.type === 'ember' ? 'EMBER HIT!' : projectile.type === 'frost' ? 'FROST HIT!' : 'SOLID HIT!';
+  showMessage(hitLabel + '  −' + damage, headshot ? '' : 'damage');
   soundHit(headshot); vibrate(headshot?42:24);
   if(headshot) sound(1040,.22,'triangle',.055,520);
   updateHud();
@@ -855,15 +855,24 @@ function advanceGame(dt) {
   } else camera.position.x=0;
   if(state.screen==='play' && state.turn==='player' && !state.projectile && !state.autoPilot) updateTrajectory();
 }
+let previousTime=0, fpsWindowStart=0, fpsFrames=0;
+window.__fps = 60;
 function animate(now) {
   requestAnimationFrame(animate);
-  let dt=previousTime ? (now-previousTime)/1000 : 1/60;
-  previousTime=now;
-  dt=state.fixedStep?1/60:Math.min(Math.max(dt,0),.033);
-  if(!state.disposed && state.screen!=='paused') advanceGame(dt);
-  renderer.render(scene,camera);
+  let dt = previousTime ? (now - previousTime) / 1000 : 1 / 60;
+  previousTime = now;
+  dt = state.fixedStep ? 1 / 60 : Math.min(Math.max(dt, 0), .033);
+  if (!state.disposed && state.screen !== 'paused') advanceGame(dt);
+  renderer.render(scene, camera);
+  fpsFrames++;
+  if (!fpsWindowStart) fpsWindowStart = now;
+  if (now - fpsWindowStart >= 600) {
+    window.__fps = Math.round(fpsFrames * 1000 / Math.max(1, now - fpsWindowStart));
+    ui.fps.textContent = window.__fps + ' FPS · SKYFALL';
+    fpsFrames = 0;
+    fpsWindowStart = now;
+  }
 }
-let previousTime=0;
 
 ui.angle.addEventListener('input',()=>setAim(Number(ui.angle.value),state.power));
 ui.power.addEventListener('input',()=>setAim(state.angle,Number(ui.power.value)));
