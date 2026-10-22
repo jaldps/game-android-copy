@@ -33,7 +33,7 @@ jobs:
       - name: JavaScript syntax gate
         run: node --check web/games/archer/main.js
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Harsh critic - gameplay and presentation gate
         run: |
           node - <<'NODE'
