@@ -705,6 +705,7 @@ function updateTrajectory() {
   trajectory.computeLineDistances();
 }
 function updateHud() {
+  document.getElementById('gameRoot').classList.toggle('menu-open', state.screen === 'menu');
   ui.hpL.style.width=clamp(actors[0].hp,0,100)+'%';
   ui.hpR.style.width=clamp(actors[1].hp,0,100)+'%';
   ui.hpLT.textContent=Math.ceil(actors[0].hp);
