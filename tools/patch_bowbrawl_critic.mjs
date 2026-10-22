@@ -175,7 +175,7 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  arenaFn=arenaFn.slice(0,close)+cinematic+arenaFn.slice(close);
  source=source.slice(0,arenaStart)+arenaFn+source.slice(arenaStop);
  source=source.replace('const aspect=innerWidth/Math.max(1,innerHeight),h=11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);',
- 'const aspect=innerWidth/Math.max(1,innerHeight),h=innerHeight<430?12.2:11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();camera.position.y=innerHeight<430?8.2:7;camera.lookAt(0,innerHeight<430?3.05:2,0);renderer.setSize(innerWidth,innerHeight);');
+ 'const aspect=innerWidth/Math.max(1,innerHeight),h=innerHeight<430?12.2:11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();camera.position.y=innerHeight<430?8.2:7;camera.lookAt(0,innerHeight<430?3.65:2,0);renderer.setSize(innerWidth,innerHeight);');
  if(!source.includes('const art={')||!source.includes('g.rotation.y=side===0?.38:-.38')) throw new Error('Cinematic art-direction modifications did not apply.');
 
 
@@ -202,7 +202,7 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
 
  // Final visual polish pass from screenshot review: true mobile-first camera framing, cleaner face anatomy, hourglass contour, restrained halo.
  source=source.replace("const camera=new THREE.OrthographicCamera(-10,10,5.6,-5.6,.1,150);camera.position.set(0,7,32);camera.lookAt(0,2,0);",
- "const viewH=innerHeight<430?12.2:11.3,viewW=viewH*(innerWidth/Math.max(1,innerHeight));const camera=new THREE.OrthographicCamera(-viewW/2,viewW/2,viewH/2,-viewH/2,.1,150);camera.position.set(0,innerHeight<430?8.2:7,32);camera.lookAt(0,innerHeight<430?3.05:2,0);");
+ "const viewH=innerHeight<430?12.2:11.3,viewW=viewH*(innerWidth/Math.max(1,innerHeight));const camera=new THREE.OrthographicCamera(-viewW/2,viewW/2,viewH/2,-viewH/2,.1,150);camera.position.set(0,innerHeight<430?8.2:7,32);camera.lookAt(0,innerHeight<430?3.65:2,0);");
  source=source.replace("orb(body,[0,1.49,0],[.49,.34,.33]);","orb(body,[0,1.49,0],[.56,.34,.34]);");
  source=source.replace("orb(body,[0,1.91,0],[.285,.43,.255]);","orb(body,[0,1.91,0],[.225,.43,.235]);");
  source=source.replace("orb(body,[0,2.32,0],[.475,.47,.32]);","orb(body,[0,2.32,0],[.405,.44,.30]);");
@@ -218,7 +218,7 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  source=source.replace("new THREE.TorusGeometry(1.02,.022,7,48),aura,[0,5.72,-9.25],[1,1,.3]","new THREE.TorusGeometry(.76,.015,7,48),aura,[0,5.85,-9.25],[1,1,.3]");
  source=source.replace("state.selected.bow==='moonpiercer'?M.frost:M.dark;updateHUD()","state.selected.bow==='moonpiercer'?M.frost:M.leather;updateHUD()");
  source=source.replace('getSnapshot:snapshot,aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:',
- 'getSnapshot:snapshot,getLayout:()=>({heads:fighters.map(f=>{const p=new THREE.Vector3(f.root.position.x,f.root.position.y+3.72,f.root.position.z);p.project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}})}),aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:');
+ 'getSnapshot:snapshot,getLayout:()=>({heads:fighters.map(f=>{const p=new THREE.Vector3(f.root.position.x,f.root.position.y+3.15,f.root.position.z);p.project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}})}),aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:');
  if(!source.includes('getLayout:()=>({heads:fighters.map')) throw new Error('Mobile layout diagnostics did not apply');
 
 fs.writeFileSync(target,source,'utf8');
