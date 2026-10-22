@@ -140,5 +140,43 @@ source=source.replace('getSnapshot:snapshot,buildTag:', 'getSnapshot:snapshot,ai
 source=source.replace("else if(state.turn==='enemy'){state.aiWait-=dt;if(state.aiWait<=0)launch(1)}", "else if(state.turn==='enemy'){state.aiWait-=dt;if(state.aiWait<=0)launch(1)}else if(state.autoPilot)launch(0);");
 if(!source.includes('distance:Math.round(Math.abs(fighters[1].root.position.x-fighters[0].root.position.x)*100)/100')) throw new Error('Critic snapshot patch did not apply');
 if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new Error('Critic aim-solution patch did not apply');
+
+ // Cinematic art-direction pass: distinct skies, stronger landmark silhouettes, and inward-facing archers.
+ source=source.replace('g.position.z=.65;scene.add(g);return{side', 'g.rotation.y=side===0?.38:-.38;g.position.z=.65;scene.add(g);return{side');
+ source=source.replace('mouth=part(g,new THREE.SphereGeometry(1,16,10),maskMat,[0,2.79,.29],[.255,.105,.07]);\\n   part(g,new THREE.BoxGeometry(.48,.055,.045),leather,[0,2.73,.32]);',
+ 'mouth=part(g,new THREE.BoxGeometry(.43,.155,.065),maskMat,[0,2.82,.305]);\\n   part(g,new THREE.BoxGeometry(.45,.026,.045),leather,[0,2.765,.342]);\\n   part(g,new THREE.BoxGeometry(.20,.018,.018),M.rock2,[0,2.81,.35]);');
+ const arenaStart=source.indexOf('function buildArena(){');
+ const arenaStop=source.indexOf('\\nfunction makeBow(){',arenaStart);
+ if(arenaStart<0||arenaStop<0) throw new Error('Cinematic pass could not locate buildArena.');
+ let arenaFn=source.slice(arenaStart,arenaStop);
+ const close=arenaFn.lastIndexOf('}');
+ if(close<0) throw new Error('Cinematic pass could not locate arena function end.');
+ const cinematic = [
+ 'const art={',
+ ' citadel:{top:0x14294c,mid:0x5a4b73,low:0xffc49c,fog:0x655c79,accent:0x76e1ef,light:0xffd8a9},',
+ ' bridge:{top:0x172a45,mid:0x76525b,low:0xffc58b,fog:0x705966,accent:0xffc171,light:0xffd5a2},',
+ ' frost:{top:0x112c4b,mid:0x4c829b,low:0xd9f6ff,fog:0x557b93,accent:0x7beaff,light:0xc8eeff},',
+ ' rift:{top:0x141333,mid:0x4c3c78,low:0xf08fc5,fog:0x514263,accent:0xc49bff,light:0xffc5f5},',
+ ' ember:{top:0x2d1930,mid:0x8d414d,low:0xffc078,fog:0x70515d,accent:0xff875e,light:0xffc38a},',
+ ' temple:{top:0x151d42,mid:0x60549a,low:0xf1c18b,fog:0x5d567e,accent:0xd2b5ff,light:0xffdca4}',
+ '}[arena.theme];',
+ 'sky.material.uniforms.a.value.setHex(art.top);sky.material.uniforms.b.value.setHex(art.mid);sky.material.uniforms.c.value.setHex(art.low);scene.fog.color.setHex(art.fog);rim.color.setHex(art.accent);sun.color.setHex(art.light);',
+ 'const aura=new THREE.MeshStandardMaterial({color:art.accent,emissive:art.accent,emissiveIntensity:1.45,metalness:.36,roughness:.24});',
+ 'const warmAura=new THREE.MeshStandardMaterial({color:art.low,emissive:art.low,emissiveIntensity:.95,metalness:.18,roughness:.3});',
+ 'const halo=part(decor,new THREE.TorusGeometry(1.82,.055,10,64),aura,[0,3.35,-6.7],[1.22,1.42,.55]);halo.rotation.z=arena.theme===\'rift\'?.13:-.08;',
+ 'const haloInner=part(decor,new THREE.TorusGeometry(1.48,.018,6,56),warmAura,[0,3.35,-6.63],[1.22,1.42,.55]);haloInner.rotation.z=-halo.rotation.z*.6;',
+ 'part(decor,new THREE.SphereGeometry(.72,32,24),warmAura,[0,5.72,-9.1],[1,1,.18]);',
+ 'const solarRing=part(decor,new THREE.TorusGeometry(1.02,.022,7,48),aura,[0,5.72,-9.25],[1,1,.3]);solarRing.rotation.z=.18;',
+ 'const mountainMats=[new THREE.MeshStandardMaterial({color:colors[arena.theme],roughness:1}),new THREE.MeshStandardMaterial({color:art.fog,roughness:1}),new THREE.MeshStandardMaterial({color:art.top,roughness:1})];',
+ 'for(let i=0;i<17;i++){const x=-18+i*2.25+(rnd()-.5)*.65,h=2.1+rnd()*4.8,depth=-9.8-rnd()*2.5;const mountain=part(decor,new THREE.ConeGeometry(.85+rnd()*.8,h,5),mountainMats[i%3],[x,-2.1+h*.43,depth],[1,1,.36]);mountain.rotation.y=rnd()*Math.PI;if(i%4===0)part(decor,new THREE.ConeGeometry(.13,.65,5),warmAura,[x,-2.1+h*.43+h*.34,depth+.08],[1,1,.3]);}',
+ 'for(const side of[-1,1]){const x=side*3.15,z=-5.35;part(decor,new THREE.CylinderGeometry(.105,.22,2.7,8),M.metal,[x,1.6,z]);part(decor,new THREE.CylinderGeometry(.16,.11,.18,8),warmAura,[x,2.93,z]);const crystal=part(decor,new THREE.OctahedronGeometry(.31,1),aura,[side*4.0,3.08,-5.7],[.76,1.35,.72]);crystal.rotation.z=side*.25;const ring=part(decor,new THREE.TorusGeometry(.42,.025,6,32),aura,[side*3.85,2.68,-5.65],[1,.7,.45]);ring.rotation.z=side*.24;}',
+ 'for(let i=0;i<34;i++){const mote=part(decor,new THREE.SphereGeometry(.025+rnd()*.026,6,5),i%3===0?warmAura:aura,[(rnd()-.5)*25,-.5+rnd()*6,-4-rnd()*5]);mote.material=mote.material.clone();mote.material.transparent=true;mote.material.opacity=.32+rnd()*.48;}'
+ ].join('');
+ arenaFn=arenaFn.slice(0,close)+cinematic+arenaFn.slice(close);
+ source=source.slice(0,arenaStart)+arenaFn+source.slice(arenaStop);
+ source=source.replace('const aspect=innerWidth/Math.max(1,innerHeight),h=11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);',
+ 'const aspect=innerWidth/Math.max(1,innerHeight),h=innerHeight<430?12.2:11.3;camera.left=-h*aspect/2;camera.right=h*aspect/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();camera.position.y=innerHeight<430?7.6:7;camera.lookAt(0,innerHeight<430?2.45:2,0);renderer.setSize(innerWidth,innerHeight);');
+ if(!source.includes('const art={')||!source.includes('g.rotation.y=side===0?.38:-.38')) throw new Error('Cinematic art-direction modifications did not apply.');
+
 fs.writeFileSync(target,source,'utf8');
 console.log('critic polish applied:',target,source.length,'bytes');
