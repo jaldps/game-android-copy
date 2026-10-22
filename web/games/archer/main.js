@@ -998,7 +998,7 @@ function advanceGame(dt) {
     state.cameraKick=Math.max(0,state.cameraKick-dt);
     camera.position.x=(random()-.5)*state.cameraKick*1.8;
   } else camera.position.x=0;
-  if(state.screen==='play' && state.turn==='player' && !state.projectile && !state.autoPilot) updateTrajectory();
+  // Trajectory updates only when aim, wind, or turn state changes; no geometry churn per frame.
 }
 let previousTime=0, fpsWindowStart=0, fpsFrames=0;
 window.__fps = 60;
