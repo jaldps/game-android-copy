@@ -77,3 +77,17 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
   background: rgba(0,0,0,0.6); z-index: 25;
   color: #fff; font-size: 36px; font-weight: 800;
 }
+
+#victory {
+  position: fixed; inset: 0; display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.8); z-index: 40;
+  color: #fff; text-align: center;
+}
+#victory .winner { font-size: 42px; font-weight: 900; margin-bottom: 24px;
+  background: linear-gradient(180deg, #ffdd44, #ff8844); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+#victory button {
+  background: linear-gradient(180deg, #44aa44, #226622);
+  color: #fff; border: none; padding: 12px 32px; border-radius: 10px;
+  font-weight: 700; font-size: 18px; cursor: pointer;
+}

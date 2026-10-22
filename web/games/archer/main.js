@@ -459,6 +459,24 @@ const fireBtn = document.getElementById('fireBtn');
 const msg = document.getElementById('msg');
 const menu = document.getElementById('menu');
 const startBtn = document.getElementById('startBtn');
+const rematchBtn = document.getElementById('rematchBtn');
+const victoryEl = document.getElementById('victory');
+if (rematchBtn) {
+  rematchBtn.addEventListener('click', () => {
+    if (victoryEl) victoryEl.style.display = 'none';
+    G.hp = [100, 100];
+    G.turn = 0;
+    G.gameOver = false;
+    G.deathAnim = null;
+    G.wind = (Math.random() - 0.5) * 6;
+    archerL.position.set(-60, surfaceYWithCraters(-60, 0) + 1.0, 0);
+    archerR.position.set(60, surfaceYWithCraters(60, 0) + 1.0, 0);
+    archerL.rotation.set(0, 0, 0);
+    archerR.rotation.set(0, Math.PI, 0);
+    if (msg) msg.textContent = '';
+    updateHUD();
+  });
+}
 const pauseOverlay = document.getElementById('pauseOverlay');
 const arrowTypeEl = document.getElementById('arrowType');
 
@@ -621,6 +639,12 @@ function loop(now) {
         G.gameOver = true;
         G.deathAnim = { target: target, time: 0 };
         if (msg) msg.textContent = (ar.fromLeft ? 'Left' : 'Right') + ' wins!';
+        // Show victory overlay
+        const victoryEl = document.getElementById('victory');
+        if (victoryEl) {
+          victoryEl.style.display = 'flex';
+          victoryEl.querySelector('.winner').textContent = (ar.fromLeft ? 'Left' : 'Right') + ' Archer Wins!';
+        }
         spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 30, 0xff4444);
       }
       G.flying = false;
@@ -715,6 +739,12 @@ function loop(now) {
           G.gameOver = true;
           G.deathAnim = { target: target, time: 0 };
           if (msg) msg.textContent = (ar.fromLeft ? 'Left' : 'Right') + ' wins!';
+        // Show victory overlay
+        const victoryEl = document.getElementById('victory');
+        if (victoryEl) {
+          victoryEl.style.display = 'flex';
+          victoryEl.querySelector('.winner').textContent = (ar.fromLeft ? 'Left' : 'Right') + ' Archer Wins!';
+        }
           // Big particle burst
           spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 30, 0xff4444);
         }
