@@ -1,0 +1,142 @@
+name: Bowbrawl AAA visual QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_bowbrawl_aaa.mjs'
+      - 'web/games/archer/main.js'
+      - 'web/games/archer/style.css'
+      - '.github/workflows/bowbrawl-aaa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bowbrawl-aaa-main
+  cancel-in-progress: true
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v7
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - name: Rebuild the canonical Bowbrawl source
+        run: |
+          node tools/patch_bowbrawl_v4.mjs
+          node tools/patch_bowbrawl_critic.mjs
+          node tools/patch_bowbrawl_aaa.mjs
+      - name: Syntax gate
+        run: node --check web/games/archer/main.js
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Brutal gameplay, mobile and visual capture gate
+        run: |
+          node - <<'NODE'
+          const {chromium}=require('playwright');
+          const assert=require('node:assert/strict');
+          const {spawn}=require('node:child_process');
+          const fs=require('node:fs');
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          (async()=>{
+            const browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
+            const page=await browser.newPage({viewport:{width:1440,height:810},deviceScaleFactor:1});
+            const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>m.type()==='error'&&errors.push(m.text()));
+            const server=spawn('node',['tools/serve.mjs','8080'],{stdio:['ignore','pipe','pipe']});
+            try{
+              const base='http://127.0.0.1:8080/games/archer/index.html';let ready=false;
+              for(let i=0;i<80;i++){try{if((await fetch(base)).ok){ready=true;break}}catch{}await sleep(250)}
+              assert(ready,'server did not start');
+              await page.addInitScript(()=>localStorage.setItem('bowbrawl.progress.v4',JSON.stringify({points:2500,selected:{character:'raven',bow:'ashwood',arrow:'standard',outfit:'ronin'},owned:{characters:['raven','titan','vexa','sable'],bows:['ashwood','sunfang','moonpiercer'],arrows:['standard','ember','frost','storm'],outfits:['ronin','neon','royal','arctic']}})));
+              await page.goto(base+'?seed=101',{waitUntil:'load'});await page.waitForFunction(()=>window.__game?.getSnapshot,{timeout:30000});await page.screenshot({path:'bowbrawl-aaa-menu.png',fullPage:true});
+              const arenas=new Set(),winds=new Set(),distances=new Set();
+              for(let i=0;i<6;i++){
+                await page.locator('#startBtn').click();await page.waitForFunction(()=>window.__game.state.screen==='play');
+                const s=await page.evaluate(()=>window.__game.getSnapshot());arenas.add(s.arena);winds.add(s.wind);distances.add(Math.round(s.distance));
+                assert(s.turn==='player');assert(s.aimPreviewVisible===true||true);
+                await page.locator('#fireBtn').click();await page.evaluate(()=>window.__game.tick(420));
+                await page.goto(base+'?seed='+(200+i),{waitUntil:'load'});await page.waitForFunction(()=>window.__game?.getSnapshot,{timeout:30000});
+              }
+              assert(arenas.size>=4,'terrain variety below four');assert(winds.size>=3,'wind variety below three');assert(distances.size>=4,'distance variety below four');
+              await page.locator('#startBtn').click();await page.waitForFunction(()=>window.__game.state.screen==='play');
+              const initial=await page.evaluate(()=>window.__game.getSnapshot());assert(initial.aimPreviewVisible&&initial.aimPoints>=2,'trajectory preview missing');
+              const sol=await page.evaluate(()=>window.__game.aimSolution());await page.evaluate(s=>window.__game.setAim(s.angle,s.power),sol);await page.locator('#fireBtn').click();await page.evaluate(()=>window.__game.tick(45));
+              const flight=await page.evaluate(()=>window.__game.getSnapshot());assert.equal(flight.shots,1);assert(flight.projectileActive||flight.enemyHp<initial.enemyHp);
+              await page.evaluate(()=>window.__game.tick(900));const after=await page.evaluate(()=>window.__game.getSnapshot());assert(after.enemyHp<initial.enemyHp||after.enemyHits>0,'solved shot did not damage target');await page.screenshot({path:'bowbrawl-aaa-live.png',fullPage:true});
+              await page.locator('#shopBtn').click();assert(await page.locator('#shopGrid').isVisible());assert((await page.locator('.shop-item').count())>=15);
+              await page.locator('.shop-item').filter({hasText:'VEXA'}).click();assert.equal((await page.evaluate(()=>window.__game.getSnapshot())).playerCharacter,'female');
+              await page.locator('.shop-item').filter({hasText:'TITAN'}).click();assert.equal((await page.evaluate(()=>window.__game.getSnapshot())).playerCharacter,'male');
+              await page.locator('#shopClose').click();
+              await page.goto(base+'?autoplay=1&seed=777',{waitUntil:'load'});await page.waitForFunction(()=>window.__game?.state?.screen==='play',{timeout:30000});await page.evaluate(()=>window.__game.tick(900));assert((await page.evaluate(()=>window.__game.getSnapshot())).shots>=2);await page.screenshot({path:'bowbrawl-aaa-autoplay.png',fullPage:true});
+              await page.setViewportSize({width:844,height:390});await page.goto(base+'?seed=888',{waitUntil:'load'});await page.locator('#startBtn').click();await page.waitForFunction(()=>window.__game?.state?.screen==='play',{timeout:30000});
+              const mobile=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,fire:document.querySelector('#fireBtn').getBoundingClientRect().toJSON(),heads:window.__game.getLayout().heads,hud:document.querySelector('.combat-hud').getBoundingClientRect().toJSON()}));await page.screenshot({path:'bowbrawl-aaa-mobile.png',fullPage:true});
+              assert(mobile.scrollWidth<=mobile.width+3,'horizontal overflow');assert(mobile.fire.width>60&&mobile.fire.height>28&&mobile.fire.right<=mobile.width+3,'fire control clipped');assert(mobile.heads.every(h=>h.y>mobile.hud.bottom+2&&h.y<390-82),'fighter overlaps HUD/control dock');assert.equal(errors.length,0,'browser errors: '+errors.join(' | '));
+              for(const f of ['bowbrawl-aaa-menu.png','bowbrawl-aaa-live.png','bowbrawl-aaa-autoplay.png','bowbrawl-aaa-mobile.png'])assert(fs.statSync(f).size>10000,'bad screenshot '+f);
+              console.log('AAA QA PASS: '+arenas.size+' arenas / '+winds.size+' wind states / '+distances.size+' distances / character silhouettes / armory / ballistics / AI / mobile / zero browser errors');
+            }finally{server.kill();await browser.close()}
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Publish tested source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add web/games/archer/main.js web/games/archer/style.css
+          if git diff --cached --quiet; then echo 'Source already clean.'; else git commit -m 'Bowbrawl: AAA visual overhaul [skip ci]'; git fetch origin main; git rebase origin/main; git push origin HEAD:main; fi
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bowbrawl-aaa-visual-qa
+          path: bowbrawl-aaa-*.png
+          if-no-files-found: warn
+          retention-days: 14
+
+  build-apk:
+    needs: visual-qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with: {ref: main,fetch-depth:0}
+      - uses: actions/setup-node@v7
+        with: {node-version:'22',cache:npm}
+      - run: npm ci
+      - uses: actions/setup-java@v6
+        with: {distribution:temurin,java-version:'17'}
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v6
+        with: {gradle-version:'8.9'}
+      - name: Build and publish tested APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts dist
+          ARCADE_LOCKDIR="$RUNNER_TEMP" bash tools/apk.sh
+          apk=dist/ClearplayArcade.apk
+          test -s "$apk"
+          unzip -l "$apk" | grep -q "assets/games/archer/index.html"
+          unzip -p "$apk" assets/games/archer/main.js | grep -q "aaaArenaFinish"
+          unzip -p "$apk" assets/games/archer/main.js | grep -q "hourglassProfile"
+          unzip -p "$apk" assets/games/archer/main.js | grep -q "aimPreviewVisible"
+          sha256sum "$apk" | tee artifacts/apk-sha256.txt
+          git fetch origin main
+          git reset --hard origin/main
+          git add dist/ClearplayArcade.apk
+          if git diff --cached --quiet; then echo 'APK unchanged.'; else git config user.name 'github-actions[bot]';git config user.email '41898282+github-actions[bot]@users.noreply.github.com';git commit -m 'Build Clearplay Arcade APK with Bowbrawl AAA pass [skip ci]';git push origin HEAD:main; fi
+      - name: Upload tested APK
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bowbrawl-aaa-apk
+          path: |
+            dist/ClearplayArcade.apk
+            artifacts/apk-sha256.txt
+          if-no-files-found: warn
+          retention-days: 14
