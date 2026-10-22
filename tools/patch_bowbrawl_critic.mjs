@@ -193,7 +193,7 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  source=source.replace("function setArrow(t){state.selected.arrow=t;state.selectedArrow=t;ui.arrows.forEach(b=>b.classList.toggle('selected',b.dataset.arrow===t));save()}","function setArrow(t){state.selected.arrow=t;state.selectedArrow=t;ui.arrows.forEach(b=>b.classList.toggle('selected',b.dataset.arrow===t));save();updateAimPreview()}");
 
  const solveStart=source.indexOf('function solve(a,targ){');
- const solveStop=source.indexOf('\\nfunction terrainHeight(x)',solveStart);
+ const solveStop=source.indexOf('\nfunction terrainHeight(x)',solveStart);
  if(solveStart<0||solveStop<0) throw new Error('Ballistics patch could not locate solver boundaries.');
  const accurateSolver="function solve(a,targ){const start=new THREE.Vector3();a.launcher.getWorldPosition(start);const dx=Math.abs(targ.root.position.x-start.x),targetY=targ.root.position.y+2.35;let best={score:1e9,angle:30,power:62};for(let deg=6;deg<=70;deg+=1)for(let p=28;p<=100;p+=2){const s=speed(p),r=deg*Math.PI/180;let t=dx/Math.max(.2,s*Math.cos(r));for(let k=0;k<12;k++)t=dx/Math.max(.2,s*Math.cos(r)+a.dir*state.wind*.07*t);const y=start.y+s*Math.sin(r)*t-4.8*t*t;const score=Math.abs(y-targetY)+Math.max(0,t-2.1)*.12;if(score<best.score)best={score,angle:deg,power:p}}return best}";
  source=source.slice(0,solveStart)+accurateSolver+source.slice(solveStop);
