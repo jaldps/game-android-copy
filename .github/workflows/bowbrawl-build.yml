@@ -110,20 +110,15 @@ jobs:
           assert.equal(await page.evaluate(() => window.__game.state.screen), 'play', 'resume button failed');
 
           await page.locator('#fireBtn').click();
-          await page.waitForFunction(
-            () => window.__game.state.turn === 'enemy' || window.__game.state.turn === 'over',
-            null, { timeout: 12000 }
-          );
-          await page.waitForTimeout(250);
+          // Advance simulated time independently from SwiftShader's render speed.
+          await page.evaluate(() => window.__game.step(36));
           const firstTurn = await page.evaluate(() => window.__game.getSnapshot());
           assert(firstTurn.shots >= 1, 'firing did not increment the shot counter');
           await page.screenshot({ path: 'artifacts/bowbrawl-first-shot.png' });
 
-          await page.waitForFunction(
-            () => window.__game.state.turn === 'player' || window.__game.state.turn === 'over',
-            null, { timeout: 16000 }
-          );
-          await page.waitForTimeout(200);
+          const afterAI = await page.evaluate(() => window.__game.step(600));
+          assert(afterAI.shots >= 2 || afterAI.screen === 'over', 'AI failed to take its reply shot');
+          assert(afterAI.turn === 'player' || afterAI.screen === 'over', 'turn did not return to player after AI shot');
           await page.screenshot({ path: 'artifacts/bowbrawl-live-duel.png' });
 
           await page.goto(base + '?autoplay=1&warp=4&fixedstep=1&seed=3', { waitUntil: 'load', timeout: 90000 });
