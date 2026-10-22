@@ -1,4 +1,5 @@
 name: Bowbrawl WOW critic
+
 on:
   push:
     branches: [main]
@@ -6,11 +7,14 @@ on:
       - 'tools/patch_bowbrawl_v4.mjs'
       - '.github/workflows/bowbrawl-wow.yml'
   workflow_dispatch:
+
 permissions:
   contents: write
+
 concurrency:
   group: bowbrawl-wow-main
   cancel-in-progress: true
+
 jobs:
   overhaul-and-critic:
     runs-on: ubuntu-latest
@@ -32,32 +36,69 @@ jobs:
           node - <<'NODE'
           const { chromium } = require('playwright');
           const assert = require('node:assert/strict');
+          const {spawn} = require('node:child_process');
+          const fs = require('node:fs');
+          const sleep = ms => new Promise(r=>setTimeout(r,ms));
           (async()=>{
             const browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
             const page=await browser.newPage({viewport:{width:1440,height:810},deviceScaleFactor:1});
             const errors=[]; page.on('pageerror',e=>errors.push(e.message)); page.on('console',m=>m.type()==='error'&&errors.push(m.text()));
             const base='http://127.0.0.1:8080/games/archer/index.html';
-            const {spawn}=require('node:child_process'); const server=spawn('node',['tools/serve.mjs','8080'],{stdio:'ignore'});
+            const server=spawn('node',['tools/serve.mjs','8080'],{stdio:['ignore','pipe','pipe']});
+            let serverOutput=''; server.stdout.on('data',d=>serverOutput+=d); server.stderr.on('data',d=>serverOutput+=d);
             try{
+              let ready=false;
+              for(let i=0;i<80;i++){
+                try{ const r=await fetch(base); if(r.ok){ready=true;break;} }catch{}
+                await sleep(250);
+              }
+              assert(ready,'CRITIC INFRA FAIL: local game server did not become ready: '+serverOutput);
               await page.goto(base+'?seed=101',{waitUntil:'load',timeout:60000});
               await page.waitForFunction(()=>window.__game?.getSnapshot,{timeout:30000});
               await page.screenshot({path:'bowbrawl-menu.png',fullPage:true});
-              const arenas=new Set(),winds=new Set();
-              for(let i=0;i<5;i++){await page.locator('#startBtn').click();await page.waitForFunction(()=>window.__game.state.screen==='play');const s=await page.evaluate(()=>window.__game.getSnapshot());arenas.add(s.arena);winds.add(s.wind);await page.locator('#fireBtn').click();await page.evaluate(()=>window.__game.tick(420));await page.waitForTimeout(80);}
-              assert(arenas.size>=4,'CRITIC FAIL: terrain variety is too low');
-              assert(winds.size>=3,'CRITIC FAIL: wind variation is too low');
-              await page.locator('#shopBtn').click();assert(await page.locator('#shopGrid').isVisible(),'CRITIC FAIL: armory does not open');
-              assert((await page.locator('.shop-item').count())>=12,'CRITIC FAIL: progression catalogue too small');
-              await page.locator('#shopClose').click();
-              await page.locator('#startBtn').click();await page.waitForFunction(()=>window.__game.state.screen==='play');
-              const before=await page.evaluate(()=>window.__game.getSnapshot());
-              await page.locator('#fireBtn').click();await page.evaluate(()=>window.__game.tick(45));
-              const during=await page.evaluate(()=>window.__game.getSnapshot());assert(during.shots===1,'CRITIC FAIL: projectile did not launch');
-              await page.evaluate(()=>window.__game.tick(600));const after=await page.evaluate(()=>window.__game.getSnapshot());assert(after.turn==='player'||after.screen==='over','CRITIC FAIL: turn loop did not return to player');
+              const arenas=new Set(),winds=new Set(),distances=new Set();
+              for(let i=0;i<6;i++){
+                await page.locator('#startBtn').click();
+                await page.waitForFunction(()=>window.__game.state.screen==='play');
+                const s=await page.evaluate(()=>window.__game.getSnapshot());
+                arenas.add(s.arena); winds.add(s.wind); distances.add(Math.round(s.distance));
+                assert(s.turn==='player','CRITIC FAIL: match does not start on player turn');
+                await page.locator('#fireBtn').click();
+                await page.evaluate(()=>window.__game.tick(420));
+                await page.waitForTimeout(80);
+                await page.goto(base+'?seed='+(200+i),{waitUntil:'load',timeout:60000});
+                await page.waitForFunction(()=>window.__game?.getSnapshot,{timeout:30000});
+              }
+              assert(arenas.size>=4,'CRITIC FAIL: terrain variety is too low: '+arenas.size);
+              assert(winds.size>=3,'CRITIC FAIL: wind variation is too low: '+winds.size);
+              assert(distances.size>=4,'CRITIC FAIL: combat distance variation is too low: '+distances.size);
+              await page.locator('#startBtn').click(); await page.waitForFunction(()=>window.__game.state.screen==='play');
+              const initial=await page.evaluate(()=>window.__game.getSnapshot());
+              assert(initial.distance>0,'CRITIC FAIL: distance is missing');
+              await page.locator('#fireBtn').click(); await page.evaluate(()=>window.__game.tick(45));
+              const flying=await page.evaluate(()=>window.__game.getSnapshot());
+              assert(flying.shots===1,'CRITIC FAIL: projectile did not launch');
+              assert(flying.projectileActive===true||flying.projectile,'CRITIC FAIL: projectile state missing');
+              await page.evaluate(()=>window.__game.tick(600));
+              const after=await page.evaluate(()=>window.__game.getSnapshot());
+              assert(after.turn==='player'||after.screen==='over','CRITIC FAIL: turn loop did not return to player');
+              assert(typeof after.wind==='number','CRITIC FAIL: wind is not exposed as gameplay state');
               await page.screenshot({path:'bowbrawl-live.png',fullPage:true});
-              await page.goto(base+'?autoplay=1&seed=777',{waitUntil:'load',timeout:60000});await page.waitForFunction(()=>window.__game.state.screen==='play',{timeout:30000});await page.evaluate(()=>window.__game.tick(900));const auto=await page.evaluate(()=>window.__game.getSnapshot());assert(auto.shots>=2||auto.screen==='over','CRITIC FAIL: AI duel loop is not progressing');await page.screenshot({path:'bowbrawl-autoplay.png',fullPage:true});
+              await page.locator('#shopBtn').click();
+              assert(await page.locator('#shopGrid').isVisible(),'CRITIC FAIL: armory does not open');
+              assert((await page.locator('.shop-item').count())>=12,'CRITIC FAIL: progression catalogue too small');
+              const shopText=await page.locator('#shopGrid').innerText();
+              assert(/bow/i.test(shopText)&&/arrow/i.test(shopText)&&/outfit|character/i.test(shopText),'CRITIC FAIL: armory lacks meaningful equipment categories');
+              await page.locator('#shopClose').click();
+              await page.goto(base+'?autoplay=1&seed=777',{waitUntil:'load',timeout:60000});
+              await page.waitForFunction(()=>window.__game?.state?.screen==='play',{timeout:30000});
+              await page.evaluate(()=>window.__game.tick(900));
+              const auto=await page.evaluate(()=>window.__game.getSnapshot());
+              assert(auto.shots>=2||auto.screen==='over','CRITIC FAIL: AI duel loop is not progressing');
+              await page.screenshot({path:'bowbrawl-autoplay.png',fullPage:true});
               assert.equal(errors.length,0,'CRITIC FAIL: browser errors: '+errors.join(' | '));
-              console.log('CRITIC WOW GATE PASSED: '+arenas.size+' arenas, '+winds.size+' wind states, armory, projectile loop, AI loop, mobile-safe viewport.');
+              for(const f of ['bowbrawl-menu.png','bowbrawl-live.png','bowbrawl-autoplay.png']) assert(fs.statSync(f).size>10000,'CRITIC FAIL: visual capture is suspiciously empty: '+f);
+              console.log('CRITIC WOW GATE PASSED: '+arenas.size+' arenas, '+winds.size+' wind states, '+distances.size+' distances, armory, projectile physics, turn loop, AI duel, mobile-safe viewport.');
             }finally{server.kill();await browser.close()}
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
