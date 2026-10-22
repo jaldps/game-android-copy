@@ -81,7 +81,7 @@ export default {
     const low = cloudField({ count: 10, seed: 8, zRange: [-30, -80], yRange: [-10, -5], scale: [5, 9], shade: 0xb8d8f0, speed: 0.6 });
     group.add(clouds.mesh, low.mesh);
     group.add(farIslands({ count: 9, seed: 7, top: 0x7ccf5a, rock: 0xd0a070, zRange: [-200, -300], yRange: [0, 40], xRange: [-300, 300] }));
-    const isles = richIslands({ count: 8, seed: 12, zRange: [-60, -140], yRange: [-1, 20], xRange: [-150, 150], falls: 4, waterY: this.waterY });
+    const isles = richIslands({ count: 8, seed: 12, zRange: [-95, -170], yRange: [2, 24], xRange: [-170, 170], falls: 4, waterY: this.waterY });
     group.add(isles.group);
     const water = sea({ y: this.waterY, shallow: 0x3cd6dc, deep: 0x1f86c8 });
     group.add(water.mesh);

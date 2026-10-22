@@ -154,8 +154,10 @@ export class Hud {
       this._set('mv', Math.round(a.moveLeft / a.stats.moveGauge * 200) / 200, (v) => (el.moveFill.style.transform = `scaleX(${v})`));
       this._set('chg', a.charging, (v) => el.fire.classList.toggle('charging', v));
       const tl = Math.max(0, Math.ceil(m.timer));
-      this._set('t', m.phase === 'act' || m.phase === 'intro' ? tl : -1, (v) => {
-        el.time.textContent = v < 0 ? '–' : String(v);
+      const live = m.phase === 'act' || m.phase === 'intro';
+      this._set('tl', live, (v) => el.timer.classList.toggle('idle', !v));
+      this._set('t', live ? tl : -1, (v) => {
+        if (v >= 0) el.time.textContent = String(v);
         el.ring.style.strokeDashoffset = String(113.1 * (1 - Math.max(0, v) / TURN.time));
         el.timer.classList.toggle('low', v >= 0 && v <= 5);
         if (v >= 0 && v <= 5 && m.phase === 'act') audio.play('timer_tick');

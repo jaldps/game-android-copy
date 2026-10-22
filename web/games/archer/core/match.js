@@ -61,7 +61,7 @@ export class Match {
     this.over = false; this.winnerTeam = -1; this.endT = 0; this.movedThisTurn = 0; this.firedThisTurn = false; this.shotArrow = 'standard';
     this.intent = { move: 0, aimDelta: 0, aimTo: null, facing: 0, charge: false, arrow: null, skip: false };
     this._wasCharging = false; this.startT = 0;
-    if (!cfg.showcase) this._beginTurn(this._nextActor());
+    if (!cfg.showcase) { this._beginTurn(this._nextActor()); snap(); }
     else this._showcaseCam(true);
     events.emit('match:start', this);
   }

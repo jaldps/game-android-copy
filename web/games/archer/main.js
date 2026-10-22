@@ -126,9 +126,21 @@ window.__fps = 0;
 
 // ------------------------------------------------------------------ loop
 let last = performance.now(), fpsN = 0, fpsT = 0, booted = false;
+// adaptive resolution: drop the pixel ratio when frames run long on real devices (not under automation)
+let slowT = 0, fastT = 0;
+const adaptive = !navigator.webdriver;
+function adapt(dtRaw) {
+  if (!adaptive || paused) return;
+  if (dtRaw > 0.024) { slowT += dtRaw; fastT = 0; } else if (dtRaw < 0.0155) { fastT += dtRaw; slowT = Math.max(0, slowT - dtRaw * 0.5); }
+  const max = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1.25 : 2);
+  if (slowT > 2 && R.pr > 1) { R.pr = Math.max(1, R.pr - 0.25); R.renderer.setPixelRatio(R.pr); resize(); slowT = 0; }
+  else if (fastT > 8 && R.pr < max) { R.pr = Math.min(max, R.pr + 0.25); R.renderer.setPixelRatio(R.pr); resize(); fastT = 0; }
+}
 function frame(now) {
   requestAnimationFrame(frame);
-  let dt = Math.min(1 / 30, Math.max(0, (now - last) / 1000)); last = now;
+  const dtRaw = Math.max(0, (now - last) / 1000);
+  let dt = Math.min(1 / 30, dtRaw); last = now;
+  adapt(dtRaw);
   if (P.fixedstep) dt = 1 / 60;
   fpsN++; fpsT += Math.max(1e-3, (now - (frame.prev ?? now)) / 1000); frame.prev = now;
   if (fpsT >= 1) { window.__fps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }

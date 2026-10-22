@@ -33,6 +33,8 @@ svg { display: block; }
 .timer .ring { stroke: var(--gold); stroke-dasharray: 113.1; stroke-dashoffset: 0; stroke-linecap: round; transition: stroke-dashoffset .9s linear, stroke .3s; }
 .timer b { position: absolute; inset: 0; display: grid; place-items: center; font: 400 19px 'Lilita One', sans-serif; text-shadow: 0 2px 0 var(--ink); }
 .timer.low .ring { stroke: var(--red); }
+.timer.idle { opacity: .55; }
+.timer.idle .ring { stroke: rgba(255,255,255,.5); }
 .timer.low b { color: #ffb0a8; animation: pulse .5s ease-in-out infinite alternate; }
 @keyframes pulse { to { transform: scale(1.15); } }
 .order { display: flex; gap: 4px; align-items: center; padding: 4px 6px; border-radius: 18px; background: var(--panel); box-shadow: 0 3px 0 rgba(0,0,0,.3); }

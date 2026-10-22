@@ -49,6 +49,19 @@ export function createTerrainMaterial(palette = {}) {
           col = mix(col * 0.72, col, ledge);
           col = mix(col, col * 1.18, smoothstep(0.82, 0.97, bf));               // lit lip at the top of each layer
           tH = edge * 0.55 + (1.0 - c.x) * 0.35 + ledge * 0.35;
+          // large-scale tint drift so big faces never read as one repeated tile
+          float drift = fbm(p * 0.045 + 11.0);
+          col *= mix(vec3(1.08, 0.95, 0.86), vec3(0.92, 0.98, 1.06), drift);
+          // occasional smooth clay stratum with horizontal streaks
+          float clay = step(0.78, h12(vec2(band, 21.0)));
+          vec3 clayCol = mix(u_dirt, u_rock2, 0.35) * (0.86 + 0.18 * vn(vec2(p.x * 0.6, p.y * 9.0)));
+          clayCol *= mix(0.75, 1.0, ledge);
+          col = mix(col, clayCol, clay); tH = mix(tH, ledge * 0.5 + vn(vec2(p.x * 0.6, p.y * 9.0)) * 0.2, clay);
+          // rare embedded gems / pebbles
+          vec2 gq = p * 1.7; vec2 gid = floor(gq); float gh = h12(gid + 5.3);
+          float gem = step(0.965, gh) * smoothstep(0.2, 0.12, length(fract(gq) - 0.5)) * (1.0 - clay);
+          col = mix(col, mix(vec3(0.45, 0.95, 1.0), vec3(1.0, 0.82, 0.3), step(0.983, gh)) * 1.25, gem);
+          tH += gem * 0.6;
           col = mix(col, u_deep, smoothstep(0.8, 3.0, depth) * 0.7);
           return col; }
         vec3 brickCol(vec2 p, float depth){
