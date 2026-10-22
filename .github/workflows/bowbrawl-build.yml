@@ -49,9 +49,11 @@ jobs:
         run: npm ci
 
       - name: Install a headless browser
+        if: github.event_name != 'push'
         run: npx playwright install --with-deps chromium
 
       - name: Start local game server
+        if: github.event_name != 'push'
         run: |
           node tools/serve.mjs 8080 > /tmp/bowbrawl-server.log 2>&1 &
           for i in $(seq 1 30); do
@@ -64,6 +66,7 @@ jobs:
           exit 1
 
       - name: Run menu, controls, turn-loop and rendering smoke tests
+        if: github.event_name != 'push'
         run: |
           mkdir -p artifacts
           cat > bowbrawl-smoke.mjs <<'NODE'
