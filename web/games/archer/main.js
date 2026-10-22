@@ -177,22 +177,52 @@ const sunHalo = new THREE.Mesh(new THREE.SphereGeometry(1.8, 20, 12), new THREE.
 sunHalo.position.copy(sunDisk.position);
 scene.add(sunHalo);
 
-const cloudGroups = [];
+const cloudClusters = [];
+const cloudPuffs = [];
 const cloudMaterial = new THREE.MeshStandardMaterial({ color: 0xf5d4c8, roughness: 1, transparent: true, opacity: .53, depthWrite: false });
-for (let i = 0; i < 10; i++) {
-  const cloud = new THREE.Group();
-  const count = 4 + Math.floor(random() * 4);
-  const scale = .65 + random() * .9;
-  for (let j = 0; j < count; j++) {
-    const puff = new THREE.Mesh(new THREE.SphereGeometry(.6 + random() * .65, 10, 7), cloudMaterial);
-    puff.scale.set(1.5, .43 + random() * .25, .55);
-    puff.position.set((j - (count - 1) / 2) * .7, random() * .28, random() * .18);
-    cloud.add(puff);
+const cloudInstanced = new THREE.InstancedMesh(new THREE.SphereGeometry(.62, 10, 7), cloudMaterial, 45);
+cloudInstanced.castShadow = false;
+cloudInstanced.receiveShadow = false;
+const cloudDummy = new THREE.Object3D();
+for (let i = 0; i < 9; i++) {
+  cloudClusters.push({
+    x:(random()-.5)*37, y:3.6+random()*6.2, z:-8.5-random()*2.5,
+    scale:.65+random()*.9, speed:.06+random()*.12, phase:random()*7
+  });
+}
+for (let i = 0; i < 45; i++) {
+  const cluster=cloudClusters[Math.floor(i/5)];
+  const local=i%5;
+  const puff={
+    index:i, cluster,
+    x:(local-2)*(.63+random()*.12),
+    y:random()*.28,
+    z:(random()-.5)*.26,
+    scale:.62+random()*.42,
+    phase:random()*6.28
+  };
+  cloudPuffs.push(puff);
+  cloudDummy.position.set(cluster.x+puff.x,cluster.y+puff.y,cluster.z+puff.z);
+  cloudDummy.scale.set(1.5*puff.scale*cluster.scale,.54*puff.scale*cluster.scale,.55*puff.scale*cluster.scale);
+  cloudDummy.updateMatrix();
+  cloudInstanced.setMatrixAt(i,cloudDummy.matrix);
+}
+cloudInstanced.instanceMatrix.needsUpdate=true;
+scene.add(cloudInstanced);
+function animateClouds(dt) {
+  for (const c of cloudClusters) {
+    c.x+=c.speed*dt;
+    if(c.x>23)c.x=-23;
   }
-  cloud.position.set((random() - .5) * 37, 3.6 + random() * 6.2, -8.5 - random() * 2.5);
-  cloud.scale.setScalar(scale);
-  scene.add(cloud);
-  cloudGroups.push({ mesh: cloud, speed: .06 + random() * .12, baseY: cloud.position.y, phase: random() * 7 });
+  for(const p of cloudPuffs) {
+    const c=p.cluster;
+    cloudDummy.position.set(c.x+p.x,c.y+p.y+Math.sin(state.time*.22+c.phase+p.phase)*.08,c.z+p.z);
+    cloudDummy.rotation.set(0,0,Math.sin(state.time*.15+p.phase)*.015);
+    cloudDummy.scale.set(1.5*p.scale*c.scale,.54*p.scale*c.scale,.55*p.scale*c.scale);
+    cloudDummy.updateMatrix();
+    cloudInstanced.setMatrixAt(p.index,cloudDummy.matrix);
+  }
+  cloudInstanced.instanceMatrix.needsUpdate=true;
 }
 
 // Small floating ruins establish a world that feels part of the same stylized arcade universe.
@@ -525,11 +555,28 @@ function spawnSparks(pos, colorType, count) {
 }
 const dustMotes=[];
 const moteGeo = new THREE.SphereGeometry(.035,5,4);
-for(let i=0;i<42;i++){
-  const mote=new THREE.Mesh(moteGeo,i%3===0?crystalMat:i%3===1?emberMat:sparkMats[3]);
-  mote.material= mote.material.clone(); mote.material.transparent=true; mote.material.opacity=.22+random()*.42;
-  mote.position.set((random()-.5)*26,-1+random()*9,-2.5-random()*5);
-  scene.add(mote); dustMotes.push({mesh:mote,seed:random()*9,rate:.08+random()*.18});
+const moteMaterial = new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,opacity:.5,depthWrite:false});
+const moteCount=30;
+const moteInstanced=new THREE.InstancedMesh(moteGeo,moteMaterial,moteCount);
+const moteDummy=new THREE.Object3D();
+for(let i=0;i<moteCount;i++){
+  const mote={x:(random()-.5)*26,y:-1+random()*9,z:-2.5-random()*5,seed:random()*9,rate:.08+random()*.18,scale:.7+random()*1.5};
+  dustMotes.push(mote);
+  moteDummy.position.set(mote.x,mote.y,mote.z);moteDummy.scale.setScalar(mote.scale);moteDummy.updateMatrix();
+  moteInstanced.setMatrixAt(i,moteDummy.matrix);
+  moteInstanced.setColorAt(i,new THREE.Color(i%3===0?0x63e0ce:i%3===1?0xffa36e:0xf4e8d0));
+}
+moteInstanced.instanceMatrix.needsUpdate=true;
+scene.add(moteInstanced);
+function animateMotes(dt) {
+  for(let i=0;i<dustMotes.length;i++){
+    const m=dustMotes[i];
+    const y=m.y+Math.sin(state.time*m.rate+m.seed)*.1;
+    const x=m.x+Math.cos(state.time*m.rate*.8+m.seed)*.05;
+    moteDummy.position.set(x,y,m.z);moteDummy.scale.setScalar(m.scale);moteDummy.updateMatrix();
+    moteInstanced.setMatrixAt(i,moteDummy.matrix);
+  }
+  moteInstanced.instanceMatrix.needsUpdate=true;
 }
 
 let audioCtx = null;
@@ -891,15 +938,8 @@ function advanceGame(dt) {
     s.mesh.scale.setScalar(Math.max(.015,s.life));
     if(s.life<=0){scene.remove(s.mesh);sparks.splice(i,1);}
   }
-  for(const c of cloudGroups){
-    c.mesh.position.x+=c.speed*dt;
-    c.mesh.position.y=c.baseY+Math.sin(state.time*.22+c.phase)*.08;
-    if(c.mesh.position.x>23)c.mesh.position.x=-23;
-  }
-  for(const m of dustMotes){
-    m.mesh.position.y+=Math.sin(state.time*m.rate+m.seed)*dt*.09;
-    m.mesh.position.x+=Math.cos(state.time*m.rate*.8+m.seed)*dt*.06;
-  }
+  animateClouds(dt);
+  animateMotes(dt);
   for(const actor of actors){
     const idle=Math.sin(state.time*1.75+actor.phase)*.032;
     actor.root.position.y=actor.baseY+idle;
