@@ -526,7 +526,7 @@ function sound(freq, duration, wave, volume, endFreq) {
   }catch(e){}
 }
 function soundFire(){ sound(220,.2,'triangle',.055,75); sound(720,.09,'sawtooth',.018,290); }
-function soundHit(headshot){ sound(headshot?155:110,headshot?.32:.2,'sine',headshot?.12:.085,headshot?48:55); sound(headshot?880:460,.16,'triangle',headshot?.065:.03,headshot?1500:170); }
+function soundHit(headshot){ sound(headshot?155:110,headshot ? .32 : .2,'sine',headshot ? .12 : .085,headshot ? 48 : 55); sound(headshot?880:460,.16,'triangle',headshot ? .065 : .03,headshot ? 1500 : 170); }
 function setMuted(value) {
   state.muted=value;
   try{localStorage.setItem('bowbrawl.muted',value?'1':'0');}catch(e){}
@@ -628,7 +628,7 @@ function resetActor(actor) {
 
 function startMatch() {
   state.screen='play'; state.turn='player'; state.round=1; state.pending=0;
-  state.aiWait=0; state.autoWait=state.autoPilot?.7:0; state.resetWait=0;
+  state.aiWait=0; state.autoWait = state.autoPilot ? .7 : 0; state.resetWait=0;
   state.projectile=null; state.totalDamage=0; state.headshots=0; state.streak=0;
   state.bestStreak=0; state.shots=0; state.lastHit='';
   resetActor(actors[0]); resetActor(actors[1]); updateWind(); setAim(23,56); setArrowType(state.selectedArrow);
@@ -738,25 +738,27 @@ function hitActor(projectile, actor) {
   return true;
 }
 function endProjectile(hit, target) {
-  if(!state.projectile) return;
-  scene.remove(state.projectile.mesh);
-  state.projectile.mesh.traverse(o=>{if(o.geometry && o.geometry!==sparkGeo)o.geometry.dispose?.();});
-  state.projectile=null;
-  arrowLight.intensity=0;
-  if(state.screen==='over') return;
-  const firedSide=state.turn==='flight' ? (target ? 1-target.side : state.lastFiredSide) : state.lastFiredSide;
-  const nextSide=target ? 1-target.side : (firedSide===0?1:0);
-  state.lastFiredSide=firedSide;
-  state.pending=0;
-  state.turn=nextSide===0?'player':'enemy';
-  if(nextSide===0) {
+  const shot = state.projectile;
+  if (!shot) return;
+  scene.remove(shot.mesh);
+  shot.mesh.traverse(o => { if (o.geometry && o.geometry !== sparkGeo) o.geometry.dispose?.(); });
+  state.projectile = null;
+  arrowLight.intensity = 0;
+  if (state.screen === 'over') return;
+
+  // Turns are determined by the arrow that actually fired, not by hit/miss outcome.
+  const nextSide = 1 - shot.side;
+  state.lastFiredSide = shot.side;
+  state.pending = 0;
+  state.turn = nextSide === 0 ? 'player' : 'enemy';
+  if (nextSide === 0) {
     state.round++;
     updateWind();
-    if(!state.autoPilot) showMessage('YOUR MOVE','damage');
-  } else if(!state.autoPilot) {
-    state.aiWait=.72;
+    if (!state.autoPilot) showMessage('YOUR MOVE', 'damage');
+  } else if (!state.autoPilot) {
+    state.aiWait = .72;
   }
-  if(state.autoPilot) state.autoWait=.72;
+  if (state.autoPilot) state.autoWait = .72;
   updateHud();
 }
 function impactMiss(p) {
