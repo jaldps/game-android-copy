@@ -146,7 +146,7 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  source=source.replace('mouth=part(g,new THREE.SphereGeometry(1,16,10),maskMat,[0,2.79,.29],[.255,.105,.07]);\n   part(g,new THREE.BoxGeometry(.48,.055,.045),leather,[0,2.73,.32]);',
  'mouth=part(g,new THREE.BoxGeometry(.43,.155,.065),maskMat,[0,2.82,.305]);\n   part(g,new THREE.BoxGeometry(.45,.026,.045),leather,[0,2.765,.342]);\n   part(g,new THREE.BoxGeometry(.20,.018,.018),M.rock2,[0,2.81,.35]);');
  const arenaStart=source.indexOf('function buildArena(){');
- const arenaStop=source.indexOf('\nfunction makeBow(){',arenaStart);
+ const arenaStop=source.indexOf('function makeBow(){',arenaStart);
  if(arenaStart<0||arenaStop<0) throw new Error('Cinematic pass could not locate buildArena.');
  let arenaFn=source.slice(arenaStart,arenaStop);
  const close=arenaFn.lastIndexOf('}');
