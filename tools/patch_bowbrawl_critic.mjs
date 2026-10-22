@@ -189,6 +189,8 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  "if(l)l.textContent=state.selected.character.toUpperCase()+' · '+state.selected.bow.toUpperCase();updateAimPreview()}");
  source=source.replace("projectileActive:!!state.projectile,points:state.points",
  "projectileActive:!!state.projectile,aimPreviewVisible:!!aimGuide.visible,aimPoints:aimGuide.geometry.attributes.position?.count||0,points:state.points");
+ source=source.replace("ui.powerVal.textContent=state.power+'%';fighters[0].bow.rotation.z=state.angle*Math.PI/180}","ui.powerVal.textContent=state.power+'%';fighters[0].bow.rotation.z=state.angle*Math.PI/180;updateAimPreview()}");
+ source=source.replace("function setArrow(t){state.selected.arrow=t;state.selectedArrow=t;ui.arrows.forEach(b=>b.classList.toggle('selected',b.dataset.arrow===t));save()}","function setArrow(t){state.selected.arrow=t;state.selectedArrow=t;ui.arrows.forEach(b=>b.classList.toggle('selected',b.dataset.arrow===t));save();updateAimPreview()}");
  if(!source.includes('function updateAimPreview()')||!source.includes('aimPreviewVisible:!!aimGuide.visible')) throw new Error('Aim-preview patch did not apply');
 
 fs.writeFileSync(target,source,'utf8');
