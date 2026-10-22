@@ -238,16 +238,14 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
    part(g,new THREE.LatheGeometry(muscleProfile,36),body,[0,0,0],[1,1,.66]);`;
  if(!source.includes(oldMaleTorso))throw new Error('Model pass could not locate male torso primitives.');
  source=source.replace(oldMaleTorso,newMaleTorso);
- const oldFemaleTorso=String.raw`   orb(body,[0,1.49,0],[.56,.34,.33]); // hips
-   orb(body,[0,1.91,0],[.225,.43,.255]); // defined waist
-   orb(body,[0,2.32,0],[.405,.44,.30]); // tailored bodice
-   orb(body,[-.195,2.42,.205],[.27,.235,.205]);orb(body,[.195,2.42,.205],[.27,.235,.205]);
-   orb(body,[0,2.62,-.005],[.34,.18,.27]);`;
- const newFemaleTorso=String.raw`   const hourglassProfile=[[.10,1.16],[.31,1.21],[.48,1.36],[.53,1.50],[.48,1.62],[.36,1.76],[.255,1.92],[.265,2.07],[.33,2.21],[.43,2.33],[.46,2.44],[.40,2.55],[.28,2.63],[.12,2.67],[0,2.67]].map(p=>new THREE.Vector2(p[0],p[1]));
+ const femaleStart=source.indexOf('   orb(body,[0,1.49,0]');
+ const femaleEnd=source.indexOf('   orb(skin,[-.48,2.43,0]',femaleStart);
+ if(femaleStart<0||femaleEnd<0)throw new Error('Model pass could not locate female torso region.');
+ const newFemaleTorso=String.raw\`   const hourglassProfile=[[.10,1.16],[.31,1.21],[.48,1.36],[.53,1.50],[.48,1.62],[.36,1.76],[.255,1.92],[.265,2.07],[.33,2.21],[.43,2.33],[.46,2.44],[.40,2.55],[.28,2.63],[.12,2.67],[0,2.67]].map(p=>new THREE.Vector2(p[0],p[1]));
    part(g,new THREE.LatheGeometry(hourglassProfile,40),body,[0,0,0],[1,1,.74]);
-   orb(body,[-.16,2.40,.30],[.18,.13,.105],22);orb(body,[.16,2.40,.30],[.18,.13,.105],22);`;
- if(!source.includes(oldFemaleTorso))throw new Error('Model pass could not locate female torso primitives.');
- source=source.replace(oldFemaleTorso,newFemaleTorso);
+   orb(body,[-.16,2.40,.30],[.18,.13,.105],22);orb(body,[.16,2.40,.30],[.18,.13,.105],22);
+\`;
+ source=source.slice(0,femaleStart)+newFemaleTorso+source.slice(femaleEnd);
  // Replace the moustache-like block with a proper lower-face cloth mask and crimson ninja forehead wrap.
  const oldMask=String.raw`mouth=part(g,new THREE.BoxGeometry(.43,.155,.065),maskMat,[0,2.82,.305]);
    part(g,new THREE.BoxGeometry(.45,.026,.045),leather,[0,2.765,.342]);
