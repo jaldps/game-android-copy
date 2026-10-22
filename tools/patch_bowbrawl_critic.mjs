@@ -229,5 +229,84 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  source=source.replace(oldCameraSettle,newCameraSettle);
  if(!source.includes('camera.lookAt(0,innerHeight<430?4.6:2,0)}else{camera.position.x*=.88;const baseCamY')) throw new Error('Mobile camera target was not wired into frame loop');
 
+
+ // Model art pass: replace disconnected torso spheres with smooth sculpted profiles, then refine hair, mask, bow and bridge silhouette.
+ const oldMaleTorso = String.raw`   orb(body,[0,1.98,0],[.37,.48,.28]);
+   orb(body,[0,2.38,0],[.61,.48,.36]);
+   orb(body,[-.26,2.48,.21],[.34,.23,.18]);orb(body,[.26,2.48,.21],[.34,.23,.18]);`;
+ const newMaleTorso = String.raw`   const muscleProfile=[[.12,1.35],[.29,1.39],[.38,1.53],[.36,1.73],[.34,1.94],[.46,2.10],[.60,2.30],[.66,2.47],[.59,2.62],[.42,2.73],[.16,2.77],[0,2.77]].map(p=>new THREE.Vector2(p[0],p[1]));
+   part(g,new THREE.LatheGeometry(muscleProfile,36),body,[0,0,0],[1,1,.66]);`;
+ if(!source.includes(oldMaleTorso))throw new Error('Model pass could not locate male torso primitives.');
+ source=source.replace(oldMaleTorso,newMaleTorso);
+ const oldFemaleTorso=String.raw`   orb(body,[0,1.49,0],[.56,.34,.33]); // hips
+   orb(body,[0,1.91,0],[.225,.43,.255]); // defined waist
+   orb(body,[0,2.32,0],[.405,.44,.30]); // tailored bodice
+   orb(body,[-.195,2.42,.205],[.27,.235,.205]);orb(body,[.195,2.42,.205],[.27,.235,.205]);
+   orb(body,[0,2.62,-.005],[.34,.18,.27]);`;
+ const newFemaleTorso=String.raw`   const hourglassProfile=[[.10,1.16],[.31,1.21],[.48,1.36],[.53,1.50],[.48,1.62],[.36,1.76],[.255,1.92],[.265,2.07],[.33,2.21],[.43,2.33],[.46,2.44],[.40,2.55],[.28,2.63],[.12,2.67],[0,2.67]].map(p=>new THREE.Vector2(p[0],p[1]));
+   part(g,new THREE.LatheGeometry(hourglassProfile,40),body,[0,0,0],[1,1,.74]);
+   orb(body,[-.16,2.40,.30],[.18,.13,.105],22);orb(body,[.16,2.40,.30],[.18,.13,.105],22);`;
+ if(!source.includes(oldFemaleTorso))throw new Error('Model pass could not locate female torso primitives.');
+ source=source.replace(oldFemaleTorso,newFemaleTorso);
+ // Replace the moustache-like block with a proper lower-face cloth mask and crimson ninja forehead wrap.
+ const oldMask=String.raw`mouth=part(g,new THREE.BoxGeometry(.43,.155,.065),maskMat,[0,2.82,.305]);
+   part(g,new THREE.BoxGeometry(.45,.026,.045),leather,[0,2.765,.342]);
+   part(g,new THREE.BoxGeometry(.20,.018,.018),M.rock2,[0,2.81,.35]);`;
+ const newMask=String.raw`const maskShape=new THREE.Shape();maskShape.moveTo(-.29,2.98);maskShape.lineTo(-.20,2.99);maskShape.lineTo(0,2.94);maskShape.lineTo(.20,2.99);maskShape.lineTo(.29,2.98);maskShape.lineTo(.25,2.78);maskShape.lineTo(.13,2.69);maskShape.lineTo(0,2.66);maskShape.lineTo(-.13,2.69);maskShape.lineTo(-.25,2.78);maskShape.closePath();
+   mouth=part(g,new THREE.ShapeGeometry(maskShape),maskMat,[0,0,.345]);
+   headAccessory=part(g,new THREE.BoxGeometry(.69,.075,.052),new THREE.MeshStandardMaterial({color:0x9e3048,roughness:.84}),[0,3.285,.245]);
+   part(g,new THREE.BoxGeometry(.13,.078,.027),accent,[0,3.285,.281]);
+   limb(g,[.30,3.285,.20],[.57,3.39,.03],.043,headAccessory.material);
+   limb(g,[.30,3.27,.20],[.60,3.19,.03],.038,headAccessory.material);`;
+ if(!source.includes(oldMask))throw new Error('Model pass could not locate original ninja mask.');
+ source=source.replace(oldMask,newMask);
+ // Long wave locks turn the female silhouette into a glamorous duelist rather than a bob-haired toy.
+ const oldHair=String.raw`   limb(g,[-.28,3.08,-.2],[-.4,2.35,-.16],.12,hair);limb(g,[.28,3.08,-.2],[.4,2.35,-.16],.12,hair);
+   headAccessory=part(g,new THREE.TorusGeometry(.355,.035,7,32),accent,[0,3.25,-.025],[1,1,.9]);
+   headAccessory.rotation.x=.08;`;
+ const newHair=String.raw`   limb(g,[-.28,3.08,-.2],[-.4,2.35,-.16],.12,hair);limb(g,[.28,3.08,-.2],[.4,2.35,-.16],.12,hair);
+   const waveL=new THREE.CatmullRomCurve3([new THREE.Vector3(-.32,3.24,.04),new THREE.Vector3(-.43,3.02,.14),new THREE.Vector3(-.47,2.78,.20),new THREE.Vector3(-.43,2.52,.22),new THREE.Vector3(-.33,2.30,.16),new THREE.Vector3(-.26,2.24,.11)]);
+   const waveR=new THREE.CatmullRomCurve3([new THREE.Vector3(.32,3.24,.04),new THREE.Vector3(.43,3.02,.14),new THREE.Vector3(.47,2.78,.20),new THREE.Vector3(.43,2.52,.22),new THREE.Vector3(.33,2.30,.16),new THREE.Vector3(.26,2.24,.11)]);
+   part(g,new THREE.TubeGeometry(waveL,28,.092,9,false),hair,[0,0,0]);part(g,new THREE.TubeGeometry(waveR,28,.092,9,false),hair,[0,0,0]);
+   orb(accent,[-.34,2.98,.235],[.045,.065,.03],12);orb(accent,[.34,2.98,.235],[.045,.065,.03],12);
+   headAccessory=part(g,new THREE.TorusGeometry(.355,.035,7,32),accent,[0,3.32,.04],[1,1,.9]);
+   headAccessory.rotation.x=.08;`;
+ if(!source.includes(oldHair))throw new Error('Model pass could not locate female hair/tiara block.');
+ source=source.replace(oldHair,newHair);
+ source=source.replace("if(f.headAccessory)f.headAccessory.visible=c==='sable'||c==='vexa';","if(f.headAccessory)f.headAccessory.visible=f.male?true:(c==='sable'||c==='vexa');");
+ // Upgrade the first bow mesh to a sculpted wooden limb with a taut string, gilded tips and wrapped grip.
+ const bowStart=source.indexOf('function makeBow(){');
+ const bowStop=source.indexOf('function makeFighter(side,femaleOverride=null){',bowStart);
+ if(bowStart<0||bowStop<0)throw new Error('Model pass could not locate bow builder boundaries.');
+ const craftedBow=String.raw`function makeBow(){
+ const g=new THREE.Group();
+ const wood=new THREE.MeshStandardMaterial({color:0x6b3f2b,metalness:.18,roughness:.34});
+ const stringMat=new THREE.MeshStandardMaterial({color:0xf5e6c4,roughness:.5});
+ const gold=new THREE.MeshStandardMaterial({color:0xe6b76e,metalness:.62,roughness:.24});
+ const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(0,-1.04,0),new THREE.Vector3(.30,-.94,.02),new THREE.Vector3(.51,-.66,.03),new THREE.Vector3(.63,-.30,.025),new THREE.Vector3(.66,0,.02),new THREE.Vector3(.63,.30,.025),new THREE.Vector3(.51,.66,.03),new THREE.Vector3(.30,.94,.02),new THREE.Vector3(0,1.04,0)]);
+ const bowMesh=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.062,10,false),wood);bowMesh.castShadow=true;g.add(bowMesh);
+ const stringCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(0,-1.04,.055),new THREE.Vector3(-.12,-.5,.06),new THREE.Vector3(-.15,0,.06),new THREE.Vector3(-.12,.5,.06),new THREE.Vector3(0,1.04,.055)]);
+ g.add(new THREE.Mesh(new THREE.TubeGeometry(stringCurve,24,.009,6,false),stringMat));
+ part(g,new THREE.CylinderGeometry(.055,.07,.28,12),M.leather,[.22,0,.045],[1,1,1]);
+ for(const y of[-.98,.98]){part(g,new THREE.SphereGeometry(.085,14,10),gold,[.025,y,.01],[.78,.78,.62]);part(g,new THREE.TorusGeometry(.073,.016,6,16),gold,[.075,y*.92,.028],[.8,1,.7]);}
+ for(const y of[-.12,.12]){const wrap=part(g,new THREE.TorusGeometry(.063,.012,6,16),gold,[.22,y,.055],[1,1,.7]);wrap.rotation.x=Math.PI/2;}
+ const rune=part(g,new THREE.OctahedronGeometry(.055,0),gold,[.28,.02,.09],[.8,1.15,.65]);rune.rotation.z=.25;
+ return g;
+}
+`;
+ source=source.slice(0,bowStart)+craftedBow+source.slice(bowStop);
+ // The broken bridge is a set of timber slats, not a wall of black cubes across the sightline.
+ source=source.replace("part(decor,new THREE.BoxGeometry(.78,.16,2.8),M.metal,[x,.08,-1.9]);",
+ "part(decor,new THREE.BoxGeometry(.82,.085,.62),new THREE.MeshStandardMaterial({color:0x574454,metalness:.22,roughness:.68}),[x,.23,-.15]);");
+ // Floating dust and the halo now drift very gently, preventing the scene from feeling frozen.
+ source=source.replace("mote.material.transparent=true;mote.material.opacity=.32+rnd()*.48;",
+ "mote.material.transparent=true;mote.material.opacity=.32+rnd()*.48;mote.userData.floatBase=mote.position.y;mote.userData.floatPhase=rnd()*6.28;mote.userData.floatAmp=.06+rnd()*.10;");
+ source=source.replace("state.time+=dt;if(state.screen==='play')",
+ "state.time+=dt;for(const o of decor.children){if(o.userData.floatPhase!==undefined){o.position.y=o.userData.floatBase+Math.sin(state.time*.52+o.userData.floatPhase)*o.userData.floatAmp;o.rotation.y+=dt*.12}}if(state.screen==='play')");
+ // Match resize camera/framing to the initial mobile/desktop projection instead of resetting its aspect.
+ source=source.replace("window.addEventListener('resize',()=>{const a=innerWidth/Math.max(1,innerHeight),h=11.2;camera.left=-h*a/2;camera.right=h*a/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7))});",
+ "window.addEventListener('resize',()=>{const a=innerWidth/Math.max(1,innerHeight),h=innerHeight<430?12.2:11.3;camera.left=-h*a/2;camera.right=h*a/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix();camera.position.y=innerHeight<430?8.2:7;camera.lookAt(0,innerHeight<430?4.6:2,0);renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7))});");
+ if(!source.includes('new THREE.LatheGeometry(muscleProfile,36)')||!source.includes('new THREE.LatheGeometry(hourglassProfile,40)')||!source.includes('maskShape=new THREE.Shape()')||!source.includes('waveL=new THREE.CatmullRomCurve3')||!source.includes('function makeBow(){'))throw new Error('Sculpted model validation failed.');
+
 fs.writeFileSync(target,source,'utf8');
 console.log('critic polish applied:',target,source.length,'bytes');
