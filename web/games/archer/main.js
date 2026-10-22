@@ -81,6 +81,34 @@ const skyMat = new THREE.ShaderMaterial({
 const sky = new THREE.Mesh(skyGeo, skyMat);
 scene.add(sky);
 
+// Cloud layer
+const cloudGroup = new THREE.Group();
+for (let i = 0; i < 12; i++) {
+  const cloudGeo = new THREE.PlaneGeometry(20 + Math.random() * 30, 8 + Math.random() * 12);
+  const cloudMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.6,
+    depthWrite: false, side: THREE.DoubleSide
+  });
+  const cloud = new THREE.Mesh(cloudGeo, cloudMat);
+  cloud.position.set(
+    (Math.random() - 0.5) * 300,
+    50 + Math.random() * 30,
+    (Math.random() - 0.5) * 300
+  );
+  cloud.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+  cloud.rotation.z = Math.random() * Math.PI;
+  cloudGroup.add(cloud);
+}
+scene.add(cloudGroup);
+
+// Animate clouds
+function updateClouds(dt) {
+  cloudGroup.children.forEach(cloud => {
+    cloud.position.x += dt * 2;
+    if (cloud.position.x > 150) cloud.position.x = -150;
+  });
+}
+
 // Clouds
 for (let i = 0; i < 8; i++) {
   const cloudGeo = new THREE.SphereGeometry(8 + Math.random() * 6, 8, 6);
@@ -459,6 +487,7 @@ function fire() {
     shooter.userData.parts.armR.rotation.x = -1.2;
   }
   playBeep(600, 0.08, 0.1);
+  haptic(50);
 }
 
 if (fireBtn) fireBtn.addEventListener('click', fire);
@@ -524,6 +553,7 @@ function loop(now) {
       const idx = ar.fromLeft ? 1 : 0;
       G.hp[idx] = Math.max(0, G.hp[idx] - dmg);
       playBeep(220, 0.2, 0.15);
+      haptic(100);
       target.position.x += ar.fromLeft ? 2 : -2;
       spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 12, 0xffaa44);
       // Damage number
@@ -615,6 +645,7 @@ function loop(now) {
         const idx = ar.fromLeft ? 1 : 0;
         G.hp[idx] = Math.max(0, G.hp[idx] - dmg);
         playBeep(220, 0.2, 0.15);
+      haptic(100);
         target.position.x += ar.fromLeft ? 2 : -2;
         // Hit reaction
         if (target.userData.parts) {
@@ -762,6 +793,7 @@ function loop(now) {
     pauseOverlay.style.display = G.paused ? 'flex' : 'none';
   }
 
+  updateClouds(dt);
   updateAimIndicator();
   updateHUD();
 
@@ -800,7 +832,36 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-window.addEventListener('resize', () => {
+// Touch controls for mobile
+let touchStartX = 0, touchStartY = 0;
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+  // Adjust angle based on vertical drag
+  G.angle = Math.max(0, Math.min(90, G.angle - dy * 0.2));
+  if (angleSlider) angleSlider.value = G.angle;
+  if (angleVal) angleVal.textContent = Math.round(G.angle);
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}, { passive: false });
+
+// Add haptic feedback
+function haptic(duration) {
+  if (navigator.vibrate) navigator.vibrate(duration);
+}
+
+// Trigger haptic on fire
+// (already handled in fire function - add haptic call)
+
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
