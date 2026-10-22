@@ -602,7 +602,7 @@ function spawnSparks(pos, colorType, count) {
 }
 const dustMotes=[];
 const moteGeo = new THREE.SphereGeometry(.035,5,4);
-const moteMaterial = new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,opacity:.5,depthWrite:false});
+const moteMaterial = new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.58,depthWrite:false});
 const moteCount=30;
 const moteInstanced=new THREE.InstancedMesh(moteGeo,moteMaterial,moteCount);
 const moteDummy=new THREE.Object3D();
