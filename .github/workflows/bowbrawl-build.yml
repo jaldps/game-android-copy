@@ -168,14 +168,30 @@ jobs:
       - name: Update the tracked APK on the feature branch
         if: github.event_name == 'push' && github.ref_name == 'feat/bowbrawl-visual-rebuild'
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Another source/workflow commit can land while Gradle is running.
+          # Preserve the built APK, then move onto the latest branch tip before
+          # committing it. Refuse to publish a stale APK if game/build inputs changed.
+          apk_tmp="$RUNNER_TEMP/bowbrawl-ClearplayArcade.apk"
+          cp dist/ClearplayArcade.apk "$apk_tmp"
+          git fetch origin "$GITHUB_REF_NAME"
+          if ! git diff --quiet "$GITHUB_SHA" "origin/$GITHUB_REF_NAME" -- web/games/archer android tools/apk.sh package.json package-lock.json; then
+            echo "Source/build inputs changed during this run; refusing to publish a stale APK."
+            exit 1
+          fi
+
+          git reset --hard "origin/$GITHUB_REF_NAME"
+          mkdir -p dist
+          cp "$apk_tmp" dist/ClearplayArcade.apk
           git add dist/ClearplayArcade.apk
           if git diff --cached --quiet; then
             echo "APK bytes match the current tracked build; no binary commit needed."
           else
             git commit -m "Build Clearplay Arcade APK with Bowbrawl"
-            git push origin HEAD:feat/bowbrawl-visual-rebuild
+            git push origin HEAD:"$GITHUB_REF_NAME"
           fi
 
       - name: Upload screenshots and installable APK
