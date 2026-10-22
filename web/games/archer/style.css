@@ -122,6 +122,13 @@ input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border: 2px s
 .screen-overlay { position: absolute; z-index: 20; inset: 0; }
 .hidden { display: none !important; }
 .menu-overlay { display: flex; align-items: center; justify-content: flex-start; background: linear-gradient(90deg, rgba(9,15,31,.96) 0%, rgba(10,17,34,.89) 35%, rgba(11,19,36,.42) 58%, rgba(12,18,32,.05) 100%); }
+.menu-open .topbar,
+.menu-open .combat-hud,
+.menu-open .turn-banner,
+.menu-open .aim-hint,
+.menu-open .control-dock,
+.menu-open .bottom-meta,
+.menu-open .event-callout { visibility: hidden; }
 .menu-backdrop { position: absolute; left: 0; top: 0; bottom: 0; width: 54%; pointer-events: none; background: radial-gradient(ellipse at 0% 50%, rgba(33,75,97,.18), transparent 70%); }
 .menu-content { position: relative; z-index: 1; width: min(54%, 610px); padding: 28px 0 24px clamp(30px, 7.4vw, 112px); }
 .eyebrow { display: flex; align-items: center; gap: 8px; color: #88bcbf; font: 900 8px "Inter", sans-serif; letter-spacing: .24em; }
