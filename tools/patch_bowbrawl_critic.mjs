@@ -86,7 +86,7 @@ const fighterBuilder=String.raw`function makeFighter(side,femaleOverride=null){
  // Bow hand is always on the opponent-facing side, regardless of the selected character's gender.
  const launcher=new THREE.Object3D();launcher.position.set(side===0?1.03:-1.03,2.43,.38);g.add(launcher);
  const bow=makeBow();bow.position.copy(launcher.position);g.add(bow);g.position.z=.65;scene.add(g);
- return{side,male,root:g,bow,launcher,cape,baseY:0,baseX:0,hp:100,hitUntil:0,phase:rnd()*6.28,dir:side===0?1:-1,damage:0,hits:0,bodyMaterial:body,hairMaterial:hair,accentMaterial:accent,mask:mouth,headAccessory};
+ return{side,male,root:g,bow,launcher,cape,baseY:0,baseX:0,hp:100,hitUntil:0,phase:rnd()*6.28,dir:side===0?1:-1,damage:0,hits:0,bodyMaterial:body,hairMaterial:hair,accentMaterial:accent,mask:male?mouth:null,lip:male?null:mouth,headAccessory};
 }`;
 source=source.slice(0,a)+fighterBuilder+source.slice(b);
 
@@ -110,7 +110,7 @@ const apply=String.raw`function applyLoadout(){
  f.cape.material.color.set(capeColors[outfit]||capeColors.ronin);
  f.accentMaterial.color.set(trimColors[outfit]||trimColors.ronin);
  f.hairMaterial.color.set(c==='vexa'?0xb52b43:c==='sable'?0x171426:c==='titan'?0x68442c:0x121827);
- if(f.mask)f.mask.visible=c==='raven';
+ if(f.mask)f.mask.visible=c==='raven';if(f.lip)f.lip.visible=true;
  if(f.headAccessory)f.headAccessory.visible=c==='sable'||c==='vexa';
  if(f.bow.children[0])f.bow.children[0].material=state.selected.bow==='sunfang'?M.gold:state.selected.bow==='moonpiercer'?M.frost:M.dark;
  updateHUD()
@@ -136,6 +136,9 @@ source=source.replace(
  "function snapshot(){return{screen:state.screen,turn:state.turn,round:state.round,arena:arena.name,wind:state.wind,angle:state.angle,power:state.power,playerHp:fighters[0].hp,enemyHp:fighters[1].hp,shots:state.shots,points:state.points,loadout:state.selected}}",
  "function snapshot(){return{screen:state.screen,turn:state.turn,round:state.round,arena:arena.name,wind:state.wind,distance:Math.round(Math.abs(fighters[1].root.position.x-fighters[0].root.position.x)*100)/100,angle:state.angle,power:state.power,playerHp:fighters[0].hp,enemyHp:fighters[1].hp,shots:state.shots,projectileActive:!!state.projectile,points:state.points,loadout:state.selected,playerCharacter:fighters[0].male?'male':'female',playerHits:fighters[0].hits,enemyHits:fighters[1].hits,totalDamage:state.totalDamage}}"
 );
+source=source.replace('getSnapshot:snapshot,buildTag:', 'getSnapshot:snapshot,aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:');
+source=source.replace("else if(state.turn==='enemy'){state.aiWait-=dt;if(state.aiWait<=0)launch(1)}", "else if(state.turn==='enemy'){state.aiWait-=dt;if(state.aiWait<=0)launch(1)}else if(state.autoPilot)launch(0);");
 if(!source.includes('distance:Math.round(Math.abs(fighters[1].root.position.x-fighters[0].root.position.x)*100)/100')) throw new Error('Critic snapshot patch did not apply');
+if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new Error('Critic aim-solution patch did not apply');
 fs.writeFileSync(target,source,'utf8');
 console.log('critic polish applied:',target,source.length,'bytes');
