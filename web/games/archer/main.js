@@ -1,4 +1,5 @@
 import * as THREE from '../../lib/three.module.js';
+import { mergeGeometries } from '../../lib/addons/utils/BufferGeometryUtils.js';
 import { setOrientation, vibrate, goHome, onBack, onPauseResume, params } from '../../shared/platform.js';
 
 setOrientation('landscape');
@@ -383,6 +384,49 @@ function makeBow(dir, aim) {
   g.rotation.z = dir > 0 ? aim : -aim;
   return g;
 }
+function mergeCharacterMeshes(root) {
+  root.updateMatrixWorld(true);
+  const rootInverse = root.matrixWorld.clone().invert();
+  const batches = new Map();
+  const originals = [];
+  root.traverse(child => {
+    if (!child.isMesh || child.userData.keepSeparate || Array.isArray(child.material)) return;
+    let ancestor = child.parent, keepSeparate = false;
+    while (ancestor && ancestor !== root) {
+      if (ancestor.userData.keepSeparate) { keepSeparate = true; break; }
+      ancestor = ancestor.parent;
+    }
+    if (keepSeparate) return;
+    let geometry = child.geometry.clone();
+    if (geometry.index) geometry = geometry.toNonIndexed();
+    const relative = new THREE.Matrix4().multiplyMatrices(rootInverse, child.matrixWorld);
+    geometry.applyMatrix4(relative);
+    geometry.computeVertexNormals();
+    const material = child.material;
+    if (!batches.has(material)) batches.set(material, []);
+    batches.get(material).push({geometry, original:child});
+  });
+  for (const [material, batch] of batches) {
+    if (batch.length < 2) {
+      for (const entry of batch) entry.geometry.dispose();
+      continue;
+    }
+    const merged = mergeGeometries(batch.map(entry => entry.geometry), false);
+    if (!merged) {
+      for (const entry of batch) entry.geometry.dispose();
+      continue;
+    }
+    merged.computeBoundingSphere();
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    root.add(mesh);
+    for (const entry of batch) {
+      entry.original.parent?.remove(entry.original);
+      entry.geometry.dispose();
+    }
+  }
+}
 function makeCharacter(side) {
   const dir = side === 0 ? 1 : -1;
   const male = side === 0;
@@ -471,6 +515,7 @@ function makeCharacter(side) {
   const sash = new THREE.Mesh(new THREE.BoxGeometry(.19,.93,.06),trim);
   sash.position.set(.17,1.93,.4); sash.rotation.z=-.25; root.add(sash);
   const cape = new THREE.Mesh(new THREE.PlaneGeometry(.76,1.32,3,5),new THREE.MeshStandardMaterial({color:male?0x17333f:0x5a293d,roughness:.95,side:THREE.DoubleSide}));
+  cape.userData.keepSeparate = true;
   cape.position.set(-.12,1.76,-.31); cape.rotation.y=.12; cape.rotation.z=male?-.08:.13; root.add(cape);
   // Quiver and feathered arrows visible over the shoulder.
   const quiver = new THREE.Mesh(new THREE.CylinderGeometry(.12,.15,.78,8),actorMats.leather);
@@ -480,6 +525,7 @@ function makeCharacter(side) {
     arrow.position.set(-.37+i*.07,2.55,-.28); arrow.rotation.z=.16; root.add(arrow);
   }
   const bow = makeBow(dir, state.angle * Math.PI / 180);
+  bow.userData.keepSeparate = true;
   bow.position.set(dir*.91,2.63,.32);
   bow.rotation.y=-yaw;
   root.add(bow);
@@ -488,6 +534,7 @@ function makeCharacter(side) {
   root.add(launchPoint);
 
   root.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; }});
+  mergeCharacterMeshes(root);
   scene.add(root);
   return {
     side, dir, root, bow, launchPoint, head, cape, baseY: platformSurfaceY,
