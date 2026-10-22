@@ -79,14 +79,17 @@ jobs:
               await page.locator('#startBtn').click(); await page.waitForFunction(()=>window.__game.state.screen==='play');
               const initial=await page.evaluate(()=>window.__game.getSnapshot());
               assert(initial.distance>0,'CRITIC FAIL: distance is missing');
+              const solution=await page.evaluate(()=>window.__game.aimSolution());
+              await page.evaluate(s=>window.__game.setAim(s.angle,s.power),solution);
               await page.locator('#fireBtn').click(); await page.evaluate(()=>window.__game.tick(45));
               const flying=await page.evaluate(()=>window.__game.getSnapshot());
               assert(flying.shots===1,'CRITIC FAIL: projectile did not launch');
-              assert(flying.projectileActive===true||flying.projectile,'CRITIC FAIL: projectile state missing');
-              await page.evaluate(()=>window.__game.tick(600));
+              assert(flying.projectileActive||flying.enemyHp<initial.enemyHp,'CRITIC FAIL: projectile vanished without hitting or remaining in flight');
+              await page.evaluate(()=>window.__game.tick(900));
               const after=await page.evaluate(()=>window.__game.getSnapshot());
               assert(after.turn==='player'||after.screen==='over','CRITIC FAIL: turn loop did not return to player');
               assert(typeof after.wind==='number','CRITIC FAIL: wind is not exposed as gameplay state');
+              assert(after.enemyHp<initial.enemyHp||after.enemyHits>0,'CRITIC FAIL: ballistics/aim solver did not produce a hit in the solved test shot');
               await page.screenshot({path:'bowbrawl-live.png',fullPage:true});
               await page.locator('#shopBtn').click();
               assert(await page.locator('#shopGrid').isVisible(),'CRITIC FAIL: armory does not open');
@@ -114,7 +117,7 @@ jobs:
               assert(mobileCheck.fire.width>60&&mobileCheck.fire.height>28&&mobileCheck.fire.right<=mobileCheck.width+3,'CRITIC FAIL: mobile fire control is too small or clipped');
               await page.screenshot({path:'bowbrawl-mobile.png',fullPage:true});
               assert.equal(errors.length,0,'CRITIC FAIL: browser errors: '+errors.join(' | '));
-              for(const f of ['bowbrawl-menu.png','bowbrawl-live.png','bowbrawl-autoplay.png']) assert(fs.statSync(f).size>10000,'CRITIC FAIL: visual capture is suspiciously empty: '+f);
+              for(const f of ['bowbrawl-menu.png','bowbrawl-live.png','bowbrawl-autoplay.png','bowbrawl-mobile.png']) assert(fs.statSync(f).size>10000,'CRITIC FAIL: visual capture is suspiciously empty: '+f);
               console.log('CRITIC WOW GATE PASSED: '+arenas.size+' arenas, '+winds.size+' wind states, '+distances.size+' distances, armory, projectile physics, turn loop, AI duel, mobile-safe viewport.');
             }finally{server.kill();await browser.close()}
           })().catch(e=>{console.error(e);process.exit(1)});
