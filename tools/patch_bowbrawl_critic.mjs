@@ -328,5 +328,30 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  source=source.replace(oldMountains,newMountains);
  if(source.includes(oldColumns)||source.includes(oldBridge)||source.includes(oldMountains)||!source.includes("const bridgeY=(arena.L.y+arena.R.y)/2+.7")||!source.includes("const makeRidge=(tops,z,mat)=>"))throw new Error("Environment polish verification failed.");
 
+
+ // Final silhouette / composition adjustments, based on full-size and landscape-phone renders.
+ source=source.replace("const face=orb(skin,[0,3.02,.005],[male?.365:.345,male?.445:.455,.31],24);",
+ "const face=orb(skin,[0,3.02,.005],[male?.335:.295,male?.405:.395,male?.285:.265],24);");
+ source=source.replace("for(const x of[-.132,.132]){","for(const x of[-(male?.132:.112),(male?.132:.112)]){");
+ source=source.replace("orb(hair,[0,3.36,-.045],[.405,.28,.36],22);","orb(hair,[0,3.36,-.045],[.38,.25,.32],22);");
+ source=source.replace("orb(hair,[0,3.36,-.045],[.445,.34,.36],24);","orb(hair,[0,3.36,-.045],[.405,.30,.33],24);");
+ source=source.replace("orb(hair,[-.365,2.87,.105],[.145,.54,.20],20);orb(hair,[.365,2.87,.105],[.145,.54,.20],20);",
+ "orb(hair,[-.365,2.87,.105],[.12,.46,.17],20);orb(hair,[.365,2.87,.105],[.12,.46,.17],20);");
+ source=source.replace("limb(g,[-.22,1.5,0],[-.25,.52,.02],.15,skin);limb(g,[.22,1.5,0],[.25,.52,.02],.15,skin);",
+ "limb(g,[-.22,1.50,0],[-.24,.31,.02],.13,skin);limb(g,[.22,1.50,0],[.24,.31,.02],.13,skin);");
+ source=source.replace("[[.10,1.16],[.31,1.21],[.48,1.36],[.53,1.50],[.48,1.62],[.36,1.76],[.255,1.92],[.265,2.07],[.33,2.21],[.43,2.33],[.46,2.44],[.40,2.55],[.28,2.63],[.12,2.67],[0,2.67]]",
+ "[[.10,1.16],[.32,1.21],[.52,1.36],[.56,1.50],[.50,1.62],[.35,1.76],[.205,1.92],[.23,2.07],[.34,2.21],[.46,2.33],[.49,2.44],[.41,2.55],[.28,2.63],[.12,2.67],[0,2.67]]");
+ source=source.replace("new THREE.TorusGeometry(1.43,.035,10,64),aura,[0,3.35,-6.7],[1.14,1.18,.4]",
+ "new THREE.TorusGeometry(1.18,.028,10,64),aura,[0,3.35,-6.7],[1.1,1.1,.4]");
+ source=source.replace("new THREE.TorusGeometry(1.14,.012,6,56),warmAura,[0,3.35,-6.63],[1.14,1.18,.4]",
+ "new THREE.TorusGeometry(.92,.010,6,56),warmAura,[0,3.35,-6.63],[1.1,1.1,.4]");
+ source=source.replace("new THREE.SphereGeometry(.52,32,24),warmAura,[0,5.85,-9.1],[1,1,.18]",
+ "new THREE.SphereGeometry(.46,32,24),warmAura,[0,5.85,-9.1],[1,1,.18]");
+ source=source.replace("new THREE.TorusGeometry(.76,.015,7,48),aura,[0,5.85,-9.25],[1,1,.3]",
+ "new THREE.TorusGeometry(.64,.012,7,48),aura,[0,5.85,-9.25],[1,1,.3]");
+ source=source.replace("emissiveIntensity:1.45,metalness:.36,roughness:.24","emissiveIntensity:1.0,metalness:.36,roughness:.24");
+ source=source.replace("emissiveIntensity:.95,metalness:.18,roughness:.3","emissiveIntensity:.68,metalness:.18,roughness:.3");
+ if(!source.includes("[male?.335:.295,male?.405:.395,male?.285:.265]")||!source.includes("[.205,1.92]")||!source.includes("TorusGeometry(1.18,.028"))throw new Error("Final composition polish checks did not apply");
+
 fs.writeFileSync(target,source,'utf8');
 console.log('critic polish applied:',target,source.length,'bytes');
