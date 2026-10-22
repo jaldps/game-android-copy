@@ -199,5 +199,27 @@ if(!source.includes('aimSolution:()=>solve(fighters[0],fighters[1])')) throw new
  source=source.slice(0,solveStart)+accurateSolver+source.slice(solveStop);
  if(!source.includes('function updateAimPreview()')||!source.includes('aimPreviewVisible:!!aimGuide.visible')) throw new Error('Aim-preview patch did not apply');
 
+
+ // Final visual polish pass from screenshot review: true mobile-first camera framing, cleaner face anatomy, hourglass contour, restrained halo.
+ source=source.replace("const camera=new THREE.OrthographicCamera(-10,10,5.6,-5.6,.1,150);camera.position.set(0,7,32);camera.lookAt(0,2,0);",
+ "const viewH=innerHeight<430?12.2:11.3,viewW=viewH*(innerWidth/Math.max(1,innerHeight));const camera=new THREE.OrthographicCamera(-viewW/2,viewW/2,viewH/2,-viewH/2,.1,150);camera.position.set(0,innerHeight<430?8.2:7,32);camera.lookAt(0,innerHeight<430?3.05:2,0);");
+ source=source.replace("orb(body,[0,1.49,0],[.49,.34,.33]);","orb(body,[0,1.49,0],[.56,.34,.34]);");
+ source=source.replace("orb(body,[0,1.91,0],[.285,.43,.255]);","orb(body,[0,1.91,0],[.225,.43,.235]);");
+ source=source.replace("orb(body,[0,2.32,0],[.475,.47,.32]);","orb(body,[0,2.32,0],[.405,.44,.30]);");
+ source=source.replace("orb(body,[-.205,2.42,.205],[.285,.245,.205]);orb(body,[.205,2.42,.205],[.285,.245,.205]);","orb(body,[-.195,2.42,.205],[.27,.235,.205]);orb(body,[.195,2.42,.205],[.27,.235,.205]);");
+ source=source.replace("new THREE.TorusGeometry(male?.36:.405,.055,7,26),accent,[0,male?1.68:1.65,.01],[1,1,.8]","new THREE.TorusGeometry(male?.36:.255,.04,7,26),accent,[0,male?1.68:1.88,.01],[1,1,.8]");
+ source=source.replace("orb(skinBright,[0,2.83,.16],[male?.27:.26,.2,.19],20);","orb(skinBright,[0,2.84,.205],[male?.225:.22,.14,.12],20);");
+ source=source.replace("orb(eyeMat,[x,3.065,.299],[.071,.039,.027],16);","orb(eyeMat,[x,3.065,.299],[.064,.029,.018],16);");
+ source=source.replace("orb(pupil,[x+(male?.01:0),3.063,.32],[.031,.034,.016],12);","orb(pupil,[x+(male?.01:0),3.063,.32],[.026,.027,.014],12);");
+ source=source.replace("const face=orb(skin,[0,3.02,.005],[male?.365:.345,male?.445:.455,.31],24);","part(g,new THREE.CylinderGeometry(male?.16:.105,male?.18:.12,.32,12),skin,[0,2.68,0]);const face=orb(skin,[0,3.02,.005],[male?.365:.345,male?.445:.455,.31],24);");
+ source=source.replace("new THREE.TorusGeometry(1.82,.055,10,64),aura,[0,3.35,-6.7],[1.22,1.42,.55]","new THREE.TorusGeometry(1.43,.035,10,64),aura,[0,3.35,-6.7],[1.14,1.18,.4]");
+ source=source.replace("new THREE.TorusGeometry(1.48,.018,6,56),warmAura,[0,3.35,-6.63],[1.22,1.42,.55]","new THREE.TorusGeometry(1.14,.012,6,56),warmAura,[0,3.35,-6.63],[1.14,1.18,.4]");
+ source=source.replace("new THREE.SphereGeometry(.72,32,24),warmAura,[0,5.72,-9.1],[1,1,.18]","new THREE.SphereGeometry(.52,32,24),warmAura,[0,5.85,-9.1],[1,1,.18]");
+ source=source.replace("new THREE.TorusGeometry(1.02,.022,7,48),aura,[0,5.72,-9.25],[1,1,.3]","new THREE.TorusGeometry(.76,.015,7,48),aura,[0,5.85,-9.25],[1,1,.3]");
+ source=source.replace("state.selected.bow==='moonpiercer'?M.frost:M.dark;updateHUD()","state.selected.bow==='moonpiercer'?M.frost:M.leather;updateHUD()");
+ source=source.replace('getSnapshot:snapshot,aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:',
+ 'getSnapshot:snapshot,getLayout:()=>({heads:fighters.map(f=>{const p=new THREE.Vector3(f.root.position.x,f.root.position.y+3.72,f.root.position.z);p.project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}})}),aimSolution:()=>solve(fighters[0],fighters[1]),buildTag:');
+ if(!source.includes('getLayout:()=>({heads:fighters.map')) throw new Error('Mobile layout diagnostics did not apply');
+
 fs.writeFileSync(target,source,'utf8');
 console.log('critic polish applied:',target,source.length,'bytes');
