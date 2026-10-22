@@ -1081,8 +1081,16 @@ window.__game = {
   setAim:(a,p)=>setAim(a,p),
   start:startMatch,
   pause:pauseGame,
+  // Deterministic fixed-step hook lets headless CI cover multi-second projectile paths
+  // without confusing slow software-WebGL rendering with game-clock progress.
+  step:(frames=1)=>{
+    const count=clamp(Math.floor(Number(frames)||1),1,3600);
+    for(let i=0;i<count;i++) advanceGame(1/60);
+    return {screen:state.screen,turn:state.turn,round:state.round,shots:state.shots,
+      playerHp:actors[0].hp,enemyHp:actors[1].hp,headshots:state.headshots};
+  },
   getSnapshot:()=>({screen:state.screen,turn:state.turn,round:state.round,angle:state.angle,power:state.power,wind:state.wind,playerHp:actors[0].hp,enemyHp:actors[1].hp,shots:state.shots,headshots:state.headshots}),
-  buildTag:'skyfall-visual-rebuild-r1'
+  buildTag:'skyfall-visual-rebuild-r2'
 };
 
 updateHud();
