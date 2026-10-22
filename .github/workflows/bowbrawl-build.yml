@@ -66,7 +66,7 @@ jobs:
       - name: Run menu, controls, turn-loop and rendering smoke tests
         run: |
           mkdir -p artifacts
-          cat > /tmp/bowbrawl-smoke.mjs <<'NODE'
+          cat > bowbrawl-smoke.mjs <<'NODE'
           import assert from 'node:assert/strict';
           import { chromium } from 'playwright';
 
@@ -137,7 +137,8 @@ jobs:
           await browser.close();
           console.log('PASS: menu, WebGL scene, sliders, arrow type, pause/resume, shot physics, AI turn and autoplay hooks');
           NODE
-          node /tmp/bowbrawl-smoke.mjs
+          node bowbrawl-smoke.mjs
+          rm -f bowbrawl-smoke.mjs
 
       - name: Set up Java
         uses: actions/setup-java@v6
