@@ -19,7 +19,7 @@ function pickFoe(rng, notChar) {
   const outs = outfitsFor(c.id); const o = outs[Math.floor(rng() * outs.length)];
   return { charId: c.id, outfitId: o?.id };
 }
-const me = (over = {}) => { const e = equipped(); return { charId: over.charId ?? e.charId, outfitId: over.outfitId ?? e.outfitId, controller: 'human', team: 0, name: 'You' }; };
+const me = (over = {}) => { const e = equipped(), c = over.charId ?? e.charId; return { charId: c, outfitId: over.outfitId ?? (c === e.charId ? e.outfitId : profile.equipped.outfit[c]), controller: 'human', team: 0, name: 'You' }; };
 
 export function quickMatch(rng, seed, over = {}) {
   const p = me(over);

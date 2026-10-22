@@ -112,10 +112,14 @@ export function createTerrainMaterial(palette = {}) {
               tH = mix(tH, vn(p * 5.0) * 0.3, soil);
               col *= mix(1.0, 0.7, smoothstep(0.55, 0.15, depth) * smoothstep(0.0, 0.18, depth)); // contact shade under the drape
               // moss / snow drips running down from the top edge
-              float dl = 0.45 + vn(vec2(p.x * 2.3, 1.7)) * 1.5;
-              float moss = (1.0 - smoothstep(dl - 0.22, dl, depth)) * smoothstep(0.42, 0.58, vn(vec2(p.x * 0.9, 5.0)));
-              vec3 mc = uSnow > 0.5 ? vec3(0.93, 0.97, 1.0) * (0.9 + 0.1 * vn(p * 5.0)) : mix(u_grass, u_grass2, 0.3) * 0.72 * (0.85 + 0.3 * vn(p * 7.0));
-              col = mix(col, mc, moss * 0.9); tH = mix(tH, 0.6 + vn(p * 8.0) * 0.3, moss);
+              float cx = floor(p.x * 2.2), fx = fract(p.x * 2.2);
+              float dl = 0.4 + h12(vec2(cx, 3.0)) * 1.4 * step(0.35, h12(vec2(cx, 9.0)));
+              float tip = dl - 0.18 * (1.0 - pow(abs(fx - 0.5) * 2.0, 2.0));          // rounded drip ends
+              float zone = smoothstep(0.38, 0.5, vn(vec2(p.x * 0.7, 5.0)));
+              float moss = (1.0 - smoothstep(tip - 0.03, tip + 0.03, depth)) * zone;
+              float rim = moss * smoothstep(tip - 0.16, tip - 0.02, depth);
+              vec3 mc = uSnow > 0.5 ? vec3(0.95, 0.98, 1.0) * (0.92 + 0.08 * vn(p * 5.0)) : mix(u_grass, u_grass2, 0.2 + 0.3 * vn(p * 6.0)) * 0.82;
+              col = mix(col, mc * (1.0 - rim * 0.25), moss); tH = mix(tH, 0.9 - rim * 0.5, moss);
             }
           }
           if (m > 2.5 && m < 3.5) tRough = 0.35;
@@ -124,7 +128,7 @@ export function createTerrainMaterial(palette = {}) {
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = tRough;')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
-          vec2 dH = vec2(dFdx(tH), dFdy(tH)) * 0.09 * uBump;
+          vec2 dH = vec2(dFdx(tH), dFdy(tH)) * 0.2 * uBump;
           vec3 sX = dFdx(-vViewPosition), sY = dFdy(-vViewPosition);
           vec3 R1 = cross(sY, normal), R2 = cross(normal, sX); float det = dot(sX, R1);
           vec3 g = sign(det) * (dH.x * R1 + dH.y * R2);

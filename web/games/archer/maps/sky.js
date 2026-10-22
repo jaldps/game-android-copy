@@ -183,7 +183,7 @@ export function richIslands({ count = 6, seed = 7, top = 0x58c43a, rock = 0xc990
     }
     const m = mergeGeometries(geos); m.translate(cx, cy, cz); parts.push(m);
     if (i < falls) {
-      const fw = 1.2 + rng() * 1.4, fh = cy - waterY + 2;
+      const fw = 2.2 + rng() * 1.6, fh = cy - waterY + 2;
       const f = new THREE.PlaneGeometry(fw, fh, 1, 1); f.translate(cx + (rng() - 0.5) * w * 0.4, cy - fh / 2 - 0.2, cz + w * 0.95); fallParts.push(f);
     }
   }

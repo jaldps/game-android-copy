@@ -143,7 +143,7 @@ export class FX {
   flash(x, y, def, sc = 1) {
     this.light.color.set(def.color ?? 0xffaa55); this.light.position.set(x, y + 0.5, 3.5);
     this.lightMax = (def.intensity ?? 60) * sc; this.lightT = this.lightDur = def.life ?? 0.25; this.light.distance = (def.radius ?? 12) * Math.sqrt(sc);
-    this.emit({ count: 1, shape: 'glow', blend: 'add', life: this.lightDur, speed: 0, size: (def.radius ?? 12) * 0.22, grow: 1.3, color: def.color ?? 0xffcc88, alpha: [0.9, 0], scaleCount: false }, x, y, { scale: sc, z: 0.5 });
+    this.emit({ count: 1, shape: 'glow', blend: 'add', life: this.lightDur * 0.7, speed: 0, size: (def.radius ?? 12) * 0.08, grow: 1.3, color: def.color ?? 0xffcc88, alpha: [0.45, 0], scaleCount: false }, x, y, { scale: Math.sqrt(sc), z: 0.5 });
   }
   clear() { this.add.count = 0; this.alpha.count = 0; this.d.n = 0; this.lightT = 0; this.light.intensity = 0; }
 

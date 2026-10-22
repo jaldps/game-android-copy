@@ -68,7 +68,8 @@ export class Match {
 
   // ------------------------------------------------------------------ setup
   _addActor(pc, i) {
-    const def = getCharacter(pc.charId), outfit = getOutfit(pc.outfitId) ?? defaultOutfit(def.id);
+    const def = getCharacter(pc.charId);
+    let outfit = getOutfit(pc.outfitId); if (!outfit || outfit.char !== def.id) outfit = defaultOutfit(def.id);
     const character = createCharacter(def, outfit);
     const stats = computeStats(def, outfit);
     const a = new Actor({ slot: i, team: pc.team ?? i, name: pc.name ?? def.name, color: TEAM_COLORS[(pc.team ?? i) % 4], charDef: def, outfitDef: outfit, stats, character,
@@ -86,7 +87,8 @@ export class Match {
   /** Replace an actor's visuals (shop / menu preview). */
   restyle(slot, charId, outfitId) {
     const a = this.actors[slot]; if (!a) return;
-    const def = getCharacter(charId), outfit = getOutfit(outfitId) ?? defaultOutfit(def.id);
+    const def = getCharacter(charId);
+    let outfit = getOutfit(outfitId); if (!outfit || outfit.char !== def.id) outfit = defaultOutfit(def.id);
     this.root.remove(a.character.root); a.character.dispose();
     a.character = createCharacter(def, outfit); a.charDef = def; a.outfitDef = outfit; a.stats = computeStats(def, outfit);
     a.hitShapes = a.character.hitShapes; a.root = a.character.root; this.root.add(a.root); a._sync();

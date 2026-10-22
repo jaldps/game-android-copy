@@ -2,7 +2,7 @@
 import { setOrientation, goHome, onBack, onPauseResume } from '../../shared/platform.js';
 import { P } from './core/params.js';
 import { initRender, renderFrame, resize, R } from './core/render.js';
-import { updateCamera, addShake, cam } from './core/camera.js';
+import { updateCamera, addShake, cam, lookAt, snap } from './core/camera.js';
 import { FX } from './core/fx.js';
 import { Match } from './core/match.js';
 import { Hud } from './core/hud.js';
@@ -119,6 +119,8 @@ window.__game = {
   get active() { return match?.active?.name; },
   get actors() { return match?.actors.map((a) => ({ name: a.name, char: a.charDef.id, outfit: a.outfitDef?.id, hp: a.hp, alive: a.alive, x: +a.x.toFixed(2), y: +a.y.toFixed(2), angle: Math.round(a.angle), lastPower: Math.round(a.lastPower), delay: Math.round(a.delay) })); },
   get match() { return match; },
+  /** testing: frame a world point (x, y, visible height) instantly */
+  look(x, y, h = 14) { lookAt(x, y, h, 30); snap(); },
 };
 window.__fps = 0;
 

@@ -79,7 +79,7 @@ export class Actor {
         const up = T.groundBelow(this.x, this.y + 3, 3); if (!isNaN(up)) this.y = up;
       } else this.y = g;
     }
-    if (this.y < killY) this.kill('fell');
+    if (this.y < killY) { fx?.burst('splash', this.x, killY + 0.5, { scale: 1.6 }); audio.play('splash'); this.kill('fell'); this.root.visible = false; }
     this._sync();
     this.character.update(dt);
   }

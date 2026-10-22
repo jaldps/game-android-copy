@@ -19,7 +19,7 @@ export const ICONS = {
 export const hex = (n) => '#' + (n ?? 0x888888).toString(16).padStart(6, '0');
 export function portrait(def, size = 46) {
   const P = def.palette;
-  return `<span class="portrait" style="--sz:${size}px;--skin:${hex(P.skin)};--hair:${hex(P.hair)};--hair2:${hex(P.hair2 ?? P.hair)};--eye:${hex(P.eyes)}"><i class="p-hair"></i><i class="p-face"></i><i class="p-eye l"></i><i class="p-eye r"></i><b>${def.name[0]}</b></span>`;
+  return `<span class="portrait" style="--sz:${size}px;--skin:${hex(P.skin)};--hair:${hex(P.hair)};--hair2:${hex(P.hair2 ?? P.hair)};--eye:${hex(P.eyes)}"><i class="p-hair"></i><i class="p-face"></i><i class="p-eye l"></i><i class="p-eye r"></i></span>`;
 }
 export function perkBadge(outfit) {
   const T = PERK_TYPES[outfit.type] ?? {};

@@ -86,7 +86,7 @@ export class Hud {
     events.on('arrow:select', () => this._tray());
     events.on('shot', () => this._tray());
     events.on('callout', (text, kind) => this.callout(text, kind));
-    events.on('actor:damage', (a, n, from, info) => this.float(a.hitShapes.hx, a.hitShapes.hy + 0.5, '-' + n, info?.head ? '#ffe14a' : info?.direct ? '#ffb35c' : '#ffffff', !!(info?.head || n >= 30)));
+    events.on('actor:damage', (a, n, from, info) => this.float(a.hitShapes.hx + 0.9, a.hitShapes.hy + 1.6, '-' + n, info?.head ? '#ffe14a' : info?.direct ? '#ffb35c' : '#ffffff', !!(info?.head || n >= 30)));
     events.on('actor:death', (a, cause) => { this.callout(cause === 'fell' ? `${a.name.toUpperCase()} FELL!` : `${a.name.toUpperCase()} DOWN!`, 'kill'); this._order(); });
     events.on('terrain:carve', () => (this._mmDirty = true));
     events.on('wind', (w) => this._wind(w));
