@@ -440,7 +440,7 @@ if (startBtn) {
 }
 
 if (angleSlider) angleSlider.addEventListener('input', () => { G.angle = +angleSlider.value; if (angleVal) angleVal.textContent = G.angle; });
-if (powerSlider) powerSlider.addEventListener('input', () => { G.power = +powerSlider.value; if (powerVal) powerVal.textContent = G.power; });
+if (powerSlider) powerSlider.addEventListener('input', () => { G.power = +powerSlider.value; if (powerVal) powerVal.textContent = G.power; G.drawing = true; });
 
 function updateHUD() {
   if (hpL) hpL.style.width = G.hp[0] + '%';
@@ -478,6 +478,7 @@ function fire() {
   scene.add(trail);
   arrowData.trail = trail;
   G.arrows.push(arrowData);
+  G.drawing = false;
   G.flying = true;
   G.firing = true;
   G.fireRecoil = 1.0;
