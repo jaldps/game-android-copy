@@ -2,6 +2,7 @@
 // integrator as live arrows, wind included — then applies difficulty-scaled error. Also walks to a better spot when
 // the shot is blocked, and picks special arrows sensibly. Controller interface: { kind, beginTurn(actor, match), update(dt, actor, match, intent) }.
 import { makeRng, clamp } from '../core/util.js';
+import { getArrow, trayArrows } from '../arrows/index.js';
 
 export const DIFFICULTY = {
   easy:   { angErr: 6.5, powErr: 7.5, think: 1.1, special: 0.25, move: 0.35, aimRate: 30 },
@@ -26,7 +27,7 @@ function score(r, a, target, arrowRadius) {
 }
 
 export function solveShot(a, m, target, arrowId, facing) {
-  const radius = arrowId === 'explosive' ? 3.0 : 1.4;
+  const radius = getArrow(arrowId).damage?.radius ?? 1.4;
   let best = { s: 1e9, ang: 45, pow: 60 };
   const tgt = { x: target.x, y: target.y + 1 };
   for (let ang = 10; ang <= 85; ang += 5) {
@@ -58,10 +59,13 @@ export function createAIController(difficulty = 'normal', seed = 1) {
       if (stage === 'think') {
         if (t < D.think) return;
         // arrow choice
+        // arrow choice: any limited arrow with ammo; weight from def.ai.weight (default 1), skip finishers on weak targets
         let arrow = 'standard';
-        const hasEx = a.ammo.explosive > 0, hasSp = a.ammo.splitter > 0;
-        if (hasEx && rng() < D.special && (target.hp > 25 || rng() < 0.3)) arrow = 'explosive';
-        else if (hasSp && rng() < D.special * 0.6) arrow = 'splitter';
+        if (rng() < D.special) {
+          const cands = trayArrows().filter((d) => d.id !== 'standard' && a.ammo[d.id] > 0 && !(d.ai?.minTargetHp && target.hp < d.ai.minTargetHp));
+          let tot = 0; for (const d of cands) tot += d.ai?.weight ?? 1;
+          let r = rng() * tot; for (const d of cands) { r -= d.ai?.weight ?? 1; if (r <= 0) { arrow = d.id; break; } }
+        }
         const facing = target.x > a.x ? 1 : -1;
         let best = solveShot(a, m, target, arrow, facing);
         let moveDir = 0, moveDist = 0;

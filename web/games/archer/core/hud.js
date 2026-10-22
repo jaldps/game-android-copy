@@ -228,7 +228,7 @@ export class Hud {
     c.rotate(ang); c.fillStyle = b.color; c.beginPath(); c.moveTo(25, 0); c.lineTo(17, -7); c.lineTo(17, 7); c.closePath(); c.fill();
     c.rotate(-ang); c.fillStyle = '#fff'; c.font = "400 15px 'Lilita One', sans-serif"; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(b.charDef.name[0], 0, 1);
     c.restore(); c.textBaseline = 'alphabetic';
-    const dist = Math.round(Math.abs(b.x - (this.match.active?.x ?? b.x)));
+    const ref = this.match.active && this.match.active !== b ? this.match.active.x : cam.x, dist = Math.round(Math.abs(b.x - ref));
     c.font = '800 10px Nunito, sans-serif'; c.fillStyle = '#fff'; c.strokeStyle = 'rgba(8,14,32,0.8)'; c.lineWidth = 3; c.strokeText(dist + 'm', x, y + 30); c.fillText(dist + 'm', x, y + 30);
   }
   _minimap() {

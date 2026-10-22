@@ -2,6 +2,7 @@
 import { TURN, PHYS, ACTOR_RADIUS } from './config.js';
 import { clamp, DEG } from './util.js';
 import { events } from './events.js';
+import { audio } from './audio.js';
 
 export class Actor {
   /** o: { slot, team, name, color, charDef, outfitDef, stats, character, controller, human } */
@@ -67,7 +68,7 @@ export class Actor {
         if (!isNaN(g)) {
           this.y = g; const hard = this.airT > 0.35;
           this.grounded = true; this.vx = 0; this.vy = 0; this.airT = 0;
-          if (hard) { events.emit('actor:land', this); fx?.burst('land_dust', this.x, this.y, { terrainColor: 0xd8c8a8 }); }
+          if (hard) { events.emit('actor:land', this); audio.play('land'); fx?.burst('land_dust', this.x, this.y, { terrainColor: 0xd8c8a8 }); }
         }
       }
       this.x = clamp(this.x, T.x0 - 4, T.x1 + 4);

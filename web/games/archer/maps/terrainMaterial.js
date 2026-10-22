@@ -111,6 +111,11 @@ export function createTerrainMaterial(palette = {}) {
               col = mix(col, u_dirt * (0.85 + 0.2 * vn(p * 4.0)), soil);
               tH = mix(tH, vn(p * 5.0) * 0.3, soil);
               col *= mix(1.0, 0.7, smoothstep(0.55, 0.15, depth) * smoothstep(0.0, 0.18, depth)); // contact shade under the drape
+              // moss / snow drips running down from the top edge
+              float dl = 0.45 + vn(vec2(p.x * 2.3, 1.7)) * 1.5;
+              float moss = (1.0 - smoothstep(dl - 0.22, dl, depth)) * smoothstep(0.42, 0.58, vn(vec2(p.x * 0.9, 5.0)));
+              vec3 mc = uSnow > 0.5 ? vec3(0.93, 0.97, 1.0) * (0.9 + 0.1 * vn(p * 5.0)) : mix(u_grass, u_grass2, 0.3) * 0.72 * (0.85 + 0.3 * vn(p * 7.0));
+              col = mix(col, mc, moss * 0.9); tH = mix(tH, 0.6 + vn(p * 8.0) * 0.3, moss);
             }
           }
           if (m > 2.5 && m < 3.5) tRough = 0.35;

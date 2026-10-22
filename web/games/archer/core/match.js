@@ -187,7 +187,7 @@ export class Match {
     a.controller?.beginTurn?.(a, this);
     const foe = this.nearestFoe(a);
     if (foe) a.facing = foe.x > a.x ? 1 : -1;
-    lookAt(a.x + a.facing * 3.2, a.y + 1.9, 14.5, 2.6);
+    lookAt(a.x + a.facing * 2.8, a.y + 1.8, 13, 3.6);
     events.emit('turn:start', a, this.turnNo);
     audio.play('turn_start');
   }
@@ -348,12 +348,13 @@ export class Match {
   _actCam(a) {
     const f = a.facing, foe = this.nearestFoe(a);
     if (a.charging && foe) { const dx = foe.x - a.x; if (Math.abs(dx) < 34) { frame2(a.x, a.y + 1, foe.x, foe.y + 1, 2.0, 15); return; } }
-    lookAt(a.x + f * 3.2, a.y + 1.9, 14.5, 3.0);
+    lookAt(a.x + f * 2.8, a.y + 1.8, 13, 3.6);
   }
   _flightCam(dt) {
     const p = this.projectiles.leader(); if (!p) return;
-    const sp = Math.hypot(p.vx, p.vy);
-    lookAt(p.x + p.vx * 0.12, p.y + p.vy * 0.06, clamp(15 + sp * 0.18, 15, 23), 4.5);
+    const sp = Math.hypot(p.vx, p.vy), foe = p.owner ? this.nearestFoe(p.owner) : null;
+    if (foe && Math.abs(foe.x - p.x) < 30 && p.y > foe.y + 4) frame2(p.x + p.vx * 0.08, p.y, foe.x, foe.y + 1, 4.0, 16);
+    else lookAt(p.x + p.vx * 0.12, p.y + p.vy * 0.06 - 2, clamp(15 + sp * 0.18, 15, 23), 4.5);
     // slow-mo when about to land near someone
     _sim.x = p.x; _sim.y = p.y; _sim.vx = p.vx; _sim.vy = p.vy;
     let near = false;

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { MAT } from '../core/terrain.js';
 import { groundMass, rect, ellipse, polygon, tower, wall, stamp, floatingIsland } from './shapes.js';
-import { skyDome, cloudField, sea, ridge } from './sky.js';
+import { skyDome, cloudField, sea, ridge, mountains, castle } from './sky.js';
 import { createWeather } from './weather.js';
 import { fbm1 } from '../core/util.js';
 
@@ -69,8 +69,10 @@ export default {
     const group = new THREE.Group();
     group.add(skyDome({ ...this.sky, sun: 0xffd8a8, sunDir: [-0.7, 0.12, -1], sunSize: 1.6, stars: 0.6 }));
     group.add(ridge({ z: -260, y0: -10, height: 70, peaks: 12, seed: 4, color: 0x8a86c0, cap: 0xf4e8ff, capLine: 0.55 }));
-    group.add(ridge({ z: -160, y0: -12, height: 42, peaks: 16, seed: 9, color: 0x6a74a8, cap: 0xffffff, capLine: 0.6 }));
-    group.add(ridge({ z: -80, y0: -12, height: 20, peaks: 20, seed: 13, color: 0x55628f, cap: 0xf0f6ff, capLine: 0.65 }));
+    group.add(mountains({ z: -170, count: 10, seed: 9, width: 560, height: [45, 80], radius: [30, 48], rock: 0x6f78b0, rock2: 0x8c90c8, capLine: 0.5 }));
+    group.add(mountains({ z: -95, count: 12, seed: 13, width: 380, height: [18, 34], radius: [14, 24], rock: 0x58648f, rock2: 0x75809f, capLine: 0.58 }));
+    group.add(castle({ x: 46, y: 2, z: -160, scale: 0.75 }));
+    group.add(castle({ x: -120, y: 6, z: -210, scale: 0.6 }));
     const clouds = cloudField({ count: 12, seed: 21, color: 0xffe8f0, shade: 0xa898c8, zRange: [-140, -320], yRange: [20, 70], scale: [14, 28], speed: 0.8 });
     group.add(clouds.mesh);
     const water = sea({ y: this.waterY, shallow: 0x5aa8c8, deep: 0x2a5a88, ice: 0.85 });

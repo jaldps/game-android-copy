@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { MAT } from '../core/terrain.js';
 import { floatingIsland, rect, circle, polygon, tower, wall, stamp } from './shapes.js';
-import { skyDome, cloudField, sea, farIslands } from './sky.js';
+import { skyDome, cloudField, sea, farIslands, richIslands } from './sky.js';
 import { createWeather } from './weather.js';
 
 const HEIGHT_SETS = [[4, 11, 1.5, 12.5, 6], [10.5, 3.5, 8, 2, 11.5], [6, 12.5, 3.5, 9, 2.5], [2.5, 8.5, 12, 4, 10], [11, 6, 2, 13, 4.5]];
@@ -80,14 +80,16 @@ export default {
     const clouds = cloudField({ count: 18, seed: 3, zRange: [-110, -300], yRange: [-6, 50], scale: [12, 26] });
     const low = cloudField({ count: 10, seed: 8, zRange: [-30, -80], yRange: [-10, -5], scale: [5, 9], shade: 0xb8d8f0, speed: 0.6 });
     group.add(clouds.mesh, low.mesh);
-    group.add(farIslands({ count: 10, seed: 7, top: 0x58c43a, rock: 0xc99060, zRange: [-60, -170], yRange: [-2, 26] }));
+    group.add(farIslands({ count: 9, seed: 7, top: 0x7ccf5a, rock: 0xd0a070, zRange: [-200, -300], yRange: [0, 40], xRange: [-300, 300] }));
+    const isles = richIslands({ count: 8, seed: 12, zRange: [-60, -140], yRange: [-1, 20], xRange: [-150, 150], falls: 4, waterY: this.waterY });
+    group.add(isles.group);
     const water = sea({ y: this.waterY, shallow: 0x3cd6dc, deep: 0x1f86c8 });
     group.add(water.mesh);
     const motes = createWeather({ kind: 'motes', count: 120, seed: 5 });
     group.add(motes.mesh);
     return {
       group,
-      update(dt, t, cam, wind) { clouds.update(dt); low.update(dt); water.update(dt, t); motes.update(dt, t, cam, wind); },
+      update(dt, t, cam, wind) { clouds.update(dt); low.update(dt); water.update(dt, t); motes.update(dt, t, cam, wind); isles.update(dt, t); },
     };
   },
 };

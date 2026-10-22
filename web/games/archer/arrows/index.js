@@ -34,7 +34,7 @@ export const ARROWS = [
   },
   {
     id: 'explosive', name: 'Blast Arrow', desc: 'Heavy payload. Huge crater, shrugs off wind.', icon: ICON.explosive, color: '#ff6a4a',
-    price: 0, uses: 2, delay: 160,
+    price: 0, uses: 2, delay: 160, ai: { weight: 1.6, minTargetHp: 20 },
     physics: { mass: 1.6, drag: 0.02, windFactor: 1, gravityScale: 1.08 },
     damage: { base: 40, radius: 3.3, crater: 2.9, knockback: 12 },
     trail: { color: 0xffb35c, width: 0.18, length: 28, additive: true, alpha: 0.95,
@@ -45,7 +45,7 @@ export const ARROWS = [
   },
   {
     id: 'splitter', name: 'Tri-Splitter', desc: 'Splits into three at the top of its arc.', icon: ICON.splitter, color: '#7fd8ff',
-    price: 0, uses: 2, delay: 120,
+    price: 0, uses: 2, delay: 120, ai: { weight: 1 },
     physics: { mass: 0.9, drag: 0.012, windFactor: 1.1, gravityScale: 1 },
     damage: { base: 24, radius: 1.4, crater: 1.0, knockback: 4 },
     trail: { color: 0x7fd8ff, width: 0.15, length: 26, additive: true, alpha: 0.95 },
