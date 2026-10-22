@@ -1043,7 +1043,7 @@ function animate(now) {
   if (!fpsWindowStart) fpsWindowStart = now;
   if (now - fpsWindowStart >= 600) {
     window.__fps = Math.round(fpsFrames * 1000 / Math.max(1, now - fpsWindowStart));
-    ui.fps.textContent = window.__fps + ' FPS · SKYFALL';
+    // Keep profiling available to QA as window.__fps; never expose debug FPS in player HUD.
     fpsFrames = 0;
     fpsWindowStart = now;
   }
