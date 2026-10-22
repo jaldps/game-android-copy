@@ -127,7 +127,12 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add web/games/archer/main.js
-          if git diff --cached --quiet; then echo 'No Bowbrawl source changes.'; else git commit -m 'Bowbrawl: ship v4 WOW pass'; git push origin HEAD:main; fi
+          if git diff --cached --quiet; then echo 'No Bowbrawl source changes.'; else
+            git commit -m 'Bowbrawl: ship v4 WOW pass'
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
+          fi
       - name: Upload critic screenshots
         if: always()
         uses: actions/upload-artifact@v7
