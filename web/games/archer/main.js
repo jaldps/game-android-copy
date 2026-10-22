@@ -555,7 +555,9 @@ function loop(now) {
       G.hp[idx] = Math.max(0, G.hp[idx] - dmg);
       playBeep(220, 0.2, 0.15);
       haptic(100);
-      target.position.x += ar.fromLeft ? 2 : -2;
+      // Apply impulse instead of instant snap
+      if (!target.userData) target.userData = {};
+      target.userData.impulse = { x: ar.fromLeft ? 3 : -3, decay: 0.9 };
       spawnParticles(ar.mesh.position.x, ar.mesh.position.y, ar.mesh.position.z, 12, 0xffaa44);
       // Damage number
       const dmgNum = document.createElement('div');
@@ -647,7 +649,9 @@ function loop(now) {
         G.hp[idx] = Math.max(0, G.hp[idx] - dmg);
         playBeep(220, 0.2, 0.15);
       haptic(100);
-        target.position.x += ar.fromLeft ? 2 : -2;
+        // Apply impulse instead of instant snap
+      if (!target.userData) target.userData = {};
+      target.userData.impulse = { x: ar.fromLeft ? 3 : -3, decay: 0.9 };
         // Hit reaction
         if (target.userData.parts) {
           target.userData.anim.state = 'hit';
