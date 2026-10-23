@@ -106,7 +106,7 @@ export class Projectiles {
   leader() { return this.list.length ? this.list[this.list.length - 1] : null; }
 
   update(dt, ctx) {
-    const { terrain: T, actors, wind, killY } = ctx, api = this.api, h = this.hit;
+    const { terrain: T, actors, wind, killY, fallVfx = 'splash', fallSfx = 'splash' } = ctx, api = this.api, h = this.hit;
     for (let i = 0; i < this.list.length; i++) {
       const p = this.list[i];
       if (!p.alive) continue;
@@ -130,7 +130,7 @@ export class Projectiles {
         }
         if (p.y < killY || p.x < T.x0 - 25 || p.x > T.x1 + 25 || p.age > PHYS.maxFlight) {
           h.kind = 'void'; h.x = p.x; h.y = Math.max(p.y, killY); h.actor = null; h.part = null;
-          if (p.def.onImpact) p.def.onImpact(p, h, api); else if (p.y < killY + 1) { api.fx('splash', p.x, killY + 0.4); api.sfx('splash'); }
+          if (p.def.onImpact) p.def.onImpact(p, h, api); else if (p.y < killY + 1) { api.fx(fallVfx, p.x, killY + 0.4); api.sfx(fallSfx); }
           p.alive = false; break;
         }
       }

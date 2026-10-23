@@ -53,7 +53,7 @@ export class Actor {
     return step;
   }
   /** Physics + animation bookkeeping. Called every sim step by the match. */
-  update(dt, T, killY, fx) {
+  update(dt, T, killY, fx, match) {
     if (!this.alive) { this._sync(); this.character.update(dt); return; }
     this.releaseT += dt; this.hitT += dt;
     if (!this.grounded) {
@@ -79,7 +79,7 @@ export class Actor {
         const up = T.groundBelow(this.x, this.y + 3, 3); if (!isNaN(up)) this.y = up;
       } else this.y = g;
     }
-    if (this.y < killY) { fx?.burst('splash', this.x, killY + 0.5, { scale: 1.6 }); audio.play('splash'); this.kill('fell'); this.root.visible = false; }
+    if (this.y < killY) { fx?.burst(match?.fallVfx ?? 'splash', this.x, killY + 0.5, { scale: 1.6 }); audio.play(match?.fallSfx ?? 'splash'); this.kill('fell'); this.root.visible = false; }
     this._sync();
     this.character.update(dt);
   }

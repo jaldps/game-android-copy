@@ -12,7 +12,7 @@ const AVOID = [MAT.BRICK, MAT.METAL, MAT.WOOD];
 
 export default {
   id: 'emberforge', name: 'Emberforge', subtitle: 'Iron forges over a lava lake', music: 'battle',
-  killY: -9.5, waterY: -9.3,
+  killY: -9.5, waterY: -9.3, fallVfx: 'lava_plunge', fallSfx: 'lava_plunge',
   bounds: { minX: -62, maxX: 62, minY: -12, maxY: 34 },
   palette: { style: STYLE.LAVA, grass: 0x4a3c44, grass2: 0x6a5660, dirt: 0x5a3a34, rock: 0x5e4a52, rock2: 0x463840, deep: 0x1e1418,
     brick: 0x7a4a40, brick2: 0x5e3832, mortar: 0x2a1a1a, wood: 0x6a4a34, wood2: 0x4a3224, metal: 0x7a8296, glow: 0xff6a1a, brickSize: [0.9, 0.45], bump: 1.2 },

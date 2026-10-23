@@ -29,6 +29,10 @@ export class Match {
     this.cfg = cfg; this.hooks = hooks; this.fx = hooks.fx;
     this.seed = cfg.seed >>> 0; this.rng = makeRng(this.seed); this.fx.setRandom(makeRng(this.seed ^ 0x9e3779b9));
     this.map = getMap(cfg.mapId); this.killY = this.map.killY ?? -9.5;
+    // What falling off the map looks/sounds like: water by default, but lava and street maps name their own.
+    // Fall back to the splash if the named preset isn't registered, rather than playing nothing.
+    this.fallVfx = this.fx?.has(this.map.fallVfx) ? this.map.fallVfx : 'splash';
+    this.fallSfx = audio.has(this.map.fallSfx) ? this.map.fallSfx : 'splash';
     this.root = new THREE.Group(); this.root.name = 'match'; hooks.scene.add(this.root);
     applyLighting(this.map.lighting);
     // terrain
@@ -305,7 +309,7 @@ export class Match {
     const T = this.terrain;
     for (const a of this.actors) {
       const ch = a.character;
-      if (this.phase === 'showcase') { ch.setAnim('pose'); a.update(dt, T, this.killY, this.fx); continue; }
+      if (this.phase === 'showcase') { ch.setAnim('pose'); a.update(dt, T, this.killY, this.fx, this); continue; }
       if (a.alive && !this.over) {
         const isActive = a === this.active && this.phase === 'act';
         if (!a.grounded && a.airT > 0.12) ch.setAnim('fall');
@@ -318,7 +322,7 @@ export class Match {
         const wantArrow = isActive && !a.walking;
         if (wantArrow) { const m = this._nockModel(a); ch.setNockedArrow(m); } else ch.setNockedArrow(null);
       }
-      a.update(dt, T, this.killY, this.fx);
+      a.update(dt, T, this.killY, this.fx, this);
     }
   }
   _nockModel(a) {

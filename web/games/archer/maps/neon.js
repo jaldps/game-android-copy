@@ -12,7 +12,7 @@ const MATS = [MAT.ROCK, MAT.BRICK, MAT.METAL];
 
 export default {
   id: 'neon', name: 'Neon Heights', subtitle: 'Rooftop duel over the night city', music: 'battle',
-  killY: -9.5, waterY: -11,
+  killY: -9.5, waterY: -11, fallVfx: 'street_impact', fallSfx: 'street_impact',
   bounds: { minX: -62, maxX: 62, minY: -12, maxY: 34 },
   palette: { style: STYLE.CITY, grass: 0x4a4a62, grass2: 0x5e5a78, dirt: 0x4a4458, rock: 0x8a88b0, rock2: 0x6e6c98, deep: 0x2a2440,
     brick: 0xb8584a, brick2: 0x94443e, mortar: 0x4a2a30, wood: 0x7a5a40, wood2: 0x5a3e2a, metal: 0x6a7aa8, glow: 0xff3fb0, glow2: 0x3fe8ff, brickSize: [0.7, 0.32], bump: 1.0 },

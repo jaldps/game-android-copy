@@ -85,6 +85,7 @@ export class FX {
   setRandom(fn) { rnd = fn; }
 
   /** Play a preset by id. opts: { scale=1, dirX, dirY (unit, for directional emitters), tint (hex), terrainColor (hex), z } */
+  has(id) { return !!VFX[id]; }
   burst(id, x, y, o = {}) {
     const p = VFX[id]; if (!p) return;
     const sc = o.scale ?? 1;

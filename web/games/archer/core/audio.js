@@ -23,6 +23,7 @@ export const audio = {
     if (this.wantTrack) this.playMusic(this.wantTrack);
   },
   /** Play a recipe from audio/sfx.js. opts are passed through (e.g. { power, pitch, gain }). Rate-limited per id. */
+  has(id) { return !!SFX[id]; },
   play(id, opts = {}) {
     if (!this.ac || this.muted || this.paused) return;
     const fn = SFX[id]; if (!fn) return;

@@ -14,7 +14,7 @@ const AVOID = [MAT.BRICK, MAT.WOOD, MAT.METAL];
 
 export default {
   id: 'ruins', name: 'Amberdune Ruins', subtitle: 'Desert temple canyons', music: 'battle',
-  killY: -9.5, waterY: -9.4,
+  killY: -9.5, waterY: -9.4, fallVfx: 'sand_plume', fallSfx: 'sand_plume',
   bounds: { minX: -62, maxX: 62, minY: -12, maxY: 34 },
   palette: { style: STYLE.DESERT, grass: 0xf2c47a, grass2: 0xffe2a4, dirt: 0xd8945a, rock: 0xe0904e, rock2: 0xc46e3e, deep: 0x8a3e2a,
     brick: 0xf0d2a0, brick2: 0xd8b07a, mortar: 0xa87a50, wood: 0x9a6438, wood2: 0x6e4425, sand: 0xf6d290, metal: 0x9a8a78, brickSize: [1.25, 0.62] },

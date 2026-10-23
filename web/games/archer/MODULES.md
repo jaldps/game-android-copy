@@ -146,6 +146,8 @@ Core imports only from `maps/index.js`: `MAPS`, `getMap(id)`, `terrainMaterialFo
 { id, name, subtitle, music: 'battle' /* audio/music.js track id */,
   killY: -9.5,                     // falling below = death (into the sea / void)
   waterY?: -9,                     // visual sea level (backdrop)
+  fallVfx?: 'splash', fallSfx?: 'splash', // effect + sound for falling below killY; ids from vfx/presets.js and
+                                   // audio/sfx.js. Unregistered ids fall back to 'splash'.
   bounds: { minX, maxX, minY, maxY },   // camera limits + minimap extent
   palette: { grass, grass2, dirt, rock, rock2, deep, brick, brick2, mortar, wood, wood2, ice, sand, metal, snow: 0|1, bump },
   lighting: { sun, sunIntensity, sunDir:[x,y,z], hemiSky, hemiGround, hemiIntensity, fill, fillIntensity,
