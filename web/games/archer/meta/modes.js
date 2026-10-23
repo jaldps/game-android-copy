@@ -1,44 +1,75 @@
-// Game modes -> match configs (owner: Meta specialist). A match config is the ONLY thing the core needs:
-// { mode, mapId, seed, hotseat?, fastIntro?, players: [{ charId, outfitId, controller: 'human'|'ai', difficulty, name, team }] }
-import { CHARACTERS, outfitsFor } from '../characters/index.js';
-import { MAPS } from '../maps/index.js';
-import { profile, equipped } from './progression.js';
+// Game modes -> match configs (owner: Meta specialist). A MatchConfig is the ONLY thing the core needs:
+// { mode, mapId, seed, stage?, hotseat?, fastIntro?, players: [{ charId, outfitId, controller, difficulty, name, team, ammo? }] }
+// Everything reads the registries at runtime, so heroes/maps added by other specialists join automatically.
+import { CHARACTERS, outfitsFor, getCharacter } from '../characters/index.js';
+import { MAPS, getMap } from '../maps/index.js';
+import { profile, equipped, ammoFor, owns } from './progression.js';
 
-export const CAMPAIGN = [
-  { id: 'c1', name: 'Island Hopper', map: 'sunspire', foe: { charId: 'brock', outfitId: 'brock_beach', difficulty: 'easy' }, bonus: 60 },
-  { id: 'c2', name: 'Cold Welcome', map: 'frostpeak', foe: { charId: 'vela', outfitId: 'vela_robes', difficulty: 'easy' }, bonus: 80 },
-  { id: 'c3', name: 'Tower Siege', map: 'sunspire', foe: { charId: 'brock', outfitId: 'brock_iron', difficulty: 'normal' }, bonus: 100 },
-  { id: 'c4', name: 'Keep Breaker', map: 'frostpeak', foe: { charId: 'brock', outfitId: 'brock_iron', difficulty: 'normal' }, bonus: 130 },
-  { id: 'c5', name: 'Starfall Duel', map: 'sunspire', foe: { charId: 'vela', outfitId: 'vela_robes', difficulty: 'hard' }, bonus: 170 },
-  { id: 'c6', name: 'Frostpeak Crown', map: 'frostpeak', foe: { charId: 'vela', outfitId: 'vela_leathers', difficulty: 'expert' }, bonus: 240 },
+export const DIFFS = ['easy', 'normal', 'hard', 'expert'];
+
+// Campaign ladder: two passes over every map with rising difficulty. Stage i is fought on MAPS[i % n].
+const LADDER = [
+  ['Island Hopper', 'easy', 60], ['Cold Welcome', 'easy', 80], ['Ruin Raiders', 'normal', 100], ['Into the Forge', 'normal', 120],
+  ['Neon Nights', 'normal', 140], ['Sky Siege', 'hard', 170], ['Whiteout', 'hard', 200], ['Sandstorm', 'hard', 230],
+  ['Molten Crown', 'expert', 270], ['Champion of Heights', 'expert', 350],
 ];
+export const CAMPAIGN = LADDER.map(([name, difficulty, bonus], i) => {
+  const map = MAPS[i % MAPS.length];
+  const c = CHARACTERS[(i * 5 + 1) % CHARACTERS.length], outs = outfitsFor(c.id);
+  const o = outs[(i >> 1) % Math.max(1, outs.length)];
+  return { id: 'c' + (i + 1), n: i + 1, name, map: map.id, bonus, foe: { charId: c.id, outfitId: o?.id, difficulty } };
+});
 
-function pickFoe(rng, notChar) {
+export function pickFoe(rng, notChar) {
   const pool = CHARACTERS.filter((c) => c.id !== notChar);
-  const c = (pool.length ? pool : CHARACTERS)[Math.floor(rng() * (pool.length || CHARACTERS.length))];
+  const list = pool.length ? pool : CHARACTERS;
+  const c = list[Math.floor(rng() * list.length)];
   const outs = outfitsFor(c.id); const o = outs[Math.floor(rng() * outs.length)];
   return { charId: c.id, outfitId: o?.id };
 }
-const me = (over = {}) => { const e = equipped(), c = over.charId ?? e.charId; return { charId: c, outfitId: over.outfitId ?? (c === e.charId ? e.outfitId : profile.equipped.outfit[c]), controller: 'human', team: 0, name: 'You' }; };
+const foeOf = (charId, rng) => { const outs = outfitsFor(charId); return { charId, outfitId: outs[Math.floor(rng() * outs.length)]?.id }; };
 
+/** The human player's slot from the profile (equipped hero + outfit + arrow loadout). */
+export function me(over = {}) {
+  const e = equipped(), c = over.charId && owns('chars', over.charId) ? over.charId : e.charId;
+  return { charId: c, outfitId: over.outfitId ?? profile.equipped.outfit[c], controller: 'human', team: 0, name: 'You', ammo: ammoFor() };
+}
+const randomMap = (rng) => MAPS[Math.floor(rng() * MAPS.length)].id;
+
+/** over: { mapId?, foeId?, difficulty?, charId?, outfitId? } (null / 'random' = random). */
 export function quickMatch(rng, seed, over = {}) {
   const p = me(over);
-  const foe = pickFoe(rng, p.charId);
-  const map = over.mapId ?? MAPS[Math.floor(rng() * MAPS.length)].id;
-  const diff = profile.level < 3 ? 'easy' : profile.level < 7 ? 'normal' : 'hard';
-  return { mode: 'quick', mapId: map, seed, players: [p, { ...foe, controller: 'ai', difficulty: diff, team: 1 }] };
+  const foe = over.foeId && over.foeId !== 'random' ? foeOf(getCharacter(over.foeId).id, rng) : pickFoe(rng, p.charId);
+  const map = over.mapId && over.mapId !== 'random' ? getMap(over.mapId).id : randomMap(rng);
+  const diff = over.difficulty ?? profile.quick?.difficulty ?? 'normal';
+  return { mode: 'quick', mapId: map, seed, difficulty: diff, players: [p, { ...foe, controller: 'ai', difficulty: diff, team: 1, name: getCharacter(foe.charId).name }] };
 }
 export function campaignMatch(stage, seed, over = {}) {
-  const S = CAMPAIGN[Math.min(stage, CAMPAIGN.length - 1)];
-  return { mode: 'campaign', stage, mapId: S.map, seed, players: [me(over), { ...S.foe, controller: 'ai', team: 1 }] };
+  const S = CAMPAIGN[Math.max(0, Math.min(stage, CAMPAIGN.length - 1))];
+  return { mode: 'campaign', stage: S.n - 1, mapId: S.map, seed, difficulty: S.foe.difficulty,
+    players: [me(over), { ...S.foe, controller: 'ai', team: 1, name: getCharacter(S.foe.charId).name }] };
 }
+/** over: { mapId?, p1?, p2? } — both hot-seat heroes come from the owned roster, each with its equipped outfit. */
 export function hotseatMatch(rng, seed, over = {}) {
-  const p1 = { ...me(over), name: 'P1' }, f = pickFoe(rng, p1.charId);
-  return { mode: 'hotseat', hotseat: true, mapId: over.mapId ?? MAPS[Math.floor(rng() * MAPS.length)].id, seed, players: [p1, { ...f, controller: 'human', team: 1, name: 'P2' }] };
+  const p1c = over.p1 && owns('chars', over.p1) ? over.p1 : equipped().charId;
+  const p1 = { ...me({ charId: p1c }), name: 'P1' };
+  const p2c = over.p2 && owns('chars', over.p2) ? over.p2 : (CHARACTERS.find((c) => owns('chars', c.id) && c.id !== p1c) ?? getCharacter(p1c)).id;
+  const p2 = { charId: p2c, outfitId: profile.equipped.outfit[p2c], controller: 'human', team: 1, name: 'P2', ammo: ammoFor() };
+  const map = over.mapId && over.mapId !== 'random' ? getMap(over.mapId).id : randomMap(rng);
+  return { mode: 'hotseat', hotseat: true, mapId: map, seed, players: [p1, p2] };
 }
 export function autoplayMatch(rng, seed, over = {}) {
   const a = over.charId ? { charId: over.charId, outfitId: over.outfitId } : pickFoe(rng, null);
   const b = pickFoe(rng, a.charId);
   const map = over.mapId || MAPS[seed % MAPS.length].id;
-  return { mode: 'autoplay', fastIntro: true, mapId: map, seed, players: [{ ...a, controller: 'ai', difficulty: 'hard', team: 0 }, { ...b, controller: 'ai', difficulty: 'normal', team: 1 }] };
+  return { mode: 'autoplay', fastIntro: true, mapId: map, seed, players: [
+    { ...a, controller: 'ai', difficulty: 'hard', team: 0, name: getCharacter(a.charId).name },
+    { ...b, controller: 'ai', difficulty: 'normal', team: 1, name: getCharacter(b.charId).name }] };
+}
+/** Live AI-vs-AI duel behind the title screen, starring the equipped hero. */
+export function menuBackdrop(rng, seed) {
+  const e = equipped(), b = pickFoe(rng, e.charId);
+  return { mode: 'menubg', fastIntro: true, mapId: randomMap(rng), seed, players: [
+    { ...e, controller: 'ai', difficulty: 'hard', team: 0, name: getCharacter(e.charId).name },
+    { ...b, controller: 'ai', difficulty: 'hard', team: 1, name: getCharacter(b.charId).name }] };
 }
