@@ -233,3 +233,255 @@ export function castle({ x = 0, y = 0, z = -150, scale = 1, wall = 0x8a86b0, roo
   const g = mergeGeometries(parts); g.scale(scale, scale, scale); g.translate(x, y, z);
   return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true, emissive: 0x000000 }));
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Biome backdrop pieces (desert, lava, city). Each is ONE draw call.
+
+/** Lit, flat-shaded vertex-colour material whose `aGlow` attribute (0..n) makes parts self-lit (lava, windows). */
+export function glowStdMaterial(k = 1.6) {
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
+  mat.onBeforeCompile = (s) => {
+    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nattribute float aGlow; varying float vGlow;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = aGlow;');
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vGlow * ${k.toFixed(2)};`);
+  };
+  mat.customProgramCacheKey = () => 'archer-glowstd-' + k.toFixed(2);
+  return mat;
+}
+const _c = new THREE.Color();
+/** Writes `color` + `aGlow` attributes: fn(x, y, z, faceIndex) -> [hex, glow]. Geometry must be non-indexed. */
+function paintGlow(g, fn) {
+  const p = g.attributes.position, n = p.count, c = new Float32Array(n * 3), gl = new Float32Array(n);
+  for (let i = 0; i < n; i += 3) {
+    const cx = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, cy = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3, cz = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+    const [hex, glow] = fn(cx, cy, cz, i / 3); _c.set(hex);
+    for (let q = 0; q < 3; q++) { c.set([_c.r, _c.g, _c.b], (i + q) * 3); gl[i + q] = glow; }
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aGlow', new THREE.BufferAttribute(gl, 1));
+  return g;
+}
+
+/** Flat-topped, strata-banded desert buttes (and optional stepped pyramids). */
+export function mesas({ z = -150, count = 8, seed = 4, width = 560, height = [18, 40], radius = [12, 26], bands = [0xd98a4a, 0xc0703e, 0xe8a868, 0xb05a34], top = 0xf2c98a, y0 = -14, x = 0, pyramids = [] } = {}) {
+  const rng = makeRng(seed), parts = [];
+  for (let i = 0; i < count; i++) {
+    const h = height[0] + rng() * (height[1] - height[0]), r = radius[0] + rng() * (radius[1] - radius[0]);
+    const g = new THREE.CylinderGeometry(r * (0.62 + rng() * 0.2), r, h, 9, 7).toNonIndexed();
+    const p = g.attributes.position, ph = rng() * 10;
+    for (let k = 0; k < p.count; k++) {
+      const yy = p.getY(k), t = (yy + h / 2) / h, a = Math.atan2(p.getZ(k), p.getX(k));
+      const step = 1 + 0.12 * Math.sin(a * 3 + ph) + 0.1 * Math.round(Math.sin(t * 9 + ph) * 1.5) / 1.5;
+      if (Math.abs(yy - h / 2) > 0.01) { p.setX(k, p.getX(k) * step); p.setZ(k, p.getZ(k) * step); }
+    }
+    g.computeVertexNormals();
+    const bandH = h / (5 + Math.floor(rng() * 3));
+    paintGlow(g, (cx, cy) => [cy > h / 2 - 0.01 ? top : bands[Math.floor((cy + h / 2) / bandH + i) % bands.length], 0]);
+    g.translate(x - width / 2 + (i + 0.2 + rng() * 0.6) / count * width, y0 + h / 2, z - rng() * 50);
+    parts.push(g);
+  }
+  for (const P of pyramids) {
+    const s = P.size, steps = 7;
+    for (let k = 0; k < steps; k++) {
+      const w = s * (1 - k / steps), hh = s * 0.62 / steps;
+      const g = new THREE.BoxGeometry(w * 2, hh, w * 2).toNonIndexed();
+      paintGlow(g, (cx, cy, cz) => [cy > hh / 2 - 0.01 ? (P.top ?? 0xf6d7a0) : (k % 2 ? (P.color ?? 0xe0b070) : (P.color2 ?? 0xcf9a5a)), 0]);
+      g.rotateY(Math.PI / 4); g.translate(P.x, P.y + hh * (k + 0.5), P.z); parts.push(g);
+    }
+    const cap = new THREE.ConeGeometry(s * 0.2, s * 0.25, 4).toNonIndexed(); paintGlow(cap, () => [0xffd860, 0.6]);
+    cap.translate(P.x, P.y + s * 0.62 + s * 0.1, P.z); parts.push(cap);
+  }
+  return new THREE.Mesh(mergeGeometries(parts), glowStdMaterial());
+}
+
+/** Volcano range with glowing craters and lava rivers. */
+export function volcanoes({ z = -170, count = 6, seed = 3, width = 520, height = [40, 80], radius = [28, 46], rock = 0x3a2a30, rock2 = 0x55383a, lava = 0xff6a1a, y0 = -14, x = 0 } = {}) {
+  const rng = makeRng(seed), parts = [];
+  for (let i = 0; i < count; i++) {
+    const h = height[0] + rng() * (height[1] - height[0]), r = radius[0] + rng() * (radius[1] - radius[0]), rt = r * 0.14;
+    const g = new THREE.CylinderGeometry(rt, r, h, 11, 6, true).toNonIndexed();
+    const p = g.attributes.position;
+    for (let k = 0; k < p.count; k++) {
+      const yy = p.getY(k), t = (yy + h / 2) / h;
+      if (t < 0.99) { const j = (1 - t) * 0.25 + 0.05; const a = Math.atan2(p.getZ(k), p.getX(k)); const f = 1 + Math.sin(a * 5 + i * 2.3 + t * 4) * j; p.setX(k, p.getX(k) * f); p.setZ(k, p.getZ(k) * f); }
+    }
+    g.computeVertexNormals();
+    const streams = 2 + Math.floor(rng() * 2), ph = rng() * 6;
+    paintGlow(g, (cx, cy, cz) => {
+      const t = (cy + h / 2) / h, a = Math.atan2(cz, cx);
+      const s = Math.abs(Math.sin(a * streams * 0.5 + ph + t * 1.2));
+      if (s < 0.16 && t > 0.2 && cz > -r * 0.2) return [t > 0.7 ? 0xffb040 : lava, 1.2];
+      return [(Math.floor(t * 7) % 2) ? rock : rock2, t > 0.92 ? 0.25 : 0];
+    });
+    const crater = new THREE.CircleGeometry(rt * 1.05, 11).toNonIndexed(); crater.rotateX(-Math.PI / 2); crater.translate(0, h / 2 - 0.4, 0);
+    paintGlow(crater, () => [0xffc050, 1.6]);
+    const vx = x - width / 2 + (i + 0.2 + rng() * 0.6) / count * width, vz = z - rng() * 60;
+    for (const q of [g, crater]) { q.translate(vx, y0 + h / 2, vz); parts.push(q); }
+  }
+  return new THREE.Mesh(mergeGeometries(parts), glowStdMaterial(1.8));
+}
+
+/** Night skyline layer: boxes with lit windows, rooftop neon blocks and antenna beacons (custom fogged shader). */
+export function skyline({ z = -120, count = 34, width = 520, height = [14, 50], depth = [8, 18], bw = [7, 16], y0 = -14, x = 0, seed = 1,
+  color = 0x2a2458, color2 = 0x3c2f78, lit = 0xffd890, neon = 0xff3fb0, neon2 = 0x3fe8ff, win = [1.6, 2.1], density = 0.45 } = {}) {
+  const rng = makeRng(seed), parts = [];
+  const push = (g, s) => { const n = g.attributes.position.count, a = new Float32Array(n).fill(s); g.setAttribute('aS', new THREE.BufferAttribute(a, 1)); parts.push(g); };
+  let cx = x - width / 2;
+  for (let i = 0; i < count && cx < x + width / 2; i++) {
+    const w = bw[0] + rng() * (bw[1] - bw[0]), h = height[0] + rng() * (height[1] - height[0]), d = depth[0] + rng() * (depth[1] - depth[0]);
+    const zz = z - rng() * 30, s = 0.05 + rng() * 0.9;
+    const g = new THREE.BoxGeometry(w, h, d).toNonIndexed(); g.translate(cx + w / 2, y0 + h / 2, zz); push(g, s);
+    if (rng() < 0.45) { const cw = w * (0.4 + rng() * 0.3), ch = h * (0.15 + rng() * 0.2); const c = new THREE.BoxGeometry(cw, ch, d * 0.7).toNonIndexed(); c.translate(cx + w / 2, y0 + h + ch / 2, zz); push(c, s); }
+    if (rng() < 0.4) { const sg = new THREE.BoxGeometry(w * 0.6, 1.6 + rng() * 1.5, 0.4).toNonIndexed(); sg.translate(cx + w / 2, y0 + h * (0.55 + rng() * 0.3), zz + d / 2 + 0.3); push(sg, rng() < 0.5 ? -1 : -2); }
+    if (rng() < 0.35) { const a = new THREE.CylinderGeometry(0.15, 0.25, 6 + rng() * 6, 5).toNonIndexed(); a.translate(cx + w / 2, y0 + h + 4, zz); push(a, s);
+      const b = new THREE.SphereGeometry(0.6, 6, 4).toNonIndexed(); b.translate(cx + w / 2, y0 + h + 7.5, zz); push(b, -3); }
+    cx += w + rng() * 4;
+  }
+  const mat = new THREE.ShaderMaterial({
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uC1: { value: new THREE.Color(color) }, uC2: { value: new THREE.Color(color2) }, uLit: { value: new THREE.Color(lit) },
+      uN1: { value: new THREE.Color(neon) }, uN2: { value: new THREE.Color(neon2) }, uWin: { value: new THREE.Vector2(win[0], win[1]) }, uDen: { value: density }, uY0: { value: y0 }, uTime: { value: 0 } }]),
+    vertexShader: `attribute float aS; varying float vS; varying vec3 vW; varying vec3 vN;
+      #include <fog_pars_vertex>
+      void main(){ vS = aS; vN = normal; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform vec3 uC1, uC2, uLit, uN1, uN2; uniform vec2 uWin; uniform float uDen, uY0, uTime; varying float vS; varying vec3 vW; varying vec3 vN;
+      #include <fog_pars_fragment>
+      float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main(){
+        vec3 c;
+        if (vS < -2.5) c = vec3(1.0, 0.25, 0.3) * (0.6 + 0.6 * step(0.5, fract(uTime * 0.7 + vW.x * 0.01)));
+        else if (vS < -1.5) c = uN2 * 1.25;
+        else if (vS < -0.5) c = uN1 * 1.25;
+        else {
+          vec3 base = mix(uC1, uC2, vS) * (0.75 + 0.35 * smoothstep(uY0, uY0 + 60.0, vW.y));
+          if (vN.y > 0.5) c = base * 0.8;
+          else {
+            vec2 p = abs(vN.z) > 0.5 ? vW.xy : vec2(vW.z, vW.y);
+            float sh = abs(vN.z) > 0.5 ? 1.0 : 0.7;
+            vec2 q = p / uWin; vec2 id = floor(q), f = fract(q);
+            float win = step(0.22, f.x) * step(f.x, 0.78) * step(0.28, f.y) * step(f.y, 0.78);
+            float r = h(id + vS * 31.7);
+            float lit = step(1.0 - uDen, r) * step(0.3, h(vec2(floor(id.x / 4.0), floor(id.y / 3.0)) + vS * 7.0));
+            vec3 lc = r > 0.985 ? uN1 : (r > 0.97 ? uN2 : uLit * (0.7 + 0.3 * r));
+            c = mix(base * sh, lc, win * lit);
+            c = mix(c, base * sh * 0.7, win * (1.0 - lit) * 0.6);
+          }
+        }
+        gl_FragColor = vec4(c, 1.0);
+        #include <fog_fragment>
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const mesh = new THREE.Mesh(mergeGeometries(parts), mat);
+  return { mesh, update(dt, t) { mat.uniforms.uTime.value = t; } };
+}
+
+/** Glowing lava sea with drifting dark crust plates. */
+export function lavaSea({ y = -9, hot = 0xffc23a, mid = 0xff4a12, crust = 0x2a0e0a } = {}) {
+  const g = new THREE.PlaneGeometry(3000, 1600, 1, 1); g.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uHot: { value: new THREE.Color(hot) }, uMid: { value: new THREE.Color(mid) }, uCrust: { value: new THREE.Color(crust) } }]),
+    vertexShader: `varying vec3 vW;
+      #include <fog_pars_vertex>
+      void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uHot, uMid, uCrust; varying vec3 vW;
+      #include <fog_pars_fragment>
+      float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*.1031); p3 += dot(p3, p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
+      float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h12(i),h12(i+vec2(1,0)),f.x),mix(h12(i+vec2(0,1)),h12(i+vec2(1,1)),f.x),f.y); }
+      void main(){
+        vec2 p = vW.xz;
+        vec2 fl = vec2(uTime * 0.25, uTime * 0.06);
+        float n1 = vn(p * 0.09 + fl), n2 = vn(p * 0.23 - fl * 1.3 + n1 * 1.5), n3 = vn(p * 0.6 + fl * 2.0);
+        float heat = n1 * 0.55 + n2 * 0.35 + n3 * 0.1;
+        vec3 c = mix(uMid, uHot, smoothstep(0.45, 0.8, heat));
+        float cr = smoothstep(0.42, 0.36, heat + (n3 - 0.5) * 0.08);
+        c = mix(c, uCrust * (0.8 + 0.4 * n3), cr * 0.9);
+        c += uHot * smoothstep(0.02, 0.0, abs(heat - 0.4)) * 0.6;       // bright rim around crust plates
+        c *= mix(1.0, 0.65, smoothstep(-20.0, -200.0, vW.z));
+        gl_FragColor = vec4(c * 1.15, 1.0);
+        #include <fog_fragment>
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const m = new THREE.Mesh(g, mat); m.position.y = y;
+  return { mesh: m, update(dt, t) { mat.uniforms.uTime.value = t; } };
+}
+
+/** Night street grid far below the rooftops: dark asphalt, street lamps and moving car-light streaks. */
+export function cityFloor({ y = -11, base = 0x14102a, lamp = 0xffc870, car = 0xff4060, car2 = 0xfff0d0, neon = 0x3fe8ff } = {}) {
+  const g = new THREE.PlaneGeometry(3000, 1600, 1, 1); g.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uBase: { value: new THREE.Color(base) }, uLamp: { value: new THREE.Color(lamp) }, uCar: { value: new THREE.Color(car) }, uCar2: { value: new THREE.Color(car2) }, uNeon: { value: new THREE.Color(neon) } }]),
+    vertexShader: `varying vec3 vW;
+      #include <fog_pars_vertex>
+      void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uBase, uLamp, uCar, uCar2, uNeon; varying vec3 vW;
+      #include <fog_pars_fragment>
+      float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main(){
+        vec2 p = vW.xz; vec3 c = uBase;
+        vec2 blk = p / vec2(26.0, 18.0); vec2 f = fract(blk), id = floor(blk);
+        float road = max(smoothstep(0.1, 0.06, abs(f.y - 0.5) - 0.38), smoothstep(0.08, 0.04, abs(f.x - 0.5) - 0.42));
+        c = mix(c * 1.6, c * 0.7, road);
+        float lane = abs(fract(blk.y) - 0.5) - 0.44;
+        float lx = fract(p.x * 0.18 + uTime * 0.35 * (h(vec2(id.y, 1.0)) > 0.5 ? 1.0 : -1.0) + h(vec2(id.y, 3.0)));
+        float cars = smoothstep(0.012, 0.0, abs(lane + 0.015)) * smoothstep(0.75, 0.95, lx);
+        float cars2 = smoothstep(0.012, 0.0, abs(lane - 0.03)) * smoothstep(0.8, 0.96, fract(p.x * 0.15 - uTime * 0.3 + h(id)));
+        c += uCar * cars * 2.0 + uCar2 * cars2 * 1.6;
+        vec2 lq = fract(p / vec2(6.5, 9.0)) - 0.5; float lamp = smoothstep(0.12, 0.0, length(lq)) * step(0.3, h(floor(p / vec2(6.5, 9.0))));
+        c += uLamp * lamp * 1.4;
+        float sign = step(0.93, h(id + 7.0)) * smoothstep(0.08, 0.0, abs(f.x - 0.3)) * step(f.y, 0.4);
+        c += uNeon * sign;
+        gl_FragColor = vec4(c, 1.0);
+        #include <fog_fragment>
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const m = new THREE.Mesh(g, mat); m.position.y = y;
+  return { mesh: m, update(dt, t) { mat.uniforms.uTime.value = t; } };
+}
+
+/** Rippled sand sea (the desert's "void"): wind-blown ripples and slow drifting sand sheen. */
+export function duneSea({ y = -9.4, light = 0xf6d08a, dark = 0xc98a4c } = {}) {
+  const g = new THREE.PlaneGeometry(3000, 1600, 1, 1); g.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uL: { value: new THREE.Color(light) }, uD: { value: new THREE.Color(dark) } }]),
+    vertexShader: `varying vec3 vW;
+      #include <fog_pars_vertex>
+      void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uL, uD; varying vec3 vW;
+      #include <fog_pars_fragment>
+      float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*.1031); p3 += dot(p3, p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
+      float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h12(i),h12(i+vec2(1,0)),f.x),mix(h12(i+vec2(0,1)),h12(i+vec2(1,1)),f.x),f.y); }
+      void main(){
+        vec2 p = vW.xz;
+        float dune = vn(p * vec2(0.03, 0.05)) * 0.7 + vn(p * 0.09) * 0.3;
+        float slope = sin(p.x * 0.08 + dune * 9.0);
+        float rip = sin(p.x * 1.6 + p.y * 0.4 + vn(p * 0.25) * 5.0);
+        vec3 c = mix(uD, uL, 0.35 + 0.65 * smoothstep(-0.9, 0.9, slope));
+        c *= 0.95 + 0.05 * rip;
+        float drift = vn(p * 0.4 + vec2(uTime * 0.8, 0.0));
+        c += uL * 0.08 * smoothstep(0.65, 0.9, drift);
+        gl_FragColor = vec4(c, 1.0);
+        #include <fog_fragment>
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const m = new THREE.Mesh(g, mat); m.position.y = y;
+  return { mesh: m, update(dt, t) { mat.uniforms.uTime.value = t; } };
+}

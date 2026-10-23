@@ -128,6 +128,147 @@ export const PROP_TYPES = {
     parts.push([T(new RoundedBoxGeometry(1.1, 2.2, 0.05, 1, 0.02), 0, 2.75, 0.05), (x, y) => (Math.abs(x) < 0.12 || y < 1.85 ? 0xf2c14e : 0x3a5ad0), (y) => Math.max(0, 3.9 - y) * 0.15]);
     return { geo: build(parts) };
   },
+
+  // ---------------- desert ruins ----------------
+  cactus: () => {
+    const rib = (x, y, z) => (Math.sin(Math.atan2(z, x) * 9) > 0.25 ? 0x62cc5a : 0x2f9446);
+    const parts = [[T(new THREE.CylinderGeometry(0.32, 0.38, 2.6, 14, 3), 0, 1.3, 0), rib, (y) => y * 0.04], [T(sph(0.32, 14, 8), 0, 2.6, 0), rib, 0.1]];
+    for (const [s, h, len] of [[1, 1.0, 0.95], [-1, 1.45, 0.7]]) {
+      parts.push([T(new THREE.CylinderGeometry(0.2, 0.2, 0.6, 10), s * 0.42, h, 0, 0, 0, Math.PI / 2), rib, 0.06]);
+      parts.push([T(new THREE.CylinderGeometry(0.2, 0.22, len, 10), s * 0.7, h + len / 2, 0), rib, 0.08]);
+      parts.push([T(sph(0.2, 10, 6), s * 0.7, h + len, 0), rib, 0.1]);
+    }
+    parts.push([T(sph(0.11, 6, 5), 0.06, 2.92, 0.08), 0xff5f9a, 0.1], [T(sph(0.09, 6, 5), 0.7, 2.0, 0.06), 0xffd24a, 0.1]);
+    return { geo: build(parts) };
+  },
+  pillar: () => {
+    const rng = makeRng(31), shaft = new THREE.CylinderGeometry(0.4, 0.44, 2.6, 16, 6), p = shaft.attributes.position;
+    for (let i = 0; i < p.count; i++) if (p.getY(i) > 1.2) p.setY(i, p.getY(i) - rng() * 0.7);
+    shaft.computeVertexNormals();
+    const flute = (x, y, z) => (Math.sin(Math.atan2(z, x) * 8) > 0.55 ? 0xc0905a : (y > 2.2 ? 0xf2d29a : 0xe4bb82));
+    const parts = [[T(new RoundedBoxGeometry(1.2, 0.35, 1.2, 2, 0.05), 0, 0.17, 0), 0xd4a46c], [T(shaft, 0, 1.6, 0), flute]];
+    parts.push([T(new THREE.CylinderGeometry(0.42, 0.42, 0.7, 14), 0.95, 0.3, 0.35, Math.PI / 2, 0.4, 0), flute]);
+    return { geo: build(parts) };
+  },
+  urn: () => {
+    const pts = [[0.02, 0], [0.22, 0.02], [0.34, 0.18], [0.42, 0.45], [0.36, 0.72], [0.18, 0.86], [0.16, 0.98], [0.24, 1.04]].map(([x, y]) => new THREE.Vector2(x, y));
+    const g = new THREE.LatheGeometry(pts, 14);
+    const parts = [[g, (x, y) => (Math.abs(y - 0.5) < 0.06 ? 0x2a3a6a : (Math.abs(y - 0.62) < 0.03 ? 0xf2d060 : 0xc8643a))]];
+    parts.push([T(new THREE.TorusGeometry(0.12, 0.035, 6, 10, Math.PI), 0.3, 0.8, 0, 0, 0, -1.2), 0xa8502e], [T(new THREE.TorusGeometry(0.12, 0.035, 6, 10, Math.PI), -0.3, 0.8, 0, 0, Math.PI, -1.2), 0xa8502e]);
+    return { geo: build(parts) };
+  },
+  obelisk: () => {
+    const sh = new THREE.CylinderGeometry(0.42, 0.62, 4.6, 4, 8); sh.rotateY(Math.PI / 4);
+    const glyph = (x, y, z) => { const b = Math.floor(y * 2.2); return (b % 3 === 1 && Math.abs(x + z) < 0.25) ? 0x2a6ab0 : (b % 2 ? 0xe2b878 : 0xd4a468); };
+    const parts = [[T(new RoundedBoxGeometry(1.6, 0.4, 1.6, 2, 0.05), 0, 0.2, 0), 0xc8965c], [T(sh, 0, 2.7, 0), glyph]];
+    const cap = new THREE.ConeGeometry(0.6, 0.7, 4); cap.rotateY(Math.PI / 4); parts.push([T(cap, 0, 5.35, 0), 0xffcf3a]);
+    return { geo: build(parts) };
+  },
+  shrub: () => {
+    const rng = makeRng(17), parts = [];
+    for (let i = 0; i < 9; i++) { const h = 0.5 + rng() * 0.5, a = rng() * 6.28; parts.push([T(new THREE.CylinderGeometry(0.015, 0.035, h, 4), Math.cos(a) * 0.12, h / 2, Math.sin(a) * 0.08, Math.sin(a) * 0.5, 0, Math.cos(a) * 0.6), 0x8a6a3a, (y) => y * 0.8]); }
+    for (let i = 0; i < 6; i++) parts.push([T(sph(0.16 + rng() * 0.1, 7, 5), (rng() - 0.5) * 0.8, 0.35 + rng() * 0.4, (rng() - 0.5) * 0.4), rng() < 0.5 ? 0x9aa84a : 0xb8b45a, 0.5]);
+    return { geo: build(parts), shadow: false };
+  },
+  sandrock: () => {
+    const g = new THREE.DodecahedronGeometry(0.8, 1), p = g.attributes.position, rng = makeRng(23);
+    for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1.2 + (rng() - 0.5) * 0.25), Math.max(-0.1, p.getY(i) * 0.7), p.getZ(i));
+    g.translate(0, 0.32, 0); g.computeVertexNormals();
+    return { geo: build([[g, (x, y) => (Math.floor(y * 5) % 2 ? 0xe8a868 : 0xc8784a)]]) };
+  },
+  skull: () => {
+    const parts = [[T(sph(0.32, 10, 8), 0, 0.3, 0, 0, 0, 0, 1, 0.85, 1.1), 0xf4ead0], [T(sph(0.07, 6, 5), 0.1, 0.32, 0.3), 0x3a2a1a], [T(sph(0.07, 6, 5), -0.1, 0.32, 0.3), 0x3a2a1a]];
+    for (const s of [1, -1]) parts.push([T(new THREE.ConeGeometry(0.07, 0.6, 6), s * 0.45, 0.45, 0, 0, 0, -s * 1.1), 0xe8dcc0]);
+    return { geo: build(parts), shadow: false };
+  },
+
+  // ---------------- lava forge ----------------
+  obsidian: () => {
+    const rng = makeRng(41), parts = [];
+    for (let i = 0; i < 5; i++) parts.push([T(new THREE.OctahedronGeometry(0.32, 0), (rng() - 0.5) * 0.8, 0.4 + rng() * 0.3, (rng() - 0.5) * 0.4, 0, rng(), (rng() - 0.5) * 0.8, 0.6 + rng() * 0.4, 1.4 + rng() * 1.3, 0.6),
+      (x, y) => (y > 0.9 ? 0xffa83a : y > 0.6 ? 0xff4a1a : 0x1a0e1e)]);
+    return { geo: build(parts), emissive: true };
+  },
+  deadtree: () => {
+    const parts = [], col = (x, y, z) => (Math.sin(y * 9 + x * 4) > 0.86 ? 0xff5a14 : 0x241a1c);
+    parts.push([T(new THREE.CylinderGeometry(0.12, 0.28, 2.6, 7), 0, 1.3, 0, 0, 0, 0.08), col]);
+    for (const [y, a, l] of [[1.6, 0.9, 1.1], [2.1, -0.8, 0.9], [2.5, 0.5, 0.7], [1.2, -1.1, 0.7]]) {
+      parts.push([T(new THREE.CylinderGeometry(0.04, 0.09, l, 5), Math.sin(a) * l * 0.5, y + Math.cos(a) * l * 0.4, 0, 0, 0, -a), col]);
+    }
+    return { geo: build(parts), emissive: true };
+  },
+  lavarock: () => {
+    const g = new THREE.DodecahedronGeometry(0.75, 1), p = g.attributes.position, rng = makeRng(29);
+    for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1.1 + (rng() - 0.5) * 0.3), Math.max(-0.1, p.getY(i) * 0.72), p.getZ(i) * (1 + (rng() - 0.5) * 0.3));
+    g.translate(0, 0.3, 0); g.computeVertexNormals();
+    return { geo: build([[g, (x, y, z) => (Math.abs(Math.sin(x * 5 + z * 3) * Math.cos(y * 6)) < 0.12 ? 0xff6a1a : (y > 0.6 ? 0x4a3a40 : 0x2a2028))]]), emissive: true };
+  },
+  anvil: () => {
+    const iron = 0x3c4250, parts = [];
+    parts.push([T(new RoundedBoxGeometry(1.0, 0.5, 0.7, 2, 0.05), 0, 0.25, 0), 0x6a4a30]);
+    parts.push([T(new RoundedBoxGeometry(0.45, 0.35, 0.4, 2, 0.04), 0, 0.68, 0), iron]);
+    parts.push([T(new RoundedBoxGeometry(1.1, 0.28, 0.5, 2, 0.05), 0, 0.98, 0), (x, y) => (y > 1.08 ? 0x8a94a8 : iron)]);
+    parts.push([T(new THREE.ConeGeometry(0.2, 0.6, 8), 0.82, 0.98, 0, 0, 0, -Math.PI / 2), iron]);
+    parts.push([T(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6), -0.2, 1.4, 0.1, 0, 0, 0.9), 0x6a4a30], [T(new RoundedBoxGeometry(0.3, 0.16, 0.16, 1, 0.03), 0.05, 1.62, 0.1, 0, 0, 0.9), iron]);
+    return { geo: build(parts) };
+  },
+  spikes: () => {
+    const parts = [[T(new RoundedBoxGeometry(2.2, 0.12, 0.12, 1, 0.03), 0, 0.9, 0), 0x2e2a34], [T(new RoundedBoxGeometry(2.2, 0.12, 0.12, 1, 0.03), 0, 0.35, 0), 0x2e2a34]];
+    for (let i = 0; i < 6; i++) { const x = -1.0 + i * 0.4; parts.push([T(new THREE.CylinderGeometry(0.04, 0.05, 1.3, 6), x, 0.65, 0), 0x3a3644], [T(new THREE.ConeGeometry(0.08, 0.32, 6), x, 1.45, 0), (xx, y) => (y > 1.5 ? 0xff8a3a : 0x8a8a98)]); }
+    return { geo: build(parts) };
+  },
+  chimney: () => {
+    const parts = [[T(new THREE.CylinderGeometry(0.42, 0.6, 4.2, 10, 6), 0, 2.1, 0), (x, y) => (Math.floor(y * 2.4) % 2 ? 0x4a2a2a : 0x5e3430)]];
+    parts.push([T(new THREE.CylinderGeometry(0.55, 0.5, 0.35, 10), 0, 4.3, 0), 0x2a2228], [T(new THREE.CircleGeometry(0.4, 10), 0, 4.48, 0, -Math.PI / 2), 0xff8a2a]);
+    parts.push([T(new RoundedBoxGeometry(0.5, 0.6, 0.1, 1, 0.03), 0, 0.7, 0.55), 0xffa030]);
+    return { geo: build(parts), emissive: true };
+  },
+
+  // ---------------- neon city rooftops ----------------
+  acunit: () => {
+    const parts = [[T(new RoundedBoxGeometry(1.3, 0.85, 0.95, 2, 0.06), 0, 0.43, 0), (x, y, z) => (z > 0.4 && Math.abs((y * 10) % 1) < 0.35 && y < 0.75 ? 0x5a6478 : 0xb8c0cc)]];
+    parts.push([T(new THREE.CylinderGeometry(0.36, 0.36, 0.06, 14), 0.1, 0.88, 0), 0x2a3040], [T(new THREE.CylinderGeometry(0.06, 0.06, 0.08, 6), 0.1, 0.9, 0), 0x9aa4b4]);
+    return { geo: build(parts) };
+  },
+  watertower: () => {
+    const parts = [], wood = (x, y, z) => (Math.sin(Math.atan2(z, x) * 14) > 0.7 ? 0x6a4428 : 0x9a6638);
+    for (const [x, z] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) parts.push([T(new THREE.CylinderGeometry(0.06, 0.07, 2.2, 5), x, 1.1, z), 0x3a3a48]);
+    parts.push([T(new THREE.CylinderGeometry(0.95, 0.95, 1.6, 16, 2), 0, 3.0, 0), wood]);
+    for (const y of [2.5, 3.5]) parts.push([T(new THREE.TorusGeometry(0.97, 0.04, 4, 18), 0, y, 0, Math.PI / 2), 0x2a2a34]);
+    parts.push([T(new THREE.ConeGeometry(1.1, 0.8, 16), 0, 4.2, 0), 0x4a3a5a]);
+    return { geo: build(parts) };
+  },
+  antenna: () => {
+    const parts = [[T(new THREE.CylinderGeometry(0.05, 0.1, 5, 5), 0, 2.5, 0), 0x1c1a26]];
+    for (let i = 0; i < 4; i++) parts.push([T(new THREE.CylinderGeometry(0.025, 0.025, 1.2 - i * 0.22, 4), 0, 1.6 + i * 0.9, 0, 0, 0, Math.PI / 2), 0x1c1a26]);
+    parts.push([T(sph(0.14, 8, 6), 0, 5.05, 0), 0xff2a3a], [T(sph(0.08, 6, 5), 0.5, 2.5, 0), 0xff2a3a]);
+    return { geo: build(parts), emissive: true };
+  },
+  neonsign: () => {
+    const pink = 0xff3fb0, cyan = 0x3ff0ff, parts = [];
+    for (const x of [-1.0, 1.0]) parts.push([T(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 5), x, 0.65, 0), 0x1a1624]);
+    parts.push([T(new RoundedBoxGeometry(2.7, 1.3, 0.1, 1, 0.04), 0, 1.85, -0.05), 0x1a1030]);
+    for (const [x, y, w, h] of [[0, 2.47, 2.6, 0.07], [0, 1.23, 2.6, 0.07], [-1.3, 1.85, 0.07, 1.3], [1.3, 1.85, 0.07, 1.3]]) parts.push([T(new RoundedBoxGeometry(w, h, 0.08, 1, 0.03), x, y, 0.04), pink]);
+    for (const [x, y, w] of [[-0.62, 2.05, 0.9], [0.45, 2.05, 0.7], [-0.3, 1.66, 1.5], [0.88, 1.66, 0.3]]) parts.push([T(new RoundedBoxGeometry(w, 0.13, 0.08, 1, 0.04), x, y, 0.06), cyan]);
+    return { geo: build(parts), emissive: true };
+  },
+  vent: () => {
+    const parts = [[T(new THREE.CylinderGeometry(0.22, 0.26, 0.9, 10), 0, 0.45, 0), 0x8a94a4], [T(new THREE.ConeGeometry(0.42, 0.3, 10), 0, 1.05, 0), 0x6a7484], [T(new THREE.CylinderGeometry(0.3, 0.3, 0.12, 10), 0, 0.86, 0), 0x2a2e3a]];
+    return { geo: build(parts) };
+  },
+  dish: () => {
+    const bowl = new THREE.SphereGeometry(0.7, 14, 6, 0, Math.PI * 2, 0, 0.9); bowl.scale(1, 0.45, 1);
+    const parts = [[T(new THREE.CylinderGeometry(0.06, 0.1, 0.9, 6), 0, 0.45, 0), 0x3a3e4a], [T(bowl, 0, 1.0, 0.1, -1.0, 0, 0, 1, 1, 1), (x, y) => (y > 1.15 ? 0xe8ecf4 : 0xc8ced8)], [T(sph(0.07, 6, 5), 0, 1.3, 0.55), 0xff3fb0]];
+    return { geo: build(parts) };
+  },
+  billboard: () => {
+    const parts = [];
+    for (const x of [-1.6, 1.6]) parts.push([T(new THREE.CylinderGeometry(0.08, 0.1, 2.4, 6), x, 1.2, 0), 0x22202e]);
+    parts.push([T(new RoundedBoxGeometry(4.4, 2.2, 0.16, 1, 0.05), 0, 3.4, 0), (x, y) => {
+      const t = (y - 2.3) / 2.2; return Math.abs(x) > 2.08 || Math.abs(t - 0.5) > 0.44 ? 0xffe14a : (x < -0.6 ? 0xff3fb0 : (t > 0.55 ? 0x3ff0ff : 0x8a4aff)); }]);
+    for (let i = 0; i < 5; i++) parts.push([T(sph(0.08, 6, 4), -1.6 + i * 0.8, 4.62, 0.1), 0xfff2c0]);
+    return { geo: build(parts), emissive: true };
+  },
 };
 
 /** Shared prop material: vertex colours + gentle wind sway (aSway) + optional glow. */
