@@ -9,3 +9,4 @@ shots/
 refs/**/*.jpg
 refs/**/*.png
 .DS_Store
+.claude/worktrees/
