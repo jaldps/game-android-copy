@@ -8,17 +8,21 @@ const KINDS = {
   motes: { color: 0xfff2b0, size: 0.1, fall: [0.4, 0.25], wobble: 0.8, alpha: 0.75, additive: true },
   petals: { color: 0xffa8c8, size: 0.13, fall: [1.2, -0.8], wobble: 1.0, alpha: 0.9, additive: false },
   embers: { color: 0xffa040, size: 0.1, fall: [0.4, 1.4], wobble: 0.7, alpha: 0.9, additive: true },
+  ash: { color: 0x5a4e58, size: 0.11, fall: [0.5, -0.6], wobble: 0.9, alpha: 0.75, additive: false },
+  dust: { color: 0xf4d8a0, size: 0.08, fall: [3.2, 0.15], wobble: 0.5, alpha: 0.6, additive: false },
+  rain: { color: 0xa8c8ff, size: 0.2, fall: [-1.2, -16], wobble: 0.05, alpha: 0.55, additive: true, stretch: 5 },
+  neon: { color: 0xff7ad8, size: 0.09, fall: [0.2, 0.35], wobble: 1.0, alpha: 0.8, additive: true },
 };
 
-export function createWeather({ kind = 'snow', count = 500, seed = 1, box = [70, 40, 30] } = {}) {
-  const K = KINDS[kind] ?? KINDS.snow, rng = makeRng(seed);
+export function createWeather({ kind = 'snow', count = 500, seed = 1, box = [70, 40, 30], color } = {}) {
+  const K = { ...(KINDS[kind] ?? KINDS.snow), ...(color !== undefined ? { color } : {}) }, rng = makeRng(seed);
   const pos = new Float32Array(count * 3), ph = new Float32Array(count);
   for (let i = 0; i < count; i++) { pos[i * 3] = rng() * box[0]; pos[i * 3 + 1] = rng() * box[1]; pos[i * 3 + 2] = (rng() - 0.5) * box[2] + 2; ph[i] = rng() * 100; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aPh', new THREE.BufferAttribute(ph, 1));
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: K.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     uniforms: { uTime: { value: 0 }, uCam: { value: new THREE.Vector2() }, uBox: { value: new THREE.Vector3(...box) }, uFall: { value: new THREE.Vector2(...K.fall) },
-      uSize: { value: K.size }, uColor: { value: new THREE.Color(K.color) }, uAlpha: { value: K.alpha }, uWob: { value: K.wobble }, uScale: { value: 400 }, uWind: { value: 0 } },
+      uSize: { value: K.size }, uColor: { value: new THREE.Color(K.color) }, uAlpha: { value: K.alpha }, uWob: { value: K.wobble }, uScale: { value: 400 }, uWind: { value: 0 }, uStretch: { value: K.stretch ?? 1 } },
     vertexShader: `attribute float aPh; uniform float uTime, uSize, uWob, uScale, uWind; uniform vec2 uCam, uFall; uniform vec3 uBox; varying float vA;
       void main(){
         vec3 p = position;
@@ -30,8 +34,8 @@ export function createWeather({ kind = 'snow', count = 500, seed = 1, box = [70,
         vA = 0.6 + 0.4 * sin(aPh * 7.0);
         gl_Position = projectionMatrix * mv;
       }`,
-    fragmentShader: `uniform vec3 uColor; uniform float uAlpha; varying float vA;
-      void main(){ float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.15, d) * uAlpha * vA; if (a < 0.01) discard; gl_FragColor = vec4(uColor, a);
+    fragmentShader: `uniform vec3 uColor; uniform float uAlpha, uStretch; varying float vA;
+      void main(){ float d = length((gl_PointCoord - 0.5) * vec2(uStretch, 1.0)); float a = smoothstep(0.5, 0.15, d) * uAlpha * vA; if (a < 0.01) discard; gl_FragColor = vec4(uColor, a);
         #include <colorspace_fragment>
       }`,
   });

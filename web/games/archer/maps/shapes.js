@@ -80,3 +80,57 @@ export function wall(x0, x1, base, h, mw = 0.7) {
   for (let x = x0 + mw / 2; x < x1 - mw / 2 + 0.01; x += mw * 2) out.push(rect(x, base + h + 0.35, mw, 0.7));
   return out;
 }
+
+/** Mesa / butte / building block rising from `bottom`: top profile topFn(x), cliff sides that step in/out with
+ *  height (ledgeFn(y) -> extra half-width, may be negative). */
+export function mesa(cx, hw, topFn, ledgeFn = () => 0, bottom = -20) {
+  return {
+    x0: cx - hw - 4, x1: cx + hw + 4, y0: bottom - 1, y1: 40,
+    sdf(x, y) { return Math.max(y - topFn(x), Math.abs(x - cx) - (hw + ledgeFn(y)), bottom - y); },
+  };
+}
+
+/** Triangle / gable (pediment) with apex at (cx, top), base half-width hw at y = base. */
+export function gable(cx, base, hw, top) { return polygon([[cx - hw, base], [cx + hw, base], [cx, top]]); }
+
+/**
+ * Find a safe spawn near x0 (searching outward up to ±range, deterministic): solid ground well above minY, flat
+ * within `flat` over ±0.7, supported underneath, and not standing on an excluded material (e.g. a wall top).
+ * The core drops actors onto the HIGHEST surface at x, so this checks exactly that surface. Returns {x, y} or null.
+ */
+export function findSpawn(T, x0, range, { minY = -6.5, avoid = null, flat = 0.6, near = NaN, tol = 1.5 } = {}) {
+  const n = Math.round(range / 0.25) * 2;
+  for (let k = 0; k <= n; k++) {
+    const x = x0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.25;
+    if (x < T.x0 + 3 || x > T.x1 - 3) continue;
+    const y = T.topAt(x); if (isNaN(y) || y < minY || Math.abs(y - near) > tol) continue;
+    const a = T.topAt(x - 0.7), b = T.topAt(x + 0.7);
+    if (isNaN(a) || isNaN(b) || Math.abs(a - y) > flat || Math.abs(b - y) > flat) continue;
+    if (!T.solid(x, y - 1.0) || !T.solid(x, y - 1.6)) continue;
+    if (avoid && avoid.includes(T.matAt(x, y - 0.3))) continue;
+    return { x, y };
+  }
+  return null;
+}
+
+/** Same as findSpawn but never fails: falls back to building a small rock ledge at x0 (still a valid, solid spot). */
+export function safeSpawn(T, x0, range, o = {}, mat = 0) {
+  const s = findSpawn(T, x0, range, o);
+  if (s) return s;
+  const top = Math.max(o.minY ?? -6.5, isNaN(T.topAt(x0)) ? -2 : T.topAt(x0)) + 0.5;
+  stamp(T, floatingIsland(x0, top, 7, 4, 77, { lump: 0.1, shoulder: 0.4 }), mat);
+  return { x: x0, y: T.topAt(x0) };
+}
+
+/**
+ * Enforce the arena rule between two spawns: if hi.y - lo.y < minDy, raise a rounded plinth under `hi` so the duel
+ * is never fought on one flat level. Returns the (possibly new) {x, y} of `hi`.
+ */
+export function ensureHeightGap(T, hi, lo, minDy, mat = 0) {
+  const dy = hi.y - lo.y;
+  if (dy >= minDy) return hi;
+  const lift = minDy - dy + 0.4, top = hi.y + lift;
+  stamp(T, { x0: hi.x - 6, x1: hi.x + 6, y0: hi.y - 3, y1: top + 1,
+    sdf: (x, y) => { const u = Math.abs(x - hi.x) / 2.2; return y - (top - Math.max(0, u - 1) * 1.4 - u * u * 0.08); } }, mat);
+  return { x: hi.x, y: T.topAt(hi.x) };
+}

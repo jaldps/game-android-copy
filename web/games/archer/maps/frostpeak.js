@@ -54,10 +54,11 @@ export default {
   decorate(ctx) {
     const { rng, props, terrain: T, gen } = ctx, G = gen.g;
     const place = (type, x, z, o = {}) => { const y = T.topAt(x); if (!isNaN(y) && y > -6 && T.matAt(x, y - 0.3) === MAT.ROCK) props.add(type, x, y - 0.05, { z, ...o }); };
-    for (let x = -58; x < 58; x += 2.2 + rng() * 2.5) {
+    for (let x = -58; x < 58; x += 1.6 + rng() * 1.8) {
       const r = rng();
-      if (r < 0.32) place('pine', x, -1.2 - rng() * 1.2, { scale: 0.8 + rng() * 0.6, rotY: rng() * 6 });
-      else if (r < 0.5) place('snowrock', x, (rng() - 0.5) * 3, { scale: 0.5 + rng() * 0.7, rotY: rng() * 6 });
+      if (r < 0.4) place('pine', x, -1.2 - rng() * 1.4, { scale: 0.8 + rng() * 0.7, rotY: rng() * 6 });
+      else if (r < 0.62) place('snowrock', x, (rng() - 0.5) * 3, { scale: 0.5 + rng() * 0.7, rotY: rng() * 6 });
+      else if (r < 0.7) place('crystal', x, -1.0 - rng() * 1.0, { scale: 0.6 + rng() * 0.5, rotY: rng() * 6 });
     }
     place('brazier', G.sxL + 2.2, -1.0); place('brazier', G.sxR - 2.2, -1.0);
     place('banner', G.sxL - 3, -1.6); place('banner', G.sxR + 3, -1.6, { rotY: Math.PI });
