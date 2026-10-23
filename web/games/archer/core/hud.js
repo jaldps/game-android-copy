@@ -2,11 +2,13 @@
 // pause/mute) and one overlay canvas for per-frame world-anchored drawing (HP bars, angle gauge, edge indicators,
 // floating damage numbers). Budget: <= ~18% of the screen.
 import { project, cam } from './camera.js';
+import { R, insetRect } from './render.js';
+import { portrait } from '../meta/index.js';
 import { events } from './events.js';
 import { trayArrows, getArrow } from '../arrows/index.js';
 import { TURN } from './config.js';
 import { DEG, clamp } from './util.js';
-import { input, holdButton } from './input.js';
+import { input, holdButton, stepButton } from './input.js';
 import { audio } from './audio.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -27,7 +29,7 @@ export class Hud {
     root.innerHTML = `
       <canvas class="hud-overlay"></canvas>
       <div class="hud-top-left">
-        <div class="timer"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" class="ring-bg"/><circle cx="22" cy="22" r="18" class="ring"/></svg><b>20</b></div>
+        <div class="timer" aria-label="Turn time left"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" class="ring-bg"/><circle cx="22" cy="22" r="18" class="ring"/></svg><b>20</b><small>SEC</small></div>
         <div class="order"></div>
       </div>
       <div class="hud-wind" aria-label="Wind">
@@ -43,7 +45,7 @@ export class Hud {
         <div class="moves"><button class="sbtn mv-l" aria-label="Walk left">${SVG.left}</button><button class="sbtn mv-r" aria-label="Walk right">${SVG.right}</button></div>
         <div class="angle"><button class="sbtn ang-up" aria-label="Raise angle">${SVG.up}</button><div class="ang-read"><small>ANGLE</small><b>45°</b></div><button class="sbtn ang-dn" aria-label="Lower angle">${SVG.down}</button></div>
         <div class="gauges">
-          <div class="power"><div class="fill"></div><div class="ticks"></div><div class="last"><i></i></div><span class="pv">0</span></div>
+          <div class="power"><div class="fill"></div><div class="ticks"></div><div class="last"><i></i></div></div><span class="pv">0</span>
           <div class="move"><div class="fill"></div><small>MOVE</small></div>
         </div>
         <div class="tray"></div>
@@ -56,20 +58,21 @@ export class Hud {
     this.el = {
       time: $('.timer b', root), ring: $('.timer .ring', root), timer: $('.timer', root), order: $('.order', root),
       needle: $('.needle', root), windVal: $('.compass b', root), ang: $('.ang-read b', root),
-      powerFill: $('.power .fill', root), powerLast: $('.power .last', root), pv: $('.power .pv', root), moveFill: $('.move .fill', root),
+      powerFill: $('.power .fill', root), powerLast: $('.power .last', root), pv: $('.gauges .pv', root), moveFill: $('.move .fill', root),
       tray: $('.tray', root), fire: $('.fire', root), strip: $('.strip', root), banner: $('.banner', root), bannerText: $('.banner span', root),
       callouts: $('.callouts', root), mute: $('.mute', root), pause: $('.pause', root),
     };
     $('.power .ticks', root).innerHTML = Array.from({ length: 9 }, (_, i) => `<i style="left:${(i + 1) * 10}%"></i>`).join('');
     holdButton($('.mv-l', root), (v) => (input.left = v));
     holdButton($('.mv-r', root), (v) => (input.right = v));
-    holdButton($('.ang-up', root), (v) => (input.angUp = v));
-    holdButton($('.ang-dn', root), (v) => (input.angDown = v));
+    stepButton($('.ang-up', root), 1);
+    stepButton($('.ang-dn', root), -1);
     holdButton(this.el.fire, (v) => (input.fire = v));
     this.el.pause.addEventListener('click', () => { audio.play('ui_click'); opts.onPause?.(); });
     this.el.mute.addEventListener('click', () => { audio.unlock(); audio.setMuted(!audio.muted); this._syncMute(); audio.play('ui_click'); });
     this._syncMute();
-    this.last = {}; this.floaters = []; for (let i = 0; i < 12; i++) this.floaters.push({ t: 9, x: 0, y: 0, text: '', color: '#fff', big: false });
+    this.last = {}; this.floaters = []; for (let i = 0; i < 12; i++) this.floaters.push({ t0: -9, x: 0, y: 0, text: '', color: '#fff', ring: '#fff', big: false });
+    this.ir = { x: 0, y: 0, w: 0, h: 0 };
     this.pt = { x: 0, y: 0, vis: false, nx: 0, ny: 0 }; this.order = [];
     this._mmDirty = true;
     this._bind();
@@ -86,14 +89,14 @@ export class Hud {
     events.on('arrow:select', () => this._tray());
     events.on('shot', () => this._tray());
     events.on('callout', (text, kind) => this.callout(text, kind));
-    events.on('actor:damage', (a, n, from, info) => this.float(a.hitShapes.hx + 0.9, a.hitShapes.hy + 1.6, '-' + n, info?.head ? '#ffe14a' : info?.direct ? '#ffb35c' : '#ffffff', !!(info?.head || n >= 30)));
+    events.on('actor:damage', (a, n, from, info) => { if (n > 0) this.float(a, '-' + n, info?.head ? '#ffe14a' : info?.direct ? '#ffb35c' : '#ffffff', !!(info?.head || n >= 30)); });
     events.on('actor:death', (a, cause) => { this.callout(cause === 'fell' ? `${a.name.toUpperCase()} FELL!` : `${a.name.toUpperCase()} DOWN!`, 'kill'); this._order(); });
     events.on('terrain:carve', () => (this._mmDirty = true));
     events.on('wind', (w) => this._wind(w));
   }
   attach(match) {
     this.match = match; this._mmDirty = true; this.last = {};
-    for (const f of this.floaters) f.t = 9;
+    for (const f of this.floaters) f.t0 = -9;
     this.el.callouts.innerHTML = ''; this._order(); this._tray(); this._wind(match.wind);
   }
   show(v) { const was = !this.root.classList.contains('hidden'); this.root.classList.toggle('hidden', !v); if (v && !was) this.resize(); }
@@ -113,9 +116,14 @@ export class Hud {
     const d = document.createElement('div'); d.className = 'callout ' + kind; d.textContent = text;
     this.el.callouts.appendChild(d); setTimeout(() => d.remove(), 1500);
   }
-  float(x, y, text, color, big) {
-    let f = this.floaters[0]; for (const g of this.floaters) if (g.t > f.t) f = g;
-    f.t = 0; f.x = x; f.y = y; f.text = text; f.color = color; f.big = big;
+  /** World-anchored damage number over an actor's head. Wall-clock lifetime (FLOAT_LIFE) so it never lingers. */
+  float(a, text, color, big) {
+    let f = this.floaters[0]; for (const g of this.floaters) if (g.t0 < f.t0) f = g;
+    // stack on a number that is still fresh over the same actor instead of overlapping it
+    let k = 0; const now = performance.now() / 1000;
+    for (const g of this.floaters) if (g.a === a && now - g.t0 < 0.5) k++;
+    f.t0 = now; f.a = a; f.x = a.hitShapes.hx + a.facing * -0.2; f.y = a.hitShapes.hy + 1.25 + k * 0.75;
+    f.text = text; f.color = color; f.ring = a.color; f.big = big;
   }
   _wind(w) {
     if (!w) return;
@@ -125,9 +133,11 @@ export class Hud {
   _order() {
     const m = this.match; if (!m) return;
     m.turnOrder(this.order);
+    const hot = !!m.cfg.hotseat;
+    // portrait chips with the team colour as a ring + a tag, so mirror matches stay readable
     this.el.order.innerHTML = this.order.slice(0, 4).map((a, i) => {
-      const hair = '#' + (a.charDef.palette.hair ?? 0x444444).toString(16).padStart(6, '0');
-      return `<span class="chip ${i === 0 ? 'now' : ''}" style="--tc:${a.color};--hc:${hair}"><i>${a.charDef.name[0]}</i></span>`;
+      const tag = a.human ? (hot ? a.name : 'YOU') : 'CPU';
+      return `<span class="chip ${i === 0 ? 'now' : ''}" style="--tc:${a.color}">${portrait(a.charDef, i === 0 ? 30 : 24)}<i>${tag}</i></span>`;
     }).join('');
   }
   _tray() {
@@ -191,30 +201,68 @@ export class Hud {
     // HP bars + names (the active archer's label sits above its angle gauge)
     const gaugeTop = a && a.alive && m.phase === 'act' ? (project(a.x, a.y + 1.45, 0.8, pt), pt.y - 50 - 16) : 1e9;
     c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+    const I = R.inset, insetActor = I.on && I.ready ? I.actor : null;
     for (const b of m.actors) {
       if (!b.alive && b.deathCause === 'fell') continue;
       project(b.x, b.hitShapes.hy + 0.62, 0, pt);
       if (b === a && pt.y > gaugeTop) pt.y = gaugeTop;
       if (pt.vis && pt.y < strip) {
-        const w = 56, h = 7, x = pt.x - w / 2, y = pt.y - 4;
+        const w = 56, h = 7, x = pt.x - w / 2, y = Math.max(76, pt.y - 4);
+        // name plate on a dark pill so it reads over foliage and bright skies
+        c.font = '800 11px Nunito, sans-serif';
+        const label = b === a && m.phase !== 'end' ? '▼ ' + b.name : b.name, tw = c.measureText(label).width;
+        c.fillStyle = 'rgba(8,14,32,0.62)'; rr(c, pt.x - tw / 2 - 6, y - 17, tw + 12, 15, 7.5); c.fill();
         c.fillStyle = 'rgba(8,14,32,0.72)'; rr(c, x - 2, y - 2, w + 4, h + 4, 5); c.fill();
         const k = clamp(b.hpShown / b.stats.maxHp, 0, 1), k2 = clamp(b.hp / b.stats.maxHp, 0, 1);
         c.fillStyle = '#ffffff'; rr(c, x, y, w * k, h, 3.5); c.fill();
         c.fillStyle = b.color; rr(c, x, y, w * k2, h, 3.5); c.fill();
         c.fillStyle = 'rgba(255,255,255,0.35)'; rr(c, x + 1, y + 1, Math.max(0, w * k2 - 2), 2, 1); c.fill();
-        c.font = '800 11px Nunito, sans-serif'; c.lineWidth = 3; c.strokeStyle = 'rgba(8,14,32,0.8)';
-        const label = b === a && m.phase !== 'end' ? '▼ ' + b.name : b.name;
-        c.strokeText(label, pt.x, y - 4); c.fillStyle = b === a ? '#ffe14a' : '#ffffff'; c.fillText(label, pt.x, y - 4);
-      } else if (b.alive) this._edge(b);
+        c.fillStyle = b === a ? '#ffe14a' : '#ffffff'; c.fillText(label, pt.x, y - 6);
+      } else if (b.alive && b !== insetActor) this._edge(b);
     }
-    // floating damage numbers
+    if (insetActor) this._insetFrame(insetActor);
+    this._arrowMarker();
+    // floating damage numbers: pop-scale in, drift up, fade by FLOAT_LIFE; never inside the top HUD band
+    const now = performance.now() / 1000;
+    c.textBaseline = 'middle'; c.lineJoin = 'round';
     for (const f of this.floaters) {
-      if (f.t > 1.3) continue; f.t += dt;
-      project(f.x, f.y + f.t * 1.2, 0, pt); if (!pt.vis) continue;
-      const k = f.t < 0.12 ? f.t / 0.12 : 1, al = f.t > 0.9 ? Math.max(0, 1 - (f.t - 0.9) / 0.4) : 1, sz = (f.big ? 30 : 22) * (0.6 + 0.4 * k + (f.t < 0.2 ? (0.2 - f.t) * 2 : 0));
-      c.globalAlpha = al; c.font = `400 ${sz}px 'Lilita One', sans-serif`; c.lineWidth = 5; c.strokeStyle = '#1a1030';
-      c.strokeText(f.text, pt.x, pt.y); c.fillStyle = f.color; c.fillText(f.text, pt.x, pt.y); c.globalAlpha = 1;
+      const t = now - f.t0; if (t > FLOAT_LIFE || t < 0) continue;
+      project(f.x, f.y + t * 0.9, 0, pt); if (!pt.vis) continue;
+      const y = clamp(pt.y, 92, H - 96);
+      const pop = t < 0.09 ? 0.4 + 0.95 * t / 0.09 : t < 0.22 ? 1.35 - 0.35 * (t - 0.09) / 0.13 : 1;
+      const al = t > FLOAT_LIFE - 0.35 ? Math.max(0, (FLOAT_LIFE - t) / 0.35) : 1, sz = (f.big ? 34 : 25) * pop;
+      c.globalAlpha = al; c.font = `400 ${sz.toFixed(1)}px 'Lilita One', sans-serif`;
+      c.lineWidth = 8; c.strokeStyle = '#1a1030'; c.strokeText(f.text, pt.x, y);
+      c.lineWidth = 3.2; c.strokeStyle = f.ring; c.strokeText(f.text, pt.x, y);
+      c.fillStyle = f.color; c.fillText(f.text, pt.x, y); c.globalAlpha = 1;
     }
+    c.textBaseline = 'alphabetic';
+  }
+  /** Border + label for the picture-in-picture view of a far target (render.js draws the picture). */
+  _insetFrame(b) {
+    const c = this.ctx, r = insetRect(R.inset.side, this.ir), side = R.inset.side;
+    c.lineWidth = 3; c.strokeStyle = b.color; rr(c, r.x - 1.5, r.y - 1.5, r.w + 3, r.h + 3, 13); c.stroke();
+    c.lineWidth = 1; c.strokeStyle = 'rgba(255,255,255,0.55)'; rr(c, r.x + 1, r.y + 1, r.w - 2, r.h - 2, 10); c.stroke();
+    const ref = this.match.active && this.match.active !== b ? this.match.active.x : cam.x, dist = Math.round(Math.abs(b.x - ref));
+    const text = `${b.name}  ${dist}m`;
+    c.font = '800 11px Nunito, sans-serif'; const tw = c.measureText(text).width + 26;
+    const lx = side > 0 ? r.x + r.w - tw - 6 : r.x + 6, ly = r.y + r.h - 22;
+    c.fillStyle = 'rgba(8,14,32,0.78)'; rr(c, lx, ly, tw, 17, 8.5); c.fill();
+    c.fillStyle = b.color; c.beginPath();
+    const ax = side > 0 ? lx + 10 : lx + 10; c.moveTo(ax - 4 * side, ly + 4); c.lineTo(ax + 5 * side, ly + 8.5); c.lineTo(ax - 4 * side, ly + 13); c.closePath(); c.fill();
+    c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText(text, lx + 19, ly + 12.5); c.textAlign = 'center';
+    const k = clamp(b.hp / b.stats.maxHp, 0, 1), bw = r.w - 24;
+    c.fillStyle = 'rgba(8,14,32,0.72)'; rr(c, r.x + 12, r.y + 7, bw, 6, 3); c.fill();
+    c.fillStyle = b.color; rr(c, r.x + 12, r.y + 7, bw * k, 6, 3); c.fill();
+  }
+  /** Chevron on the top edge when the arrow climbs above the view. */
+  _arrowMarker() {
+    const m = this.match, p = m.projectiles.leader(); if (!p || m.phase !== 'flight') return;
+    const pt = this.pt; project(p.x, p.y, 0, pt);
+    if (pt.y > 0 || pt.x < 0 || pt.x > innerWidth) return;
+    const c = this.ctx, x = clamp(pt.x, 30, innerWidth - 30), y = 84;
+    c.fillStyle = 'rgba(8,14,32,0.7)'; c.beginPath(); c.arc(x, y, 12, 0, 7); c.fill();
+    c.fillStyle = '#ffe14a'; c.beginPath(); c.moveTo(x, y - 7); c.lineTo(x + 6, y + 3); c.lineTo(x - 6, y + 3); c.closePath(); c.fill();
   }
   _edge(b) {
     const c = this.ctx, pt = this.pt, W = innerWidth, H = innerHeight;
@@ -266,4 +314,5 @@ export class Hud {
     if (p) { c.fillStyle = '#ffe14a'; c.beginPath(); c.arc(sx(p.x), sy(p.y), 2.2 * this.dpr, 0, 7); c.fill(); }
   }
 }
+const FLOAT_LIFE = 1.2;
 function rr(c, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); c.beginPath(); if (w <= 0) return; c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }

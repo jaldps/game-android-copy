@@ -8,35 +8,60 @@ import { events } from './events.js';
 
 const TRAIL_N = 32, MAX_TRAILS = 14, MAX_STUCK = 10;
 
+// Ribbon trail: a tapered two-tone strip (hot white core, arrow-coloured edges) behind each projectile. Its length is
+// capped in WORLD units and every point expires after TRAIL_LIFE, so a trail is always a short fading comet tail and
+// never a long straight streak across the screen, whatever the frame rate.
+const TRAIL_LIFE = 0.42;
 class Trail {
   constructor(parent) {
     const g = new THREE.BufferGeometry();
     this.pos = new Float32Array(TRAIL_N * 2 * 3); this.t = new Float32Array(TRAIL_N * 2);
+    const side = new Float32Array(TRAIL_N * 2); for (let i = 0; i < TRAIL_N; i++) { side[i * 2] = -1; side[i * 2 + 1] = 1; }
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute('aT', new THREE.BufferAttribute(this.t, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aS', new THREE.BufferAttribute(side, 1));
     const idx = []; for (let i = 0; i < TRAIL_N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     g.setIndex(idx);
     this.mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
       uniforms: { uColor: { value: new THREE.Color() }, uAlpha: { value: 1 } },
-      vertexShader: 'attribute float aT; varying float vT; void main(){ vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'uniform vec3 uColor; uniform float uAlpha; varying float vT; void main(){ float a = pow(1.0 - vT, 1.6) * uAlpha; if (a < 0.01) discard; gl_FragColor = vec4(uColor * (1.0 + (1.0 - vT) * 0.4), a);\n#include <colorspace_fragment>\n}',
+      vertexShader: 'attribute float aT; attribute float aS; varying float vT; varying float vS; void main(){ vT = aT; vS = aS; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform vec3 uColor; uniform float uAlpha; varying float vT; varying float vS;
+        void main(){
+          float edge = abs(vS), a = pow(1.0 - vT, 1.4) * (1.0 - smoothstep(0.55, 1.0, edge) * 0.85) * uAlpha;
+          if (a < 0.01) discard;
+          vec3 c = mix(vec3(1.0), uColor, smoothstep(0.0, 0.6, edge) * 0.8 + vT * 0.35);
+          gl_FragColor = vec4(c, a);
+          #include <colorspace_fragment>
+        }`,
     });
     this.mesh = new THREE.Mesh(g, this.mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = 8; this.mesh.visible = false;
     parent.add(this.mesh);
-    this.xs = new Float32Array(TRAIL_N); this.ys = new Float32Array(TRAIL_N); this.n = 0; this.busy = false; this.fade = 0; this.width = 0.1; this.alpha = 1;
+    this.xs = new Float32Array(TRAIL_N); this.ys = new Float32Array(TRAIL_N); this.ts = new Float32Array(TRAIL_N);
+    this.n = 0; this.busy = false; this.fade = 0; this.width = 0.1; this.alpha = 1; this.maxLen = 6; this.time = 0;
   }
   start(def, x, y) {
     const tr = def.trail ?? {};
-    this.mat.uniforms.uColor.value.set(tr.color ?? 0xffffff); this.alpha = tr.alpha ?? 0.8; this.width = tr.width ?? 0.1;
+    this.mat.uniforms.uColor.value.set(tr.color ?? 0xffe2a0); this.alpha = tr.alpha ?? 0.85; this.width = (tr.width ?? 0.1) * 1.35;
     this.mat.blending = tr.additive ? THREE.AdditiveBlending : THREE.NormalBlending; this.mat.needsUpdate = true;
-    this.len = Math.min(TRAIL_N, tr.length ?? 24);
-    this.xs.fill(x); this.ys.fill(y); this.n = 1; this.busy = true; this.fade = 1; this.mesh.visible = true;
+    this.len = Math.min(TRAIL_N, tr.length ?? 24); this.maxLen = 2.2 + this.len * 0.2;
+    this.time = 0; this.xs.fill(x); this.ys.fill(y); this.ts.fill(0); this.n = 1; this.busy = true; this.fade = 1; this.mesh.visible = true;
+  }
+  tick(dt) {
+    this.time += dt;
+    while (this.n > 1 && this.time - this.ts[this.n - 1] > TRAIL_LIFE) this.n--;
   }
   push(x, y) {
-    if (this.n > 0 && Math.hypot(x - this.xs[0], y - this.ys[0]) < 0.12) { this.xs[0] = x; this.ys[0] = y; return; }
-    for (let i = Math.min(this.n, this.len - 1); i > 0; i--) { this.xs[i] = this.xs[i - 1]; this.ys[i] = this.ys[i - 1]; }
-    this.xs[0] = x; this.ys[0] = y; this.n = Math.min(this.len, this.n + 1);
+    if (this.n > 0 && Math.hypot(x - this.xs[0], y - this.ys[0]) < 0.12) { this.xs[0] = x; this.ys[0] = y; this.ts[0] = this.time; return; }
+    for (let i = Math.min(this.n, this.len - 1); i > 0; i--) { this.xs[i] = this.xs[i - 1]; this.ys[i] = this.ys[i - 1]; this.ts[i] = this.ts[i - 1]; }
+    this.xs[0] = x; this.ys[0] = y; this.ts[0] = this.time; this.n = Math.min(this.len, this.n + 1);
+    // cap the world length: cut the tail where the accumulated length passes maxLen
+    let acc = 0;
+    for (let i = 1; i < this.n; i++) {
+      const dx = this.xs[i] - this.xs[i - 1], dy = this.ys[i] - this.ys[i - 1], l = Math.hypot(dx, dy);
+      if (acc + l > this.maxLen) { const k = (this.maxLen - acc) / (l || 1); this.xs[i] = this.xs[i - 1] + dx * k; this.ys[i] = this.ys[i - 1] + dy * k; this.n = i + 1; break; }
+      acc += l;
+    }
   }
   write() {
     if (this.n < 2) { this.mesh.visible = false; return; }
@@ -45,7 +70,7 @@ class Trail {
     for (let i = 0; i < TRAIL_N; i++) {
       const k = Math.min(i, n - 1), k2 = Math.min(k + 1, n - 1), k0 = Math.max(k - 1, 0);
       let dx = this.xs[k0] - this.xs[k2], dy = this.ys[k0] - this.ys[k2]; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
-      const t = k / (n - 1), w = this.width * (1 - t * 0.85);
+      const t = k / (n - 1), w = this.width * (1 - t * 0.85) * (i === 0 ? 0.6 : 1);
       const o = i * 6;
       P[o] = this.xs[k] - dy * w; P[o + 1] = this.ys[k] + dx * w; P[o + 2] = 0;
       P[o + 3] = this.xs[k] + dy * w; P[o + 4] = this.ys[k] - dx * w; P[o + 5] = 0;
@@ -147,7 +172,8 @@ export class Projectiles {
     for (const t of this.trails) {
       if (!t.busy) continue;
       let owned = false; for (const p of this.list) if (p.trail === t) { owned = true; break; }
-      if (!owned) { t.fade -= dt * 2.2; if (t.fade <= 0) { t.busy = false; t.mesh.visible = false; continue; } }
+      t.tick(dt);
+      if (!owned) { t.fade -= dt * 3.5; if (t.fade <= 0 || t.n < 2) { t.busy = false; t.mesh.visible = false; continue; } }
       t.write();
     }
     // stuck arrows sink with the terrain (fall if the ground is gone)

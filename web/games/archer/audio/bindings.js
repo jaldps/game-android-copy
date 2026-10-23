@@ -12,6 +12,13 @@ events.on('terrain:carve', (x, y, r) => { oCrumble.r = r; audio.play('crumble', 
 events.on('actor:damage', (a, n) => { oGrunt.female = a?.charDef?.gender === 'f'; oGrunt.n = n; audio.play('grunt', oGrunt); });
 events.on('actor:death', (a, cause) => { audio.play(cause === 'fell' ? 'fall' : 'death'); });
 events.on('wind', (w) => { oWind.s = w?.strength ?? 0; audio.play('wind_change', oWind); });
+// per-arrow stinger when a shot draws blood (shards count as the splitter)
+const oSting = { minGap: 0.5 };
+events.on('impact', (x, y, o, total) => {
+  if (!(total > 0) || !o?.arrow) return;
+  const id = o.arrow === 'shard' ? 'splitter' : o.arrow;
+  audio.play(audio.has('sting_' + id) ? 'sting_' + id : 'sting_standard', oSting);
+});
 
 // Test hook: ?sfxlog=1 records every recipe that actually synthesizes into window.__sfxLog (id list), so headless runs can
 // verify the audio graph is built for each event without hearing it.

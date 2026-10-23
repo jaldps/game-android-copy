@@ -21,8 +21,9 @@ export const VFX = {
       { count: 7, shape: 'streak', blend: 'add', life: [0.15, 0.3], speed: [6, 11], dir: 'input', spread: 2.2, size: 0.05, color: 0xfff1c8, alpha: [1, 0], gravity: 12, drag: 2 },
       { count: 1, shape: 'glow', blend: 'add', life: 0.1, speed: 0, size: 0.8, grow: 1.4, color: 0xfff6dc, alpha: [0.7, 0], scaleCount: false },
     ],
-    debris: { count: 5, speed: [4, 8], size: [0.06, 0.13], life: [0.8, 1.4], color: 'terrain' },
-    ring: { radius: 1.0, color: 0xfff1c8, life: 0.18, alpha: 0.6 },
+    debris: { count: 7, speed: [4, 9], size: [0.06, 0.14], life: [0.8, 1.4], color: 'terrain', top: 0.4 },
+    ring: { radius: 1.5, color: 0xfff1c8, life: 0.24, alpha: 0.75 },
+    flash: { color: 0xfff0c8, intensity: 28, radius: 8, life: 0.14 },
     shake: 0.14,
   },
   impact_body: {
@@ -62,7 +63,7 @@ export const VFX = {
       // second (late, wide) shockwave
       shockRing(0.9, 0xffffff, 0.24, 0.8),
     ],
-    debris: { count: 18, speed: [6, 15], size: [0.1, 0.28], life: [1.2, 2.2], color: 'terrain', spread: 3.0 },
+    debris: { count: 18, speed: [6, 15], size: [0.1, 0.28], life: [1.2, 2.2], color: 'terrain', spread: 3.0, top: 0.35 },
     ring: { radius: 3.2, color: 0xffe0a0, life: 0.32 },
     flash: { color: 0xff9a4a, intensity: 110, radius: 16, life: 0.32 },
     shake: 0.8,
@@ -123,7 +124,7 @@ export const VFX = {
       { count: 1, shape: 'glow', blend: 'add', life: 0.14, speed: 0, size: 1.1, grow: 1.6, color: 0xf0ffd0, alpha: [0.85, 0], scaleCount: false },
       { count: 14, shape: 'star', blend: 'add', life: [0.3, 0.55], speed: [6, 12], size: [0.12, 0.22], color: 0xffffff, color2: 0x9dff6a, alpha: [1, 0], gravity: 10, drag: 2, spin: 10 },
     ],
-    debris: { count: 10, speed: [5, 11], size: [0.08, 0.2], life: [1.0, 1.8], color: 'terrain', spread: 2.8 },
+    debris: { count: 10, speed: [5, 11], size: [0.08, 0.2], life: [1.0, 1.8], color: 'terrain', spread: 2.8, top: 0.35 },
     ring: { radius: 2.4, color: 0xd8ffb0, life: 0.28 },
     flash: { color: 0xc8ff7a, intensity: 70, radius: 12, life: 0.24 },
     shake: 0.55,
@@ -153,7 +154,7 @@ export const VFX = {
       { count: 1, shape: 'glow', blend: 'add', life: 0.16, speed: 0, size: 1.3, grow: 1.6, color: 0xffd8a0, alpha: [0.8, 0], scaleCount: false },
       { count: 14, shape: 'streak', blend: 'add', life: [0.25, 0.5], speed: [9, 16], dir: UP, spread: 2.2, size: 0.08, color: 0xffe0a0, color2: 0xff7a1a, alpha: [1, 0], gravity: 16, drag: 1.5 },
     ],
-    debris: { count: 24, speed: [7, 16], size: [0.1, 0.3], life: [1.3, 2.3], color: 'terrain', dir: UP, spread: 1.9 },
+    debris: { count: 24, speed: [7, 16], size: [0.1, 0.3], life: [1.3, 2.3], color: 'terrain', dir: UP, spread: 1.9, top: 0.25 },
     ring: { radius: 3.0, color: 0xffd8a0, life: 0.3 },
     flash: { color: 0xffa04a, intensity: 80, radius: 14, life: 0.28 },
     shake: 0.95,
@@ -247,6 +248,39 @@ export const VFX = {
     ],
     debris: { count: 6, speed: [4, 8], size: [0.05, 0.1], life: [0.8, 1.3], color: 0xe0c080, dir: UP, spread: 1.6 },
     shake: 0.3,
+  },
+  // ---------------------------------------------------------------- per-map impact accents
+  // core/match.js plays `accent_<mapId>` on top of every explosion/impact on that map (scaled by blast radius), so a hit
+  // on lava throws embers, on snow a powder burst, in the desert a sand puff, in the city neon sparks.
+  accent_emberforge: {
+    emitters: [
+      { count: [10, 14], shape: 'glow', blend: 'add', life: [0.9, 1.7], speed: [2, 6], dir: UP, spread: 1.8, size: [0.05, 0.11], color: 0xffe08a, color2: 0xff3a0a, alpha: [1, 0], gravity: -0.6, drag: 1.4, z: [0, 1.4] },
+      { count: 8, shape: 'puff', blend: 'alpha', life: [0.3, 0.55], speed: [4, 9], dir: UP, spread: 1.4, size: [0.1, 0.18], grow: 0.5, color: 0xffd23a, color2: 0xff3a10, alpha: [1, 1], gravity: 18, drag: 1 },
+      { count: 4, shape: 'puff', blend: 'alpha', life: [1.0, 1.6], speed: [1, 2.5], dir: UP, spread: 1.4, size: [0.22, 0.34], grow: 2.4, color: 0x4a3434, color2: 0x8a7a76, alpha: [0.7, 0], drag: 2, lift: 2.2 },
+    ],
+  },
+  accent_frostpeak: {
+    emitters: [
+      { count: [10, 13], shape: 'puff', blend: 'alpha', life: [0.7, 1.3], speed: [2.5, 6], dir: UP, spread: 2.4, size: [0.22, 0.38], grow: 2.6, color: 0xffffff, color2: 0xdcecff, colorJitter: 0.4, alpha: [1, 0], gravity: 1.2, drag: 2.6, z: [0, 1.2] },
+      { count: 10, shape: 'star', blend: 'add', life: [0.5, 0.9], speed: [1.5, 4], spread: 6.28, size: [0.06, 0.12], color: 0xffffff, color2: 0x9fd8ff, alpha: [1, 0], gravity: 2, drag: 2, spin: 5, z: [0, 1.2] },
+    ],
+    debris: { count: 5, speed: [4, 8], size: [0.05, 0.11], life: [0.8, 1.3], color: 0xf4f8ff, dir: UP, spread: 2.2 },
+  },
+  accent_ruins: {
+    emitters: [
+      { count: [8, 10], shape: 'puff', blend: 'alpha', life: [0.8, 1.4], speed: [2, 5], dir: UP, spread: 2.2, size: [0.24, 0.4], grow: 2.4, color: 0xf0d590, color2: 0xfff1d0, colorJitter: 0.5, alpha: [0.85, 0], gravity: 1.5, drag: 2.2, lift: 0.5 },
+    ],
+  },
+  accent_sunspire: {
+    emitters: [
+      { count: 7, shape: 'streak', blend: 'alpha', life: [0.4, 0.8], speed: [4, 8], dir: UP, spread: 2.0, size: 0.07, color: 0x6fd24a, color2: 0x3faa3a, alpha: [1, 0], gravity: 12, drag: 1.5 },
+    ],
+  },
+  accent_neon: {
+    emitters: [
+      { count: 10, shape: 'streak', blend: 'add', life: [0.25, 0.5], speed: [6, 12], dir: UP, spread: 2.4, size: 0.06, color: 0xff7ae8, color2: 0x4af0ff, colorJitter: 1, alpha: [1, 0], gravity: 14, drag: 1.5 },
+      { count: 1, shape: 'ring', blend: 'add', life: 0.3, speed: 0, size: 0.4, grow: 5, color: 0x4af0ff, alpha: [0.8, 0], drag: 0, scaleCount: false },
+    ],
   },
   // trail puffs are emitted continuously by core/projectiles.js using def.trail.puff (an Emitter)
 };

@@ -5,6 +5,9 @@ import { DEG, clamp } from './util.js';
 
 export const input = {
   left: false, right: false, angUp: false, angDown: false, fire: false, arrowPick: null, skip: false,
+  angSteps: 0,            // pending whole-degree steps from taps on the angle buttons
+  angHold: 0, angHoldT: 0, angRepT: 0,   // angle button held: direction, held time, repeat accumulator
+  holds: new Set(),       // release callbacks of every held on-screen button (cleared at turn start)
   ptr: { down: false, id: -1, x: 0, y: 0, sx: 0, sy: 0, mode: null, lx: 0, ly: 0 },
   enabled: true,
 };
@@ -38,24 +41,55 @@ export function bindInput(canvas, onPause) {
   window.addEventListener('keydown', key(true)); window.addEventListener('keyup', key(false));
 }
 
-/** Hold-to-repeat button binding (pointer). */
+/** Press-and-hold button binding (pointer). Releases on every way a touch can end, including leaving the button, so a
+ *  button can never stay stuck "held"; releaseAll() (turn start) clears whatever is still down. */
 export function holdButton(el, onChange) {
-  const set = (v) => (e) => { e.preventDefault(); audio.unlock(); onChange(v); if (v) el.classList.add('held'); else el.classList.remove('held'); };
-  el.addEventListener('pointerdown', (e) => { try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } set(true)(e); });
-  el.addEventListener('pointerup', set(false)); el.addEventListener('pointercancel', set(false)); el.addEventListener('lostpointercapture', set(false));
+  let id = -1;
+  const release = () => { if (id === -1) return; id = -1; el.classList.remove('held'); input.holds.delete(release); onChange(false); };
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); audio.unlock();
+    if (id !== -1) return;
+    id = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    el.classList.add('held'); input.holds.add(release); onChange(true);
+  });
+  const end = (e) => { if (e.pointerId === id) release(); };
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave', 'lostpointercapture']) el.addEventListener(ev, end);
+  el.addEventListener('touchend', release); el.addEventListener('touchcancel', release);
+  window.addEventListener('pointerup', end, true); window.addEventListener('blur', release);
   el.addEventListener('contextmenu', (e) => e.preventDefault());
 }
+/** Angle button: a tap is exactly one 1° step; holding repeats after 250 ms. */
+export function stepButton(el, dir) {
+  holdButton(el, (v) => {
+    if (v) { input.angSteps += dir; input.angHold = dir; input.angHoldT = 0; input.angRepT = 0; }
+    else if (input.angHold === dir) input.angHold = 0;
+  });
+}
+/** Drop every held on-screen button and pending step (called when a turn starts). */
+export function releaseAll() {
+  for (const r of [...input.holds]) r();
+  input.left = input.right = input.fire = input.angUp = input.angDown = false;
+  input.angSteps = 0; input.angHold = 0; input.arrowPick = null;
+}
+const REPEAT_DELAY = 0.25, REPEAT_RATE = 18;   // s before auto-repeat, steps per second while held
 
 const wp = { x: 0, y: 0 };
 /** Human controller: the core calls update() each act-phase frame with the intent object to fill. */
 export function createHumanController(trayIds) {
   return {
     kind: 'human',
-    beginTurn() { input.fire = false; input.arrowPick = null; },
+    beginTurn() { releaseAll(); },
     update(dt, a, match, it) {
       if (!input.enabled) return;
       it.move = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+      // keyboard arrows: continuous; on-screen buttons: whole-degree steps (tap = 1°, hold repeats after 250 ms)
       it.aimDelta = ((input.angUp ? 1 : 0) - (input.angDown ? 1 : 0)) * 32 * dt;
+      let steps = input.angSteps; input.angSteps = 0;
+      if (input.angHold) {
+        input.angHoldT += dt;
+        if (input.angHoldT > REPEAT_DELAY) { input.angRepT += dt * REPEAT_RATE; while (input.angRepT >= 1) { input.angRepT -= 1; steps += input.angHold; } }
+      }
+      if (steps) { const cur = Math.round(a.angle); it.aimTo = clamp(cur + steps, -5, 90); }
       it.charge = input.fire;
       if (input.arrowPick !== null) { it.arrow = trayIds()[input.arrowPick] ?? null; input.arrowPick = null; }
       const P = input.ptr;

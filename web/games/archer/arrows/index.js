@@ -87,9 +87,9 @@ export const ARROWS = [
     price: 0, uses: Infinity, delay: 0,
     physics: { mass: 1, drag: 0.012, windFactor: 1, gravityScale: 1 },
     damage: { base: 32, radius: 1.5, crater: 0.9, knockback: 5 },
-    trail: { color: 0xffffff, width: 0.13, length: 26, additive: false, alpha: 0.85,
+    trail: { color: 0xffc85a, width: 0.13, length: 26, additive: false, alpha: 0.9,
       puff: { count: 1, shape: 'glow', blend: 'add', life: [0.18, 0.3], speed: [0.1, 0.4], size: [0.1, 0.16], grow: 0.4, color: 0xfff6dc, alpha: [0.7, 0], drag: 3, scaleCount: false }, puffEvery: 0.035 },
-    sfx: { launch: 'release', impact: 'impact_dirt', body: 'impact_body', flight: 'whoosh' },
+    sfx: { launch: 'release', impact: 'impact_arrow', body: 'impact_body', flight: 'whoosh' },
     vfx: { impact: 'impact_dirt', body: 'impact_body' },
     stick: true,
     createModel: () => instance('standard', () => buildArrow({})),
@@ -118,7 +118,7 @@ export const ARROWS = [
     damage: { base: 24, radius: 1.4, crater: 1.0, knockback: 4 },
     trail: { color: 0x7fd8ff, width: 0.15, length: 26, additive: true, alpha: 0.95,
       puff: { count: 1, shape: 'star', blend: 'add', life: [0.25, 0.45], speed: [0.3, 1], size: [0.1, 0.17], color: 0xd8f8ff, color2: 0x4fb6ff, alpha: [1, 0], drag: 3, spin: 6, scaleCount: false }, puffEvery: 0.04 },
-    sfx: { launch: 'release', impact: 'impact_dirt', body: 'impact_body', flight: 'whoosh_magic' },
+    sfx: { launch: 'release', impact: 'impact_shard', body: 'impact_body', flight: 'whoosh_split' },
     vfx: { impact: 'impact_dirt', body: 'impact_body' },
     createModel: () => instance('splitter', () => addRune(buildArrow({ shaft: 0x2a3a5a, head: 0x9fe6ff, fletch: 0x4fb6ff, fletch2: 0xe8f8ff, headShape: 'tri', glow: 0x2a8acc }), 0x7fd8ff)),
     onUpdate(p, dt, api) {
@@ -150,7 +150,7 @@ export const ARROWS = [
     damage: { base: 30, radius: 2.1, crater: 1.6, knockback: 7 },
     trail: { color: 0x9dff6a, width: 0.14, length: 30, additive: true, alpha: 0.9,
       puff: { count: 1, shape: 'ring', blend: 'add', life: [0.3, 0.45], speed: 0, size: 0.1, grow: 2.2, color: 0xd8ffb0, color2: 0x5ad82a, alpha: [0.8, 0], drag: 0, scaleCount: false }, puffEvery: 0.06 },
-    sfx: { launch: 'release', impact: 'explosion_small', body: 'explosion_small', flight: 'whoosh' },
+    sfx: { launch: 'release', impact: 'explosion_small', body: 'explosion_small', flight: 'whoosh_bounce' },
     vfx: { impact: 'explosion_small', body: 'explosion_small' },
     createModel: () => instance('bouncer', () => addBall(buildArrow({ shaft: 0x2a5a2a, fletch: 0x7dff4a, fletch2: 0xffffff }))),
     onImpact(p, hit, api) {
@@ -240,7 +240,7 @@ export const ARROWS = [
     damage: { base: 24, radius: 2.4, crater: 0.7, knockback: 3 },
     trail: { color: 0x4ac0ff, width: 0.16, length: 30, additive: false, alpha: 0.9,
       puff: { count: 1, shape: 'star', blend: 'alpha', life: [0.5, 0.9], speed: [0.2, 0.7], size: [0.12, 0.2], color: 0x8fe8ff, color2: 0x2a7aff, alpha: [1, 0], gravity: 1.5, drag: 2, spin: 3, z: [0, 0.6], scaleCount: false }, puffEvery: 0.03 },
-    sfx: { launch: 'release', impact: 'frost', body: 'frost', flight: 'whoosh_magic' },
+    sfx: { launch: 'release', impact: 'frost', body: 'frost', flight: 'whoosh_frost' },
     vfx: { impact: 'frost_burst', body: 'frost_burst' },
     createModel: () => instance('frost', () => addCrystal(buildArrow({ shaft: 0xe8f4ff, fletch: 0x7fd8ff, fletch2: 0xffffff, nock: 0x3a6aa0 }))),
     onImpact(p, hit, api) {
@@ -298,7 +298,7 @@ export const ARROWS = [
     damage: { base: 12, radius: 1.3, crater: 0.5, knockback: 3 },
     trail: { color: 0xff5ad8, width: 0.12, length: 32, additive: true, alpha: 0.95,
       puff: { count: 1, shape: 'ring', blend: 'add', life: [0.35, 0.5], speed: 0, size: 0.14, grow: 0.2, color: 0xffc0f4, color2: 0xff2ab8, alpha: [0.9, 0], drag: 0, spin: 4, scaleCount: false }, puffEvery: 0.05 },
-    sfx: { launch: 'release', impact: 'warp', body: 'impact_body', flight: 'whoosh_magic' },
+    sfx: { launch: 'release', impact: 'warp', body: 'impact_body', flight: 'whoosh_warp' },
     vfx: { impact: 'warp_in', body: 'impact_body' },
     createModel: () => instance('warp', () => addHook(buildArrow({ shaft: 0x3a1a3a, fletch: 0xff5ad8, fletch2: 0xffffff }))),
     onImpact(p, hit, api) {

@@ -49,6 +49,7 @@ export function initRender(canvas, quality) {
   scene.environmentIntensity = 0.5;
   pm.dispose();
   setupGrade(quality !== 'low');
+  setupInset();
   return R;
 }
 
@@ -111,9 +112,74 @@ function setupGrade(on) {
   R.grade = { rt, mat, scene, cam };
 }
 
+// ------------------------------------------------------------------ picture-in-picture inset
+// A small live view of a far-away target (e.g. the enemy archer while you aim). Rendered into its own target every
+// other frame (amortised cost), then composited over the graded frame in one draw. The HUD draws the frame + label.
+const INSET_PITCH = 7 * Math.PI / 180;
+/** CSS-pixel rectangle of the inset for a side (+1 = right, -1 = left). Shared with the HUD. */
+export function insetRect(side, out) {
+  const W = window.innerWidth, H = window.innerHeight;
+  out.w = Math.round(Math.min(210, Math.max(136, W * 0.19))); out.h = Math.round(out.w * 0.58);
+  out.y = Math.round(Math.min(68, H * 0.16)); out.x = side > 0 ? W - out.w - 12 : 12;
+  return out;
+}
+function setupInset() {
+  const cam = new THREE.PerspectiveCamera(26, 16 / 9, 1, 900);
+  const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType });
+  const g = R.grade?.mat.uniforms;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { tDiffuse: { value: rt.texture }, uSat: g ? g.uSat : { value: 1.18 }, uCon: g ? g.uCon : { value: 1.06 }, uWarm: g ? g.uWarm : { value: new THREE.Vector3(1.03, 1, 0.96) }, uAspect: { value: 1.7 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float uSat, uCon, uAspect; uniform vec3 uWarm; varying vec2 vUv;
+      void main(){
+        vec2 q = (vUv - 0.5) * vec2(uAspect, 1.0); vec2 b = vec2(uAspect * 0.5, 0.5) - 0.09;
+        float dd = length(max(abs(q) - b, 0.0)) - 0.09; if (dd > 0.0) discard;
+        vec3 c = texture2D(tDiffuse, vUv).rgb;
+        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        c = mix(vec3(l), c, uSat); c = max(vec3(0.0), (c - 0.18) * uCon + 0.18); c *= uWarm;
+        vec2 v = vUv - 0.5; c *= 1.0 - 0.5 * dot(v, v);
+        gl_FragColor = vec4(c, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+    depthTest: false, depthWrite: false,
+  });
+  const scene = new THREE.Scene(), ocam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); quad.frustumCulled = false; scene.add(quad);
+  R.inset = { on: false, x: 0, y: 0, h: 7, side: 1, cam, rt, mat, scene, ocam, frame: 0, ready: false, rect: { x: 0, y: 0, w: 0, h: 0 }, tv: new THREE.Vector3() };
+}
+function renderInset(r) {
+  const I = R.inset, rc = insetRect(I.side, I.rect);
+  const pw = Math.round(rc.w * R.pr), ph = Math.round(rc.h * R.pr);
+  if (I.rt.width !== pw || I.rt.height !== ph) I.rt.setSize(pw, ph);
+  const c = I.cam; c.aspect = rc.w / rc.h;
+  const d = I.h / (2 * Math.tan(c.fov * Math.PI / 360));
+  c.position.set(I.x, I.y + Math.sin(INSET_PITCH) * d, Math.cos(INSET_PITCH) * d); I.tv.set(I.x, I.y, 0); c.lookAt(I.tv);
+  c.near = Math.max(1, d * 0.3); c.far = d + 700; c.updateProjectionMatrix();
+  const au = r.shadowMap.autoUpdate; r.shadowMap.autoUpdate = false;   // reuse the main pass's shadow map
+  r.setRenderTarget(I.rt); r.render(R.scene, c);
+  r.shadowMap.autoUpdate = au;
+  I.ready = true;
+}
+function compositeInset(r) {
+  const I = R.inset, rc = I.rect;
+  I.mat.uniforms.uAspect.value = rc.w / rc.h;
+  const ac = r.autoClear; r.autoClear = false;
+  r.setViewport(rc.x, window.innerHeight - rc.y - rc.h, rc.w, rc.h);
+  r.render(I.scene, I.ocam);
+  r.setViewport(0, 0, window.innerWidth, window.innerHeight);
+  r.autoClear = ac;
+}
+
 export function renderFrame() {
-  const r = R.renderer;
-  if (!R.grade) { r.render(R.scene, R.camera); return; }
-  r.setRenderTarget(R.grade.rt); r.render(R.scene, R.camera);
-  r.setRenderTarget(null); r.render(R.grade.scene, R.grade.cam);
+  const r = R.renderer, I = R.inset;
+  if (!R.grade) { r.setRenderTarget(null); r.render(R.scene, R.camera); }
+  else {
+    r.setRenderTarget(R.grade.rt); r.render(R.scene, R.camera);
+    r.setRenderTarget(null); r.render(R.grade.scene, R.grade.cam);
+  }
+  if (!I.on) { I.ready = false; return; }
+  // after the main pass, so the shadow map it just rendered is valid for the inset's (non-updating) shadow lookup
+  if (!I.ready || (++I.frame & 1)) { renderInset(r); r.setRenderTarget(null); }
+  compositeInset(r);
 }

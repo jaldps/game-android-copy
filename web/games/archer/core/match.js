@@ -8,11 +8,11 @@ import { PropLayer } from './props.js';
 import { Actor } from './actors.js';
 import { Projectiles } from './projectiles.js';
 import { simulateShot, stepBody, distToShapes, launchSpeed } from './physics.js';
-import { cam, lookAt, frame2, addShake, addPunch, setBounds, snap } from './camera.js';
+import { cam, lookAt, frameBox, boxHeight, cyFor, setInset, addShake, addPunch, setBounds, snap } from './camera.js';
 import { makeRng, clamp, damp, DEG } from './util.js';
 import { events } from './events.js';
 import { audio } from './audio.js';
-import { applyLighting } from './render.js';
+import { applyLighting, R } from './render.js';
 import { getMap, terrainMaterialFor, PROP_TYPES, createPropMaterial } from '../maps/index.js';
 import { getCharacter, getOutfit, defaultOutfit, createCharacter, computeStats } from '../characters/index.js';
 import { getArrow, trayArrows } from '../arrows/index.js';
@@ -33,8 +33,12 @@ export class Match {
     // Fall back to the splash if the named preset isn't registered, rather than playing nothing.
     this.fallVfx = this.fx?.has(this.map.fallVfx) ? this.map.fallVfx : 'splash';
     this.fallSfx = audio.has(this.map.fallSfx) ? this.map.fallSfx : 'splash';
+    // per-map impact accent (embers on lava, snow powder, sand...) + the surface colour debris chips take
+    this.accentVfx = this.fx?.has('accent_' + this.map.id) ? 'accent_' + this.map.id : null;
+    this._fxo = { terrainColor: 0, topColor: 0, scale: 1, dirX: 0, dirY: 1 };
     this.root = new THREE.Group(); this.root.name = 'match'; hooks.scene.add(this.root);
     applyLighting(this.map.lighting);
+    this.topColor = this.map.palette?.snow ? 0xf4f8ff : (this.map.palette?.grass ?? 0x6cc04a);
     // terrain
     this.terrain = new Terrain();
     this.gen = this.map.generate(this.terrain, this.rng) ?? { spawns: [] };
@@ -60,7 +64,7 @@ export class Match {
     this._pm = new THREE.Matrix4(); this._pv = new THREE.Vector3(); this._ps = new THREE.Vector3(); this._pq = new THREE.Quaternion();
     // state
     this.time = 0; this.turnNo = 0; this.phase = cfg.showcase ? 'showcase' : 'intro'; this.phaseT = 0; this.timer = TURN.time;
-    this.active = null; this.timeScale = 1; this.slowTarget = 1; this.hitStop = 0; this.settleT = 0; this.lastImpact = null;
+    this.active = null; this.timeScale = 1; this.slowTarget = 1; this.slowHold = 0; this.hitStop = 0; this.settleT = 0; this.lastImpact = null;
     this.wind = { x: 0, y: 0, strength: 0, angle: 0 }; this.windTarget = 0;
     this.over = false; this.winnerTeam = -1; this.endT = 0; this.movedThisTurn = 0; this.firedThisTurn = false; this.shotArrow = 'standard';
     this.intent = { move: 0, aimDelta: 0, aimTo: null, facing: 0, charge: false, arrow: null, skip: false };
@@ -153,7 +157,9 @@ export class Match {
       if (info.head) { this.hitStop = 0.45; addPunch(0.18); events.emit('callout', 'HEADSHOT!', 'headshot'); this.fx.burst('headshot', a.hitShapes.hx, a.hitShapes.hy); audio.play('headshot'); }
       else if (info.direct) { this.hitStop = Math.max(this.hitStop, 0.16); addPunch(0.08); events.emit('callout', 'DIRECT HIT!', 'direct'); }
     }
-    this.fx.burst(o.vfx ?? 'impact_dirt', x, y, { terrainColor: tc, scale: Math.max(0.7, o.radius / 1.5), dirX: o.nx, dirY: o.ny });
+    const fo = this._fxo; fo.terrainColor = tc; fo.topColor = this.topColor; fo.scale = Math.max(0.7, o.radius / 1.5); fo.dirX = o.nx; fo.dirY = o.ny;
+    this.fx.burst(o.vfx ?? 'impact_dirt', x, y, fo);
+    if (this.accentVfx) { fo.scale = Math.min(1.5, Math.max(0.6, o.radius / 2)); this.fx.burst(this.accentVfx, x, y, fo); }
     if (o.sfx) audio.play(o.sfx);
     this.lastImpact = { x, y, t: this.time }; this.settleT = 0;
     events.emit('impact', x, y, o, total);
@@ -193,7 +199,7 @@ export class Match {
     a.controller?.beginTurn?.(a, this);
     const foe = this.nearestFoe(a);
     if (foe) a.facing = foe.x > a.x ? 1 : -1;
-    lookAt(a.x + a.facing * 2.8, a.y + 1.8, 13, 3.6);
+    this._actCam(a);
     events.emit('turn:start', a, this.turnNo);
     audio.play('turn_start');
   }
@@ -220,7 +226,8 @@ export class Match {
       a.character.setAnim(a.team === this.winnerTeam ? 'victory' : 'defeat');
     }
     const w = this.actors.find((a) => a.alive && a.team === this.winnerTeam);
-    if (w) lookAt(w.x, w.y + 1.6, 11, 2);
+    setInset(false);
+    if (w) this._frameActor(w, 10, 0.62, 2);
     events.emit('match:over', this.winnerTeam);
   }
 
@@ -284,8 +291,8 @@ export class Match {
       let faller = null;
       for (let i = 0; i < this.actors.length; i++) { const x = this.actors[i]; if (x.alive && !x.grounded) { faller = x; break; } }
       const moving = !!faller || this.projectiles.active > 0;
-      if (this.lastImpact && this.settleT < 0.5) lookAt(this.lastImpact.x, this.lastImpact.y + 1, Math.max(cam.th, 15), 3);
-      if (faller) lookAt(faller.x, faller.y + 1, 15, 3);
+      if (faller) { setInset(false); this._frameActor(faller, 13, 0.6, 3.5); }
+      else if (this.lastImpact && this.settleT < 0.6) { setInset(false); const L = this.lastImpact; lookAt(L.x, cyFor(L.y, 0.56, 13), 13, 3.5); }
       if (!moving && this.settleT > 0.85) {
         if (!this._checkWin()) this._beginTurn(this._nextActor());
       }
@@ -352,30 +359,69 @@ export class Match {
   }
 
   // ------------------------------------------------------------------ camera direction
+  // All framing goes through the HUD-safe region (camera.js SAFE): the top cluster and the control strip never cover
+  // an actor's feet. Aiming is a close shot of the shooter (upper two-thirds, offset away from the target so the arc
+  // has room); if the target doesn't fit at that zoom it is shown in a picture-in-picture inset instead.
+  _height(a) { return a.character.height || 2.6; }
+  _frameActor(a, H, feetFrac, rate) { lookAt(a.x, cyFor(a.y, feetFrac, H), H, rate); }
+  /** Is a world box currently on screen (inside the safe region) with the camera's *current* state? */
+  _onScreen(x0, y0, x1, y1) {
+    const H = cam.th, W = H * R.camera.aspect, cx = cam.tx + cam.panX, cy = cam.ty + cam.panY;
+    return x0 > cx - W * 0.47 && x1 < cx + W * 0.47 && y0 > cy - H * 0.29 && y1 < cy + H * 0.34;
+  }
+  _insetOn(foe) {
+    const h = this._height(foe);
+    if (this._onScreen(foe.x - 1, foe.y, foe.x + 1, foe.y + h)) { setInset(false); return; }
+    setInset(true, foe.x, foe.y + h * 0.62, 6.4); R.inset.side = foe.x > cam.x ? 1 : -1; R.inset.actor = foe;
+  }
   _actCam(a) {
-    const f = a.facing, foe = this.nearestFoe(a);
-    if (a.charging && foe) { const dx = foe.x - a.x; if (Math.abs(dx) < 34) { frame2(a.x, a.y + 1, foe.x, foe.y + 1, 2.0, 15); return; } }
-    lookAt(a.x + f * 2.8, a.y + 1.8, 13, 3.6);
+    const AIM_H = 9.4, PAIR_MAX = 14.5, f = a.facing, foe = this.nearestFoe(a), h = this._height(a);
+    if (foe) {
+      const fh = this._height(foe);
+      const x0 = Math.min(a.x - 1.6, foe.x - 1.6), x1 = Math.max(a.x + 1.6, foe.x + 1.6);
+      const y0 = Math.min(a.y, foe.y) - 0.3, y1 = Math.max(a.y + h, foe.y + fh) + 1.3;
+      if (boxHeight(x0, y0, x1, y1) <= PAIR_MAX) { frameBox(x0, y0, x1, y1, 3.6, AIM_H, PAIR_MAX); setInset(false); return; }
+    }
+    const W = AIM_H * R.camera.aspect;
+    lookAt(a.x + f * W * 0.13, cyFor(a.y, 0.66, AIM_H), AIM_H, 3.6);
+    if (foe) this._insetOn(foe); else setInset(false);
   }
   _flightCam(dt) {
     const p = this.projectiles.leader(); if (!p) return;
-    const sp = Math.hypot(p.vx, p.vy), foe = p.owner ? this.nearestFoe(p.owner) : null;
-    if (foe && Math.abs(foe.x - p.x) < 30 && p.y > foe.y + 4) frame2(p.x + p.vx * 0.08, p.y, foe.x, foe.y + 1, 4.0, 16);
-    else lookAt(p.x + p.vx * 0.12, p.y + p.vy * 0.06 - 2, clamp(15 + sp * 0.18, 15, 23), 4.5);
+    const RATE = 4.5, FLY_MIN = 15, FLY_MAX = 23;
+    // lead by v/rate so the exponential follow keeps the arrow centred instead of trailing it
+    const lx = p.x + clamp(p.vx / RATE, -11, 11), ly = p.y + clamp(p.vy / RATE, -8, 8);
+    const foe = this._flightTarget(p);
+    if (foe) {
+      const h = this._height(foe);
+      const x0 = Math.min(lx - 3, foe.x - 1.6), x1 = Math.max(lx + 3, foe.x + 1.6);
+      const y0 = Math.min(ly - 2, foe.y - 0.3), y1 = Math.max(ly + 2, foe.y + h + 1);
+      if (boxHeight(x0, y0, x1, y1) <= FLY_MAX) { frameBox(x0, y0, x1, y1, RATE, FLY_MIN, FLY_MAX); setInset(false); }
+      else { frameBox(lx - 3, ly - 2, lx + 3, ly + 2, RATE, FLY_MIN + 1, FLY_MIN + 1); this._insetOn(foe); }
+    } else { frameBox(lx - 3, ly - 2, lx + 3, ly + 2, RATE, FLY_MIN + 1, FLY_MIN + 1); setInset(false); }
     // slow-mo when about to land near someone
     _sim.x = p.x; _sim.y = p.y; _sim.vx = p.vx; _sim.vy = p.vy;
-    let near = false;
+    let near = false, landing = false;
     for (let k = 0; k < 24 && !near; k++) {
       stepBody(_sim, 1 / 60, this.wind, p.phys, p.windResist);
       if (this.terrain.solid(_sim.x, _sim.y) || _sim.y < this.killY) {
+        landing = k < 9;
         for (const a of this.actors) if (a.alive && a !== p.owner && Math.hypot(a.x - _sim.x, a.y + 1 - _sim.y) < 4.5) near = true;
         break;
       }
       for (const a of this.actors) if (a.alive && a !== p.owner && Math.hypot(a.hitShapes.hx - _sim.x, a.hitShapes.hy - _sim.y) < 1.4) near = true;
     }
-    if (near && p.age > 0.3) { this.slowTarget = 0.28; this.slowHold = 0.12; }
+    if (near && p.age > 0.3) { this.slowTarget = 0.28; this.slowHold = 0.14; }
+    else if (landing && p.age > 0.5 && this.slowHold <= 0) { this.slowTarget = 0.55; this.slowHold = 0.08; }   // brief beat before any impact
+  }
+  /** The foe the camera should keep an eye on during a flight: the one closest to where the arrow is heading. */
+  _flightTarget(p) {
+    let best = null, bd = 1e9; const ax = p.x + p.vx * 0.6;
+    for (const a of this.actors) if (a.alive && (!p.owner || a.team !== p.owner.team)) { const d = Math.abs(a.x - ax); if (d < bd) { bd = d; best = a; } }
+    return best;
   }
   _showcaseCam(snapNow) {
+    setInset(false);
     const a = this.actors[0]; if (!a) return;
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
     lookAt(a.x - (this.cfg.showcaseOffset ?? 2.4) * Math.min(1.6, aspect / 1.4), a.y + 1.3, this.cfg.showcaseZoom ?? 6.2, 2);
@@ -412,6 +458,7 @@ export class Match {
     };
   }
   dispose() {
+    setInset(false);
     this.projectiles.clear(); this.fx.clear(); this.props.dispose();
     for (const a of this.actors) { this.root.remove(a.character.root); a.character.dispose(); }
     for (const m of this.terrainMesh.meshes) m.geometry.dispose();

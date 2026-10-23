@@ -95,10 +95,33 @@ export const SFX = {
   whoosh_heavy: (k) => { noise(k, { f: 400, f2: 1200, q: 3, a: 0.15, d: 0.4, gain: 0.08 }); tone(k, { f: 70, f2: 110, type: 'sine', a: 0.2, d: 0.4, gain: 0.08 }); },
   whoosh_magic: (k) => { noise(k, { f: 1200, f2: 3000, q: 5, a: 0.12, d: 0.3, gain: 0.05 }); [1568, 2093, 2637].forEach((f, i) => tone(k, { f, type: 'sine', d: 0.25, gain: 0.04, delay: 0.05 + i * 0.06 })); },
   fuse: (k) => { noise(k, { type: 'highpass', f: 4000, a: 0.05, d: 0.9, gain: 0.05 }); patter(k, { n: 12, span: 0.9, f: [2500, 5000], d: 0.015, gain: 0.035 }); noise(k, { f: 700, f2: 1800, q: 3, a: 0.1, d: 0.35, gain: 0.05 }); },
+  whoosh_split: (k) => { // glassy rising shimmer
+    noise(k, { f: 1500, f2: 3800, q: 6, a: 0.1, d: 0.3, gain: 0.05 });
+    tone(k, { f: 1200, f2: 2400, type: 'triangle', a: 0.02, d: 0.35, gain: 0.035, vib: 60, vibF: 14 });
+    tone(k, { f: 1800, f2: 3600, type: 'sine', a: 0.02, d: 0.3, gain: 0.025, delay: 0.08 });
+  },
+  whoosh_bounce: (k) => { // rubbery wobble
+    noise(k, { f: 700, f2: 1800, q: 3, a: 0.12, d: 0.3, gain: 0.05 });
+    tone(k, { f: 220, f2: 330, type: 'sine', a: 0.03, d: 0.45, gain: 0.07, vib: 40, vibF: 9 });
+  },
+  whoosh_frost: (k) => { // cold hiss + ice tinkles
+    noise(k, { type: 'highpass', f: 4500, f2: 2600, a: 0.08, d: 0.5, gain: 0.05 });
+    [3136, 3951, 2637, 4699].forEach((f, i) => tone(k, { f, type: 'sine', d: 0.18, gain: 0.025, delay: 0.04 + i * 0.07 }));
+  },
+  whoosh_warp: (k) => { // phasing sweep
+    tone(k, { f: 300, f2: 900, type: 'sawtooth', a: 0.05, d: 0.5, gain: 0.025, vib: 120, vibF: 11 });
+    noise(k, { f: 600, f2: 2400, q: 8, a: 0.15, d: 0.4, gain: 0.05 });
+    tone(k, { f: 600, f2: 1800, type: 'sine', a: 0.05, d: 0.45, gain: 0.03, delay: 0.05 });
+  },
   crackle: (k) => { patter(k, { n: 14, span: 0.8, f: [900, 4000], d: 0.012, gain: 0.05, type: 'sawtooth' }); tone(k, { f: 120, type: 'sawtooth', a: 0.05, d: 0.6, gain: 0.03, vib: 30, vibF: 23 }); },
 
   // ---- impacts
   impact_dirt: (k) => { noise(k, { type: 'lowpass', f: 900, f2: 200, d: 0.22, gain: 0.4 }); tone(k, { f: 160, f2: 70, d: 0.12, gain: 0.25 }); noise(k, { type: 'highpass', f: 3500, d: 0.03, gain: 0.12 }); },
+  impact_arrow: (k) => { // Broadhead biting into the ground: woody thock + quiver + dirt
+    tone(k, { f: 520, f2: 260, type: 'triangle', d: 0.07, gain: 0.3 });
+    tone(k, { f: 190, f2: 150, type: 'sine', d: 0.22, gain: 0.12, vib: 14, vibF: 32, delay: 0.02 });
+    noise(k, { type: 'lowpass', f: 900, f2: 200, d: 0.18, gain: 0.28 }); noise(k, { type: 'highpass', f: 3500, d: 0.025, gain: 0.12 });
+  },
   impact_shard: (k) => { noise(k, { type: 'lowpass', f: 1100, f2: 250, d: 0.16, gain: 0.3 }); tone(k, { f: 2400, f2: 1800, type: 'triangle', d: 0.12, gain: 0.06 }); },
   impact_body: (k) => { tone(k, { f: 260, f2: 90, type: 'triangle', d: 0.16, gain: 0.4 }); noise(k, { f: 700, q: 1.5, d: 0.12, gain: 0.25 }); noise(k, { type: 'highpass', f: 3000, d: 0.04, gain: 0.15 }); },
   headshot: (k) => {
@@ -173,6 +196,16 @@ export const SFX = {
     tone(k, { f: 90, f2: 50, type: 'sine', a: 0.01, d: 0.3, gain: 0.35 });
     noise(k, { f: 2500, f2: 1200, q: 0.7, a: 0.1, d: 0.9, gain: 0.08, delay: 0.1 });
   },
+
+  // ---- per-arrow hit stingers (played on a damaging hit; see bindings.js)
+  sting_standard: (k) => { [784, 1175].forEach((f, i) => tone(k, { f, type: 'triangle', d: 0.14, gain: 0.12, delay: i * 0.07 })); },
+  sting_explosive: (k) => { [392, 523, 784].forEach((f, i) => tone(k, { f, type: 'square', d: 0.12, gain: 0.05, delay: i * 0.06 })); tone(k, { f: 98, type: 'sawtooth', d: 0.35, gain: 0.06, delay: 0.12 }); },
+  sting_splitter: (k) => { [1319, 1568, 1976, 2637].forEach((f, i) => tone(k, { f, type: 'sine', d: 0.12, gain: 0.07, delay: i * 0.04 })); },
+  sting_bouncer: (k) => { [523, 659, 523, 784].forEach((f, i) => tone(k, { f, f2: f * 1.5, type: 'sine', d: 0.08, gain: 0.09, delay: i * 0.06 })); },
+  sting_driller: (k) => { [196, 262, 392].forEach((f, i) => tone(k, { f, type: 'sawtooth', d: 0.12, gain: 0.05, delay: i * 0.07 })); noise(k, { f: 900, q: 2, d: 0.2, gain: 0.05, delay: 0.14 }); },
+  sting_frost: (k) => { [2093, 2637, 3136, 4186].forEach((f, i) => tone(k, { f, type: 'sine', d: 0.3, gain: 0.05, delay: i * 0.05 })); },
+  sting_lightning: (k) => { tone(k, { f: 880, f2: 1760, type: 'sawtooth', d: 0.1, gain: 0.05 }); [1047, 1397].forEach((f, i) => tone(k, { f, type: 'square', d: 0.12, gain: 0.04, delay: 0.08 + i * 0.07 })); },
+  sting_warp: (k) => { [1568, 1175, 1568, 2349].forEach((f, i) => tone(k, { f, type: 'triangle', d: 0.1, gain: 0.07, delay: i * 0.05, vib: 20, vibF: 12 })); },
 
   // ---- stings
   victory: (k) => {

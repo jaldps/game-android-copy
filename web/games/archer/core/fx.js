@@ -129,7 +129,10 @@ export class FX {
   spawnDebris(x, y, n, def, o) {
     const d = this.d;
     col.set(def.color === 'terrain' || !def.color ? (o.terrainColor ?? 0x8a7a60) : def.color);
+    // def.top: fraction of chunks in the surface colour (grass / snow drape) instead of the rock underneath
+    const topN = o.topColor !== undefined && def.top ? Math.round(n * def.top) : 0;
     for (let k = 0; k < n; k++) {
+      if (k === n - topN) col.set(o.topColor);
       let i = d.n < MAXD ? d.n++ : Math.floor(rnd() * MAXD);
       const a = (def.dir ?? Math.PI / 2) + (rnd() - 0.5) * (def.spread ?? 2.6), sp = range(def.speed, 8);
       d.x[i] = x; d.y[i] = y + 0.1; d.z[i] = (rnd() - 0.5) * 2.5;

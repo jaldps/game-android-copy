@@ -23,9 +23,30 @@ export function addShake(a) { cam.shake = Math.min(1.6, cam.shake + a); }
 export function addPunch(a) { cam.punch = Math.min(0.25, cam.punch + a); }
 /** Frame two points (e.g. shooter + target) with margins. */
 export function frame2(ax, ay, bx, by, rate = 2.4, minH = 16) {
+  frameBox(Math.min(ax, bx) - 2, Math.min(ay, by) - 0.5, Math.max(ax, bx) + 2, Math.max(ay, by) + 2.5, rate, minH, 46);
+}
+
+/** The part of the screen the HUD leaves free (fractions of the viewport, y down). Top cluster ~15%, control strip
+ *  from ~81% down. Framing keeps every actor's feet above SAFE.bottom. */
+export const SAFE = { top: 0.16, bottom: 0.79, left: 0.04, right: 0.96 };
+/** Visible height needed to fit a world box inside the safe region. */
+export function boxHeight(x0, y0, x1, y1) {
   const aspect = R.camera.aspect;
-  const w = Math.abs(ax - bx) + 10, h = Math.abs(ay - by) + 9;
-  lookAt((ax + bx) / 2, (ay + by) / 2 + 1.0, clamp(Math.max(h, w / aspect, minH), minH, 46), rate);
+  return Math.max((y1 - y0) / (SAFE.bottom - SAFE.top), (x1 - x0) / ((SAFE.right - SAFE.left) * aspect));
+}
+/** Camera centre-y that puts world height `y` at screen fraction `frac` (0 top .. 1 bottom) for visible height H. */
+export const cyFor = (y, frac, H) => y + (frac - 0.5) * H;
+/** Frame a world box inside the HUD-safe region (zooming out up to maxH; if it still doesn't fit, centred). */
+export function frameBox(x0, y0, x1, y1, rate = 3, minH = 10, maxH = 40) {
+  const H = clamp(boxHeight(x0, y0, x1, y1), minH, maxH);
+  const mid = (SAFE.top + SAFE.bottom) / 2;
+  lookAt((x0 + x1) / 2, cyFor((y0 + y1) / 2, mid, H), H, rate);
+  return H;
+}
+/** Picture-in-picture view of a world point (drawn by render.js, framed by the HUD). */
+export function setInset(on, x = 0, y = 0, h = 7) {
+  const I = R.inset; if (!I) return;
+  I.on = on; if (on) { I.x = x; I.y = y; I.h = h; }
 }
 
 let t = 0;
@@ -37,7 +58,8 @@ export function updateCamera(dt) {
   let tx = cam.tx + cam.panX, ty = cam.ty + cam.panY;
   tx = clamp(tx, cam.minX + W * 0.5, cam.maxX - W * 0.5);
   if (cam.maxX - cam.minX < W) tx = (cam.minX + cam.maxX) / 2;
-  ty = clamp(ty, cam.minY + H * 0.5, cam.maxY - H * 0.5);
+  // the bottom ~20% of the screen sits under the control strip, so the camera may look a little below the arena floor
+  ty = clamp(ty, cam.minY + H * 0.3, Math.max(cam.minY + H * 0.3, cam.maxY - H * 0.5));
   cam.x = damp(cam.x, tx, cam.rate, dt); cam.y = damp(cam.y, ty, cam.rate, dt); cam.h = damp(cam.h, H, cam.zoomRate, dt);
   cam.punch = damp(cam.punch, 0, 6, dt);
   const h = cam.h * (1 - cam.punch);
