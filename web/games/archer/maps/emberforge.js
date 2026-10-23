@@ -2,13 +2,29 @@
 import * as THREE from 'three';
 import { MAT } from '../core/terrain.js';
 import { floatingIsland, rect, circle, polygon, tower, stamp, safeSpawn, ensureHeightGap } from './shapes.js';
-import { skyDome, cloudField, castle, volcanoes, lavaSea } from './sky.js';
+import { skyDome, cloudField, castle, lavaSea } from './sky.js';
+import { volcanoRange, smokePlumes, heatHaze } from './backdrops.js';
 import { createWeather } from './weather.js';
 import { terrainClock, STYLE } from './terrainMaterial.js';
 
 // island tops left -> right (outer two host the spawns and differ by >= 4)
 const HEIGHT_SETS = [[3, 10, 5.5, 12, 8.5], [11, 4.5, 9, 2.5, 6], [5, 12.5, 3, 8, 1], [9.5, 2, 12, 6, 3.5], [2, 7.5, 11, 4, 10.5]];
 const AVOID = [MAT.BRICK, MAT.METAL, MAT.WOOD];
+const LAVA_Y = -9.3;
+
+/** Stepped basalt column from y=top down below the lava surface: half-width hw/2 at the top, ledges every ~2 units,
+ *  widening into a talus skirt where it meets the lava. */
+function basaltRoot(cx, top, w, rng) {
+  const L = [], Rt = [], bot = -14, steps = Math.max(4, Math.round((top - bot) / 2.2));
+  for (let k = 0; k <= steps; k++) {
+    const t = k / steps, y = top + (bot - top) * t;
+    const flare = Math.max(0, (LAVA_Y + 2.2 - y) / 2.2);                    // skirt in the last 2 units above the lava
+    const base = w / 2 * (1 - 0.18 * Math.sin(t * Math.PI)) + flare * flare * 2.6;
+    L.push([cx - base - (rng() - 0.5) * 1.1, y]); Rt.push([cx + base + (rng() - 0.5) * 1.1, y]);
+    if (k < steps && k > 0) { const y2 = y - 0.35; L.push([L[L.length - 1][0] + 0.45, y2]); Rt.push([Rt[Rt.length - 1][0] - 0.45, y2]); }   // ledge notch
+  }
+  return polygon(L.concat(Rt.reverse()));
+}
 
 export default {
   id: 'emberforge', name: 'Emberforge', subtitle: 'Iron forges over a lava lake', music: 'battle',
@@ -28,6 +44,9 @@ export default {
       const x = -44 + i * 22 + (rng() - 0.5) * 4, top = set[i] + (rng() - 0.5) * 1.0, w = 12 + rng() * 5, depth = 8 + rng() * 5;
       isl.push({ x, top, w, depth });
       stamp(T, floatingIsland(x, top, w, depth, 300 + i * 11 + Math.floor(rng() * 100), { rough: 1.3, lump: 0.35, shoulder: 0.9 }), MAT.ROCK);
+      // chunky basalt root from under the island down into the lava lake, stepped like columnar basalt and flaring
+      // into a talus skirt at the waterline — islands read as land rising out of the lava, never as empty lava
+      stamp(T, basaltRoot(x + (rng() - 0.5) * w * 0.12, top - 1.2, w * (0.5 + rng() * 0.12), rng), MAT.ROCK);
       // jagged basalt stalactites under each island
       const n = 2 + Math.floor(rng() * 3);
       for (let k = 0; k < n; k++) {
@@ -94,8 +113,14 @@ export default {
   buildBackdrop() {
     const group = new THREE.Group();
     group.add(skyDome({ ...this.sky, sun: 0xff9a50, sunDir: [0.4, 0.08, -1], sunSize: 2.4, stars: 0.4 }));
-    group.add(volcanoes({ z: -300, count: 6, seed: 5, width: 820, height: [70, 120], radius: [50, 80], rock: 0x3a2434, rock2: 0x4a2c3c }));
-    group.add(volcanoes({ z: -170, count: 5, seed: 9, width: 520, height: [30, 55], radius: [24, 36] }));
+    const farV = volcanoRange({ z: -300, count: 5, seed: 5, width: 820, height: [80, 130], radius: [60, 90], rock: 0x3a2434, rock2: 0x553040, ash: 0x6a5060 });
+    const nearV = volcanoRange({ z: -175, count: 4, seed: 9, width: 560, height: [34, 60], radius: [30, 44] });
+    group.add(farV.mesh, nearV.mesh);
+    const big = farV.peaks.slice().sort((a, b) => b.h - a.h).slice(0, 3);
+    const plumes = smokePlumes(big, { per: 12, rise: 110 });
+    group.add(plumes.mesh);
+    const haze = heatHaze({ y: this.waterY, z: -110 });
+    group.add(haze.mesh);
     group.add(castle({ x: -60, y: -6, z: -140, scale: 0.8, wall: 0x3a2a34, roof: 0x24161e, windows: 0xffa040 }));
     const smoke = cloudField({ count: 12, seed: 17, color: 0x3e2c38, shade: 0xb04a24, zRange: [-130, -300], yRange: [28, 70], scale: [16, 30], speed: 0.5 });
     group.add(smoke.mesh);
@@ -103,6 +128,6 @@ export default {
     group.add(lava.mesh);
     const embers = createWeather({ kind: 'embers', count: 260, seed: 3 }), ash = createWeather({ kind: 'ash', count: 200, seed: 8 });
     group.add(embers.mesh, ash.mesh);
-    return { group, update(dt, t, cam, wind) { terrainClock.value = t; smoke.update(dt); lava.update(dt, t); embers.update(dt, t, cam, wind); ash.update(dt, t, cam, wind); } };
+    return { group, update(dt, t, cam, wind) { terrainClock.value = t; smoke.update(dt); farV.update(dt, t); nearV.update(dt, t); plumes.update(dt, t, wind); haze.update(dt, t); lava.update(dt, t); embers.update(dt, t, cam, wind); ash.update(dt, t, cam, wind); } };
   },
 };

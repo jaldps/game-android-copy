@@ -1,6 +1,7 @@
 // Sahra — Dune Ranger (female). Athletic hourglass desert scout: high swinging ponytail with gold cuffs, brass goggles,
 // teal eyes. Owner: Characters specialist.
 import { ball, blade, torus, tube, cyl, xf } from '../parts.js';
+import { hairCap } from "../body.js";
 import vela from './vela.js';
 
 const dy = 0.02;
@@ -16,18 +17,19 @@ export default {
   body: {
     ...vela.body,
     legLen: 1.1, thighLen: 0.51, shinLen: 0.51,
-    thighR: [0.132, 0.074], shinR: [0.075, 0.046], calf: 0.061,
-    waistY: 1.34, shoulderY: 1.665, shoulderW: 0.225, neckY: 1.75,
-    upperArmR: [0.06, 0.047], foreArmR: [0.048, 0.036], deltR: 0.07,
-    torso: vela.body.torso.map(([y, rx, rz, zo]) => [y + dy, rx * (y > 1.4 ? 1.04 : 1), rz, zo]),
+    thighR: [0.14, 0.076], shinR: [0.078, 0.045],
+    waistY: 1.34, shoulderY: 1.665, shoulderW: 0.235, neckY: 1.75,
+    upperArmR: [0.064, 0.048], foreArmR: [0.052, 0.035], deltR: 0.078,
+    shape: { bicep: 0.4, tricep: 0.25, fore: 0.45, quad: 0.55, ham: 0.4, calf: 0.7, knee: 0.16 },   // athletic: toned arms, strong legs
+    headR: 0.228,
+    torso: vela.body.torso.map(([y, rx, rz, zo]) => [y + dy, rx * (y > 1.4 ? 1.07 : y > 1.25 ? 1.04 : 1), rz, zo]),
     extras: vela.body.extras.map(([b, p, r, c]) => [b, [p[0], p[1] + dy, p[2]], r, c]),
   },
-  face: { eyeSize: 0.22, eyeTall: 1.05, eyeSpread: 0.38, eyeY: 0.04, lashes: true, browThick: 0.3, browY: 1.62, browTilt: -0.16, chin: true, jawX: 0.68, jawY: 0.5, jawZ: 0.7 },
+  face: { eyeSize: 0.245, eyeTall: 1.08, eyeSpread: 0.38, eyeY: 0.02, lashes: true, browThick: 0.32, browY: 1.62, browTilt: -0.2, chin: true, jawX: 0.68, jawY: 0.5, jawZ: 0.7, nose: 0.9, smirk: 0.18 },
   build(ctx) {
     const { B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
     // sleek pulled-back hair
-    let g = ball(R * 1.05, R * 1.02, R * 1.07, 20); g.translate(hx, hy + R * 0.14, hz - R * 0.1);
-    ctx.add('head', g, (x, y, z) => (Math.sin(x * 160) > 0.6 ? C.hair2 : C.hair), { rough: 0.35 });
+    let g = null; hairCap(ctx, (x, y, z) => (Math.sin(x * 160) > 0.6 ? C.hair2 : C.hair), { cover: 1.55, tilt: -0.5, rough: 0.35 });
     for (const s of [1, -1]) {   // face-framing locks
       g = blade(R * 1.2, R * 0.28, R * 0.14, 0.15); xf(g, [hx + s * R * 0.7, hy + R * 0.55, hz + R * 0.42], [Math.PI - 0.12, 0, s * 0.18]); ctx.add('head', g, C.hair, { rough: 0.35 });
     }

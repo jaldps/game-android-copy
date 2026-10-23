@@ -1,5 +1,6 @@
 // Kaito — Shadow Fang (male). Lean masked ninja: spiky ink-black hair, topknot, long crimson scarf. Owner: Characters specialist.
 import { ball, blade, torus, xf, drape } from '../parts.js';
+import { hairCap } from "../body.js";
 
 export default {
   id: 'kaito', name: 'Kaito', title: 'Shadow Fang', gender: 'm', price: 1500,
@@ -10,11 +11,12 @@ export default {
   bow: { wood: 0x1d1f2e, trim: 0xe0303c, grip: 0xd8d2c4, length: 0.62 },
   body: {
     legLen: 1.04, hipW: 0.11, thighLen: 0.48, shinLen: 0.48,
-    thighR: [0.12, 0.078], shinR: [0.078, 0.05], calf: 0.066,
+    thighR: [0.118, 0.07], shinR: [0.074, 0.045],
     footL: 0.24, footW: 0.1, footH: 0.095,
     waistY: 1.3, shoulderY: 1.6, shoulderW: 0.26, neckY: 1.69, neckLen: 0.09, neckR: 0.066,
-    upperArm: 0.31, foreArm: 0.29, upperArmR: [0.07, 0.055], foreArmR: [0.06, 0.045], deltR: 0.09, bicep: [0.056, 0.07, 0.06], handR: 0.053,
-    headR: 0.19, bodyR: 0.22,
+    upperArm: 0.31, foreArm: 0.29, upperArmR: [0.07, 0.052], foreArmR: [0.06, 0.04], deltR: 0.088, handR: 0.056,
+    shape: { bicep: 0.55, tricep: 0.4, fore: 0.6, quad: 0.5, ham: 0.35, calf: 0.6, knee: 0.18 },   // lean, wiry, defined
+    headR: 0.225, bodyR: 0.22,
     torso: [
       [0.94, 0.08, 0.07, 0], [1.0, 0.16, 0.12, 0], [1.08, 0.17, 0.122, 0], [1.18, 0.155, 0.115, 0.005],
       [1.28, 0.15, 0.112, 0.01], [1.38, 0.178, 0.12, 0.015], [1.47, 0.22, 0.135, 0.015], [1.54, 0.24, 0.136, 0.01],
@@ -22,13 +24,12 @@ export default {
     ],
     extras: [['torso', [0.085, 1.47, 0.09], [0.1, 0.07, 0.05], 'top'], ['torso', [-0.085, 1.47, 0.09], [0.1, 0.07, 0.05], 'top']],
   },
-  face: { eyeSize: 0.2, eyeTall: 0.82, eyeSpread: 0.36, eyeY: 0.06, browThick: 0.5, browY: 1.25, browTilt: -0.38, jawX: 0.7, jawY: 0.55, jawZ: 0.72, chin: true, mouthW: 0.3, smirk: 0.0 },
+  face: { eyeSize: 0.23, eyeTall: 0.9, eyeSpread: 0.37, eyeY: 0.04, browThick: 0.5, browY: 1.3, browTilt: -0.36, jawX: 0.68, jawY: 0.55, jawZ: 0.72, chin: true, mouthW: 0.32, smirk: 0.22 },
   build(ctx) {
     const { B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
     const hat = !!C.hatOn;                                  // outfits with headgear skip the spikes
     // hair cap
-    let g = ball(R * 1.0, R * 0.86, R * 1.03, 18); g.translate(hx, hy + R * 0.28, hz - R * 0.1);
-    ctx.add('head', g, (x, y) => (y > hy + R * 0.85 ? C.hair2 : C.hair), { rough: 0.5 });
+    let g = null; hairCap(ctx, (x, y) => (y > hy + R * 0.85 ? C.hair2 : C.hair), { cover: 1.5, tilt: -0.45 });
     if (!hat) {
       // back-swept spikes
       for (let i = 0; i < 7; i++) {

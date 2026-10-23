@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { MAT } from '../core/terrain.js';
 import { rect, circle, polygon, stamp, safeSpawn, ensureHeightGap } from './shapes.js';
-import { skyDome, cloudField, skyline, cityFloor } from './sky.js';
+import { skyDome, cloudField, cityFloor } from './sky.js';
+import { cityLayer } from './backdrops.js';
 import { createWeather } from './weather.js';
 import { terrainClock, STYLE } from './terrainMaterial.js';
 
@@ -99,9 +100,10 @@ export default {
   buildBackdrop() {
     const group = new THREE.Group();
     group.add(skyDome({ ...this.sky, sun: 0xfff0e0, sunDir: [0.45, 0.55, -1], sunSize: 0.5, stars: 1.0 }));
-    const far = skyline({ z: -330, count: 60, width: 1100, height: [40, 140], depth: [20, 40], bw: [16, 34], seed: 2, color: 0x150f38, color2: 0x1c1448, win: [3.2, 4.2], density: 0.18 });
-    const midL = skyline({ z: -190, count: 44, width: 720, height: [20, 80], depth: [12, 24], bw: [10, 22], seed: 7, color: 0x1c1448, color2: 0x281a5c, win: [2.2, 2.8], density: 0.24 });
-    const near = skyline({ z: -95, count: 30, width: 420, height: [6, 30], depth: [8, 14], bw: [7, 14], y0: -16, seed: 13, color: 0x241a58, color2: 0x30206a, win: [1.6, 2.0], density: 0.3 });
+    // three lit skyline layers, each fading further into the violet haze (fog depth between layers)
+    const far = cityLayer({ z: -330, count: 60, width: 1200, height: [50, 160], depth: [20, 40], bw: [16, 34], seed: 2, tint: 0x2a2a6a, haze: 0x4a2470, hazeAmt: 0.45, tile: 40, signs: 0.25, lit: 0.8 });
+    const midL = cityLayer({ z: -190, count: 44, width: 760, height: [24, 90], depth: [12, 24], bw: [10, 22], seed: 7, tint: 0x3a347c, haze: 0x5a2a7a, hazeAmt: 0.25, tile: 26, signs: 0.4 });
+    const near = cityLayer({ z: -95, count: 30, width: 440, height: [8, 34], depth: [8, 14], bw: [7, 14], y0: -16, seed: 13, tint: 0x4a3c8a, haze: 0x6a2a80, hazeAmt: 0.1, tile: 16, signs: 0.55 });
     group.add(far.mesh, midL.mesh, near.mesh);
     const clouds = cloudField({ count: 9, seed: 23, color: 0x7a4aa8, shade: 0x3a2060, zRange: [-200, -380], yRange: [50, 90], scale: [18, 34], speed: 0.7 });
     group.add(clouds.mesh);

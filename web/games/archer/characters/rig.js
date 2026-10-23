@@ -57,10 +57,10 @@ export function createOutlineMaterial(width, color) {
   const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
   m.onBeforeCompile = (s) => {
     s.uniforms.uOutline = { value: width };
-    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nuniform float uOutline;')
-      .replace('#include <skinning_vertex>', '#include <skinning_vertex>\ntransformed += normalize(objectNormal) * uOutline;');
+    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nuniform float uOutline; attribute float aOut;')
+      .replace('#include <skinning_vertex>', '#include <skinning_vertex>\ntransformed += normalize(objectNormal) * uOutline * aOut;');
   };
-  m.customProgramCacheKey = () => 'archer-outline';
+  m.customProgramCacheKey = () => 'archer-outline-v2';
   return m;
 }
 
@@ -81,6 +81,7 @@ export class RigBuilder {
     for (const k of Object.keys(geo.attributes)) if (k !== 'position' && k !== 'normal') geo.deleteAttribute(k);
     const pos = geo.attributes.position, n = pos.count;
     const col = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4), pbr = new Float32Array(n * 3);
+    const out = new Float32Array(n).fill(opts.outline ?? 1);   // toon-outline weight (0 = no ink line, e.g. pupils)
     const fn = typeof color === 'function' ? color : null; if (!fn) _c.set(color).convertSRGBToLinear();
     for (let i = 0; i < n; i++) {
       const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
@@ -94,6 +95,7 @@ export class RigBuilder {
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
     geo.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
     geo.setAttribute('aPbr', new THREE.BufferAttribute(pbr, 3));
+    geo.setAttribute('aOut', new THREE.BufferAttribute(out, 1));
     this.parts.push(geo.index ? geo : geo);
     return geo;
   }
@@ -165,7 +167,8 @@ export class Character {
     this.root.scale.setScalar(this.S);
     this.facing = 1; this.anim = 'idle'; this.animT = 0; this.t = Math.random() * 10;
     this.aimAngle = 0.6; this.draw = 0; this.aimBlend = 0; this.walkPhase = 0; this.walkSpeed = 0;
-    this.yaw = 0.95; this.hitK = 0; this.flashT = 0; this.releaseT = 9; this.hipsDY = 0; this.tiltZ = 0; this.tiltY = 0;
+    this.yaw = 0.6; this.hitK = 0; this.flashT = 0; this.releaseT = 9; this.hipsDY = 0; this.hipsDX = 0; this.tiltZ = 0; this.tiltY = 0;
+    this.readyBlend = 0;
     const S0 = def.scale ?? 1.2;
     this.hitShapes = { hx: 0, hy: 0, hr: B.headR * 1.2 * S0, ax: 0, ay: 0, bx: 0, by: 0, br: (B.bodyR ?? 0.3) * S0 };
     this.height = (B.neckY + B.neckLen + B.headR * 2) * S0;
@@ -243,17 +246,34 @@ export class Character {
       this._set('thighL', -0.3, 0, 0.1); this._set('shinL', 0.6, 0, 0); this._set('head', -0.3, 0, 0.3);
       yaw = 0.15;
     }
+    // ready stance (idle / waiting for a turn): bow up in front, string hand on the string, body turned toward the
+    // target, slow breathing and a side-to-side weight shift. The arms are solved by IK in update() (readyBlend).
+    this.readyBlend = damp(this.readyBlend, a === 'idle' ? 1 : 0, 7, dt);
+    let hipsDX = 0;
+    if (this.readyBlend > 0.001) {
+      const k = this.readyBlend, sw = Math.sin(t * 0.85), sw2 = Math.sin(t * 0.85 + 0.6);
+      yaw = lerp(yaw, 0.6, k);
+      this._mix('thighL', -0.22 + 0.03 * sw, 0, 0.17 + 0.04 * sw, k); this._mix('thighR', 0.16 - 0.03 * sw, 0, -0.15 + 0.04 * sw, k);
+      this._mix('shinL', 0.24 - 0.04 * sw, 0, 0, k); this._mix('shinR', 0.12 + 0.05 * sw, 0, 0, k);
+      this._mix('footL', 0.02, 0, -0.04 * sw, k); this._mix('footR', -0.04, 0, -0.04 * sw, k);
+      this._mix('hips', 0, 0.06 * sw2, -0.045 * sw, k);
+      this._mix('spine', -0.03 + 0.045 * br, -0.05, 0.035 * sw, k); this._mix('chest', -0.02 + 0.04 * br, -0.07, 0.015 * sw, k);
+      this._mix('neck', -0.02 * br, 0.08, -0.03 * sw, k);
+      this._mix('head', -0.05 + 0.03 * Math.sin(t * 0.9), 0.22 + 0.08 * Math.sin(t * 0.37), 0.04 * sw, k);
+      hipsDY = lerp(hipsDY, -0.035 + 0.012 * br - 0.008 * Math.abs(sw), k); hipsDX = 0.03 * sw * k;
+    }
     const aiming = a === 'aim' || (a === 'release' && this.releaseT < 0.45);
     this.aimBlend = damp(this.aimBlend, aiming ? 1 : 0, 12, dt);
     if (this.aimBlend > 0.001) {
-      const k = this.aimBlend, ang = this._rigAngle();
+      const k = this.aimBlend, ang = this._rigAngle(), d = this.draw;
       yaw = lerp(yaw, 0.32, k);
-      // archer stance
-      this._mix('thighL', -0.18, 0, 0.2, k); this._mix('thighR', 0.12, 0, -0.18, k); this._mix('shinL', 0.12, 0, 0, k); this._mix('shinR', 0.1, 0, 0, k);
-      this._mix('spine', -0.05, 0.05, -0.05 * Math.sin(ang), k); this._mix('chest', -0.06, 0.08, 0, k);
-      this._mix('head', -clamp(ang - 0.2, -0.6, 1.2) * 0.45, 1.05, -0.12, k);
-      hipsDY = lerp(hipsDY, -0.04, k);
+      // archer stance: wide base, lean back slightly and twist the chest open as the draw builds
+      this._mix('thighL', -0.2, 0, 0.22, k); this._mix('thighR', 0.14, 0, -0.2, k); this._mix('shinL', 0.16, 0, 0, k); this._mix('shinR', 0.1, 0, 0, k);
+      this._mix('spine', -0.05 - 0.05 * d + 0.02 * br, 0.05, -0.05 * Math.sin(ang), k); this._mix('chest', -0.06 - 0.04 * d, 0.08 + 0.1 * d, 0, k);
+      this._mix('head', -clamp(ang - 0.2, -0.6, 1.2) * 0.45, 0.78, -0.1, k);
+      hipsDY = lerp(hipsDY, -0.045 - 0.015 * d, k);
     }
+    this.hipsDX = damp(this.hipsDX, hipsDX, 8, dt);
     // hit reaction (additive): lean back + head snap
     if (this.hitK > 0.001) {
       const h = this.hitK;
@@ -307,23 +327,28 @@ export class Character {
       L[i].rotation.set(C[o], C[o + 1], C[o + 2]);
     }
     L[BI.hips].position.y = this.rest[BI.hips].y + this.hipsDY;
+    L[BI.hips].position.x = this.rest[BI.hips].x + this.hipsDX;
     this.yawNode.rotation.y = this.yaw;
     this.tilt.rotation.z = this.tiltZ; this.tilt.position.y = this.tiltY;
     this._rigMatrices();
 
-    // ---- bow arms ----
-    const kA = this.aimBlend, ang = this._rigAngle(), yaw = this.yaw;
+    // ---- bow arms ----  IK whenever aiming (aimBlend) or in the ready stance (readyBlend)
+    const kA = Math.max(this.aimBlend, this.readyBlend), wAim = this.aimBlend / Math.max(1e-3, kA), yaw = this.yaw;
+    const readyAng = -0.1 + 0.04 * Math.sin(this.t * 1.1);
+    const ang = lerp(readyAng, this._rigAngle(), wAim);
+    const drawEff = lerp(0.12 + 0.03 * Math.sin(this.t * 2.1), this.draw, wAim);
+    const reachK = lerp(0.84, 0.96, wAim);
     // aim direction (holder xy plane) -> rig space (undo yaw)
     _d.set(Math.cos(ang), Math.sin(ang), 0).applyAxisAngle(YAXIS, -yaw);
     const aimDir = _v4.copy(_d); // careful: _v4 reused below — copy into locals
     const ax = aimDir.x, ay = aimDir.y, az = aimDir.z;
     const S = this._S.setFromMatrixPosition(this.rig[BI.upperArmL]);
     if (kA > 0.01) {
-      const reach = (this.rest[BI.foreArmL].length() + this.rest[BI.handL].length()) * 0.96;
+      const reach = (this.rest[BI.foreArmL].length() + this.rest[BI.handL].length()) * reachK;
       const T1 = this._t1.set(S.x + ax * reach, S.y + ay * reach, S.z + az * reach);
       this._pl.set(0, -1, -0.4);
       this._ik('upperArmL', 'foreArmL', T1, this._pl);
-      const stringX = -0.1 - (this.bow.drawLen ?? 0.6) * this.draw;
+      const stringX = -0.1 - (this.bow.drawLen ?? 0.6) * drawEff;
       const T2 = this._t2.set(T1.x + ax * stringX, T1.y + ay * stringX, T1.z + az * stringX + 0.05);
       this._pl.set(-ax, 0.6 - ay * 0.3, -0.5);
       this._ik('upperArmR', 'foreArmR', T2, this._pl);
@@ -340,8 +365,9 @@ export class Character {
     _qa.setFromAxisAngle(ZAXIS, ang); _q.setFromAxisAngle(YAXIS, -yaw); _qa.premultiply(_q);
     this.bowNode.quaternion.copy(_qc).slerp(_qa, kA);
     this.bowNode.position.copy(hand).addScaledVector(_d.set(ax, ay, az), 0.02 * kA);
-    const sx = -0.1 - (this.bow.drawLen ?? 0.6) * this.draw * kA;
+    const sx = -0.1 - (this.bow.drawLen ?? 0.6) * drawEff * kA;
     this.bow.setString(sx + (this.releaseT < 0.25 ? Math.sin(this.releaseT * 60) * 0.04 * (1 - this.releaseT * 4) : 0));
+    this.bow.setDraw?.(drawEff * kA);
     this.nock.position.set(sx + (this.bow.arrowLen ?? 1.0), 0, 0.0);
     this.nock.visible = kA > 0.5 && this.anim === 'aim';
     // ---- flash ----

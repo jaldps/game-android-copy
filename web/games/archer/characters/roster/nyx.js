@@ -16,14 +16,17 @@ export default {
   body: {
     ...vela.body,
     legLen: 1.12, thighLen: 0.52, shinLen: 0.52,
+    thighR: [0.13, 0.068], shinR: [0.07, 0.04], upperArmR: [0.056, 0.043], foreArmR: [0.045, 0.031], shoulderW: 0.215,
+    shape: { ...vela.body.shape, quad: 0.25, calf: 0.5 }, headR: 0.228,
     waistY: 1.36, shoulderY: 1.685, neckY: 1.77,
     torso: shift(vela.body.torso),
     extras: vela.body.extras.map(([b, p, r, c]) => [b, [p[0], p[1] + dy, p[2]], r, c]),
   },
-  face: { eyeSize: 0.23, eyeTall: 1.1, eyeSpread: 0.37, eyeY: 0.04, lashes: true, browThick: 0.24, browY: 1.8, browTilt: 0.14, chin: true, jawX: 0.64, jawY: 0.5, jawZ: 0.7 },
+  face: { eyeSize: 0.25, eyeTall: 1.08, eyeSpread: 0.37, eyeY: 0.02, lashes: true, browThick: 0.24, browY: 1.72, browTilt: 0.16, chin: true, jawX: 0.62, jawY: 0.52, jawZ: 0.7, nose: 0.8, smirk: 0.2 },
   build(ctx) {
     const { B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
-    const shade = (y) => (y > hy + R * 0.7 ? C.hair2 : C.hair);
+    // toon gloss band across the crown so the near-black hair reads as a shape, not a hole
+    const shade = (x, y) => { const b = Math.abs(y - (hy + R * 0.5 - 0.15 * Math.abs(x - hx))); return b < R * 0.08 ? C.streak : b < R * 0.2 || y > hy + R * 0.7 ? C.hair2 : C.hair; };
     // crown volume (big hair)
     let g = ball(R * 1.18, R * 1.14, R * 1.16, 20); g.translate(hx, hy + R * 0.2, hz - R * 0.16); ctx.add('head', g, shade, { rough: 0.4 });
     for (const s of [1, -1]) {
