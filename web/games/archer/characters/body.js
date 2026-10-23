@@ -2,7 +2,7 @@
 // buildBody(rig, def, colors) builds skin body parts from def.body proportions. Outfits then add clothing shells via the
 // ctx helpers (torsoShell / limbShell / ...). Everything is built in RIG space (bind pose, facing +Z, left = +X).
 import * as THREE from 'three';
-import { ball, box, tube, torus, blade, xf, tint, mix } from './parts.js';
+import { ball, box, tube, torus, blade, dome, xf, tint, mix } from './parts.js';
 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -194,7 +194,7 @@ export function buildHead(ctx, F = {}) {
       if (d < 0.32) c = mix(c, blush, (1 - d / 0.32) * (fem ? 0.5 : 0.3));
     }
     // painted stubble along the jaw (C.stubble), leaving a clean band around the mouth
-    if (C.stubble != null && y < hy - R * 0.32 && (y < hy - R * 0.74 || Math.abs(x - hx) > R * 0.3 || y > hy - R * 0.4)) c = mix(c, C.stubble, y < hy - R * 0.4 ? 0.55 : 0.3);
+    if (C.stubble != null && y < hy - R * 0.32 && (y < hy - R * 0.74 || Math.abs(x - hx) > R * 0.3 || y > hy - R * 0.4)) c = mix(c, C.stubble, y < hy - R * 0.4 ? 0.32 : 0.18);
     return c;
   };
   // skull + jaw + chin
@@ -205,7 +205,7 @@ export function buildHead(ctx, F = {}) {
   for (const s of [1, -1]) { g = ball(R * 0.14, R * 0.25, R * 0.11, 10); g.translate(hx + s * R * 0.9, hy - R * 0.1, hz - R * 0.05); add(g, tint(C.skin, 0.95)); }
   // nose: bridge + rounded tip, shaded underside
   const nk = F.nose ?? 1;
-  g = ball(R * 0.12 * nk, R * 0.15 * nk, R * 0.13 * nk, 12); g.translate(hx, hy - R * 0.22, ctx.faceZ(hx, hy - R * 0.22) + R * 0.02 * nk);
+  g = ball(R * 0.12 * nk, R * 0.15 * nk, R * 0.13 * nk, 12); g.translate(hx, hy - R * 0.22, ctx.faceZ(hx, hy - R * 0.22) - R * 0.04);
   add(g, (x, y) => (y < hy - R * 0.3 ? tint(C.skin, 0.86) : tint(C.skin, 1.04)), NO_LINE);
   g = ball(R * 0.055 * nk, R * 0.16, R * 0.06, 8); g.translate(hx, hy - R * 0.06, ctx.faceZ(hx, hy - R * 0.06) - R * 0.02); add(g, tint(C.skin, 1.03), NO_LINE);
   // eyes
@@ -213,17 +213,18 @@ export function buildHead(ctx, F = {}) {
   const iris = C.eyes, irisD = tint(iris, 0.5), lash = F.lashColor ?? 0x1c0f1a;
   for (const s of [1, -1]) {
     const ex = hx + s * R * (F.eyeSpread ?? 0.36), ez = ctx.faceZ(ex, ey), yaw = s * Math.asin(Math.min(0.9, (ex - hx) / (R * 0.95))) * 0.7;
-    const put = (geo, lx, ly, lz) => xf(geo.translate(lx, ly, lz), [ex, ey, ez - es * 0.2], [0, yaw, 0]);
+    const put = (geo, lx, ly, lz) => xf(geo.translate(lx, ly, lz), [ex, ey, ez - es * 0.18], [0, yaw, 0]);
     const ix = -s * es * 0.05;     // irises look slightly inward/forward
-    add(put(ball(es * 0.92, es * tall, es * 0.5, 16), 0, 0, 0), 0xfbfbff, { rough: 0.25, outline: 0.4 });
-    add(put(ball(es * 0.64, es * 0.76 * tall, es * 0.3, 14), ix, -es * 0.06, es * 0.25), (x, y) => (y > ey + es * 0.22 ? irisD : y < ey - es * 0.42 ? tint(iris, 1.3) : iris), { rough: 0.15, outline: 0 });
-    add(put(ball(es * 0.3, es * 0.42 * tall, es * 0.17, 10), ix, -es * 0.04, es * 0.42), 0x0a0810, { rough: 0.1, outline: 0 });
-    add(put(ball(es * 0.18, es * 0.2, es * 0.08, 8), ix + es * 0.2, es * 0.24, es * 0.56), 0xffffff, { rough: 0.1, emissive: 1.0, outline: 0 });
-    add(put(ball(es * 0.08, es * 0.08, es * 0.05, 6), ix - es * 0.18, -es * 0.3, es * 0.52), 0xffffff, { rough: 0.1, emissive: 0.8, outline: 0 });
+    // eye white sits almost flush with the skin (front ~0.14 es proud), iris/pupil/glints layered just in front of it
+    add(put(ball(es * 0.92, es * tall, es * 0.34, 16), 0, 0, 0), 0xfbfbff, { rough: 0.25, outline: 0.35 });
+    add(put(ball(es * 0.64, es * 0.76 * tall, es * 0.2, 14), ix, -es * 0.06, es * 0.17), (x, y) => (y > ey + es * 0.22 ? irisD : y < ey - es * 0.42 ? tint(iris, 1.3) : iris), { rough: 0.15, outline: 0 });
+    add(put(ball(es * 0.3, es * 0.42 * tall, es * 0.12, 10), ix, -es * 0.04, es * 0.27), 0x0a0810, { rough: 0.1, outline: 0 });
+    add(put(ball(es * 0.18, es * 0.2, es * 0.06, 8), ix + es * 0.2, es * 0.24, es * 0.33), 0xffffff, { rough: 0.1, emissive: 1.0, outline: 0 });
+    add(put(ball(es * 0.08, es * 0.08, es * 0.04, 6), ix - es * 0.18, -es * 0.3, es * 0.31), 0xffffff, { rough: 0.1, emissive: 0.8, outline: 0 });
     // upper lid / lash line hugging the top of the eye (thicker and winged for the women)
     const lt = es * (fem ? 0.2 : 0.14);
-    g = torus(es * 0.88, lt, 22, 6, Math.PI); g.scale(1, tall * 0.98, 0.75); add(put(g, 0, es * 0.04, es * 0.18), lash, { rough: 0.5, outline: 0 });
-    if (fem) { g = blade(es * 0.5, es * 0.2, es * 0.08, 0); xf(g, null, [0, 0, -s * 1.05]); add(put(g, s * es * 0.8, es * 0.38, es * 0.16), lash, NO_LINE); }
+    g = torus(es * 0.88, lt, 22, 6, Math.PI); g.scale(1, tall * 0.98, 0.6); add(put(g, 0, es * 0.04, es * 0.1), lash, { rough: 0.5, outline: 0 });
+    if (fem) { g = blade(es * 0.5, es * 0.2, es * 0.08, 0); xf(g, null, [0, 0, -s * 1.05]); add(put(g, s * es * 0.8, es * 0.38, es * 0.08), lash, NO_LINE); }
     // brow: tapered tube, thick at the inner end, sitting on the forehead surface
     const bt = es * (F.browThick ?? 0.38), by = ey + es * (F.browY ?? 1.55), tl = F.browTilt ?? -0.18, pts = [];
     for (const u of [-0.9, 0.05, 1.0]) { const bx = ex + s * u * es * 1.05, yy = by + u * tl * es * 1.0 + (Math.abs(u) < 0.5 ? es * 0.12 : 0); pts.push([bx, yy, ctx.faceZ(bx, yy) + bt * 0.15]); }
@@ -242,6 +243,16 @@ export function buildHead(ctx, F = {}) {
   } else {
     arc(mw * 1.5, R * 0.032, 1.2, 0x5a2a28, my - R * 0.05, mz + R * 0.01);
   }
+}
+
+/** Clean hair cap: a dome over the skull, slightly inflated (no shallow sphere-sphere intersection = no jagged
+ *  hairline), tilted back so the front edge sits on the forehead and the back covers the nape.
+ *  o: { inflate=1.07, cover=1.45 (rad from the crown), tilt=-0.5, front=0 (extra forward shift) } */
+export function hairCap(ctx, color, o = {}) {
+  const { B } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR, F = ctx.F ?? {}, k = o.inflate ?? 1.07;
+  const g = dome(R * (F.skullX ?? 0.92) * k, R * (F.skullY ?? 1.0) * k, R * (F.skullZ ?? 0.98) * k, o.cover ?? 1.45, 28);
+  xf(g, [hx, hy + R * 0.02, hz + R * (o.front ?? 0)], [o.tilt ?? -0.5, 0, 0]);
+  return ctx.add('head', g, color, { rough: o.rough ?? 0.45 });
 }
 
 /** Recurve bow. Returns { group, setString(x), setDraw(k), drawLen, arrowLen, dispose }. Bow-local: grip at origin,

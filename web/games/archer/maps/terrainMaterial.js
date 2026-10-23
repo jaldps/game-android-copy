@@ -108,7 +108,15 @@ export function createTerrainMaterial(palette = {}) {
             col = mix(sc, col, 0.3); tH = tH * 0.4 + seam * 0.45;
           }
           col = mix(col, u_deep, smoothstep(0.8, 3.0, depth) * 0.7);
-          if (isLava()) {                       // molten veins between the basalt cells, hotter with depth
+          if (isLava()) {                       // chunky columnar basalt: vertical prisms with dark seams and lit faces
+            float cxp = p.x / 1.15 + (vn(vec2(p.y * 0.12, 2.0)) - 0.5) * 0.7; float cid = floor(cxp), cf = fract(cxp);
+            float cseam = smoothstep(0.0, 0.08, cf) * smoothstep(1.0, 0.9, cf);
+            float facet = mix(0.78, 1.12, smoothstep(0.1, 0.9, cf)) * (0.86 + 0.24 * h12(vec2(cid, 5.0)));
+            float joint = smoothstep(0.0, 0.05, abs(fract(p.y / (1.6 + h12(vec2(cid, 8.0)) * 1.4) + h12(vec2(cid, 3.0))) - 0.5) - 0.44);
+            float colK = smoothstep(0.5, 1.2, depth);
+            col = mix(col, col * facet * mix(0.45, 1.0, cseam) * mix(1.0, 0.7, joint), colK);
+            tH = mix(tH, cseam * 0.7 + (1.0 - joint) * 0.2 + cf * 0.25, colK);
+            // molten veins between the basalt cells, hotter with depth
             float vein = (1.0 - smoothstep(0.0, 0.06, c.y)) * smoothstep(0.7, 2.2, depth) * (1.0 - clay * 0.6);
             float pulse = 0.75 + 0.35 * sin(uTime * 1.6 + p.x * 0.6 + p.y * 0.9);
             col = mix(col, u_glow * 0.7, vein * 0.6); tEmit += u_glow * vein * pulse * 1.3;
@@ -122,7 +130,7 @@ export function createTerrainMaterial(palette = {}) {
           float m = smoothstep(0.035, 0.075, e);
           col = mix(u_mortar, col, m);
           tH = m * (0.7 + 0.3 * smoothstep(0.0, 0.35, e)) - vn(p * 6.0) * 0.12 * m;
-          if (isCity() && depth > 0.55) col = windows(p, col, 7.0);
+          // (no stamped window squares on playable brick: they read as z-fighting decals; facades live in the backdrop)
           if (isLava()) { float hot = smoothstep(0.06, 0.0, e) * smoothstep(1.2, 2.8, depth); tEmit += u_glow * hot * 0.9; }
           return mix(col, col * 0.62, smoothstep(0.8, 3.0, depth) * 0.6); }
         vec3 woodCol(vec2 p){
@@ -234,7 +242,14 @@ export function createTerrainMaterial(palette = {}) {
               if (isLava()) tEmit += u_glow * rim * 0.9;                            // molten crust lips
             }
           }
-          if (isLava()) tEmit += u_glow * 0.3 * smoothstep(-2.0, -9.0, vW.y) * (0.6 + 0.4 * smoothstep(0.2, -0.6, N.y)); // lava bounce light
+          if (isLava()) {
+            tEmit += u_glow * 0.3 * smoothstep(-2.0, -9.0, vW.y) * (0.6 + 0.4 * smoothstep(0.2, -0.6, N.y)); // lava bounce light
+            // glowing lava rim where the rock meets the lake: molten band + licking flames up the cliff
+            float lick = 1.2 + 0.9 * vn(vec2(p.x * 0.9, uTime * 0.8)) + 0.4 * sin(p.x * 2.3 + uTime * 2.0);
+            float rim = smoothstep(-9.3 + lick, -9.3, vW.y);
+            col = mix(col, mix(u_glow, vec3(1.0, 0.85, 0.35), rim * rim), rim * 0.85);
+            tEmit += mix(u_glow, vec3(1.0, 0.82, 0.3), rim) * rim * (1.3 + 0.3 * sin(uTime * 3.0 + p.x));
+          }
           if (m > 2.5 && m < 3.5) tRough = 0.35;
           if (m > 3.5 && m < 4.5) tRough = 0.55;
           diffuseColor.rgb = col;
@@ -250,7 +265,7 @@ export function createTerrainMaterial(palette = {}) {
           normal = normalize(abs(det) * normal - g);
         }`);
   };
-  mat.customProgramCacheKey = () => 'archer-terrain-v3';
+  mat.customProgramCacheKey = () => 'archer-terrain-v4';
   mat.userData.uniforms = u;
   return mat;
 }

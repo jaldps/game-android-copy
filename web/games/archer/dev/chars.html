@@ -45,7 +45,25 @@ if (q.get('close')) { const d = Math.max(3.2, W * 0.62 / aspect / 0.2309 / 2 * 0
 else if (rows > 1) { cam.position.set(0, 6.5, 13 + rows * 2.2); cam.lookAt(0, 0.9, -2.4); }
 else { const d = Math.max(7.5, W / (2 * 0.2309 * aspect)); cam.position.set(0, 1.6, d); cam.lookAt(0, 1.2, 0); }
 window.__chars = { list, stats: cells.map(([d, o]) => ({ id: d.id, outfit: o?.id, ...computeStats(d, o) })) };
+// ?close=1: one head-and-shoulders viewport per hero (grid), each camera aimed at that hero's head
+const closeCams = q.get('close') ? list.map(() => new THREE.PerspectiveCamera(22, 1, 0.1, 50)) : null;
+if (closeCams) { lbl.style.display = 'none'; r.setScissorTest(true); }
+const _h = new THREE.Vector3();
 let last = performance.now();
-function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; for (const ch of list) ch.update(dt); r.render(s, cam); requestAnimationFrame(loop); }
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; for (const ch of list) ch.update(dt);
+  if (!closeCams) r.render(s, cam);
+  else {
+    const n = list.length, gc = n > 4 ? Math.ceil(n / 2) : n, gr = Math.ceil(n / gc), W2 = innerWidth / gc, H2 = innerHeight / gr;
+    list.forEach((ch, i) => {
+      const c2 = closeCams[i], x = (i % gc) * W2, y = innerHeight - (Math.floor(i / gc) + 1) * H2;
+      ch.root.updateMatrixWorld(true); ch.bones.head.getWorldPosition(_h);
+      c2.aspect = W2 / H2; c2.updateProjectionMatrix();
+      c2.position.set(_h.x + 0.5, _h.y + 0.35, _h.z + 2.9); c2.lookAt(_h.x, _h.y + 0.12, _h.z);
+      r.setViewport(x, y, W2, H2); r.setScissor(x, y, W2, H2); r.render(s, c2);
+    });
+  }
+  requestAnimationFrame(loop);
+}
 requestAnimationFrame(loop);
 </script></body></html>

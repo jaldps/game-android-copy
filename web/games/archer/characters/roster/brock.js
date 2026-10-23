@@ -1,6 +1,7 @@
 // Brock — Gym-Bro Marksman (male). Hugely muscular V-taper: boulder shoulders, slabs of pec, big arms with a real
 // bicep/forearm belly, trap mounds up to the ears, square stubbled jaw, textured quiff. Owner: Characters specialist.
 import { ball, blade, xf, tint, mix } from '../parts.js';
+import { hairCap } from "../body.js";
 
 export default {
   id: 'brock', name: 'Brock', title: 'Gym-Bro Marksman', gender: 'm', price: 0,
@@ -34,8 +35,7 @@ export default {
     const { B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
     // short faded sides (painted onto a snug cap) + a textured quiff swept up at the front
     const fade = (x, y, z) => (y > hy + R * 0.45 ? C.hair : mix(C.skin, C.hair, 0.55 + 0.45 * Math.max(0, (y - hy + R * 0.1) / (R * 0.55))));
-    let g = ball(R * 0.97, R * 0.86, R * 1.0, 24); g.translate(hx, hy + R * 0.16, hz - R * 0.05);
-    ctx.add('head', g, (x, y, z) => (z > hz + R * 0.55 && y < hy + R * 0.62 ? C.skin : fade(x, y, z)), { rough: 0.8 });
+    let g = null; hairCap(ctx, fade, { inflate: 1.04, cover: 1.5, tilt: -0.42, rough: 0.8 });
     if (!C.hatOn) {
       g = ball(R * 0.9, R * 0.42, R * 0.92, 22); g.translate(hx, hy + R * 0.78, hz - R * 0.02); ctx.add('head', g, (x, y) => (y > hy + R * 1.0 ? C.hair2 : C.hair), { rough: 0.7 });
       for (let i = 0; i < 5; i++) {

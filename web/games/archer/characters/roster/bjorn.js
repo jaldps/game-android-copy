@@ -12,18 +12,19 @@ export default {
   scale: 1.22,
   body: {
     legLen: 0.9, hipW: 0.14, thighLen: 0.42, shinLen: 0.4,
-    thighR: [0.165, 0.112], shinR: [0.108, 0.076], calf: 0.092,
+    thighR: [0.168, 0.108], shinR: [0.11, 0.072],
     footL: 0.29, footW: 0.135, footH: 0.115,
     waistY: 1.2, shoulderY: 1.52, shoulderW: 0.37, neckY: 1.62, neckLen: 0.06, neckR: 0.115,
-    upperArm: 0.32, foreArm: 0.3, upperArmR: [0.112, 0.09], foreArmR: [0.097, 0.072], deltR: 0.135, bicep: [0.082, 0.1, 0.088], handR: 0.075,
-    headR: 0.2, bodyR: 0.33,
+    upperArm: 0.32, foreArm: 0.3, upperArmR: [0.124, 0.094], foreArmR: [0.108, 0.07], deltR: 0.15, handR: 0.084,
+    shape: { bicep: 0.65, tricep: 0.5, fore: 0.7, quad: 0.6, ham: 0.45, calf: 0.7, knee: 0.1 },   // barrel-chested strongman
+    headR: 0.232, bodyR: 0.34,
     torso: [
       [0.8, 0.1, 0.08, 0], [0.87, 0.22, 0.17, 0], [0.96, 0.26, 0.2, 0.02], [1.06, 0.28, 0.23, 0.05], [1.16, 0.285, 0.235, 0.06],
-      [1.26, 0.29, 0.222, 0.05], [1.36, 0.32, 0.212, 0.04], [1.45, 0.345, 0.2, 0.02], [1.52, 0.33, 0.182, 0], [1.58, 0.25, 0.15, -0.02], [1.64, 0.13, 0.115, -0.01],
+      [1.26, 0.3, 0.24, 0.055], [1.36, 0.335, 0.255, 0.06], [1.45, 0.36, 0.24, 0.04], [1.52, 0.345, 0.205, 0.01], [1.58, 0.25, 0.15, -0.02], [1.64, 0.13, 0.115, -0.01],
     ],
     extras: [['torso', [0.15, 1.585, -0.03], [0.15, 0.08, 0.12], 'skin'], ['torso', [-0.15, 1.585, -0.03], [0.15, 0.08, 0.12], 'skin']],
   },
-  face: { eyeSize: 0.165, eyeTall: 0.95, eyeSpread: 0.38, eyeY: 0.12, browThick: 0.75, browY: 1.25, browTilt: -0.12, jawX: 0.86, jawY: 0.6, jawZ: 0.8, chin: false, mouthW: 0.4, smirk: 0.05 },
+  face: { eyeSize: 0.2, eyeTall: 0.98, eyeSpread: 0.38, eyeY: 0.12, browThick: 0.7, browY: 1.3, browTilt: -0.14, mouth: false, nose: 1.4, jawX: 0.86, jawY: 0.6, jawZ: 0.8, chin: false, mouthW: 0.4, smirk: 0.05 },
   build(ctx) {
     const { B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
     const streak = (x, y, z) => tint(Math.sin(x * 140 + z * 40) > 0.2 ? C.hair : C.hair2, 1 + 0.08 * Math.sin(y * 90));

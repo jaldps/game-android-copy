@@ -1,6 +1,7 @@
 // Sahra — Dune Ranger (female). Athletic hourglass desert scout: high swinging ponytail with gold cuffs, brass goggles,
 // teal eyes. Owner: Characters specialist.
 import { ball, blade, torus, tube, cyl, xf } from '../parts.js';
+import { hairCap } from "../body.js";
 import vela from './vela.js';
 
 const dy = 0.02;
@@ -28,8 +29,7 @@ export default {
   build(ctx) {
     const { B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
     // sleek pulled-back hair
-    let g = ball(R * 1.05, R * 1.02, R * 1.07, 20); g.translate(hx, hy + R * 0.14, hz - R * 0.1);
-    ctx.add('head', g, (x, y, z) => (Math.sin(x * 160) > 0.6 ? C.hair2 : C.hair), { rough: 0.35 });
+    let g = null; hairCap(ctx, (x, y, z) => (Math.sin(x * 160) > 0.6 ? C.hair2 : C.hair), { cover: 1.55, tilt: -0.5, rough: 0.35 });
     for (const s of [1, -1]) {   // face-framing locks
       g = blade(R * 1.2, R * 0.28, R * 0.14, 0.15); xf(g, [hx + s * R * 0.7, hy + R * 0.55, hz + R * 0.42], [Math.PI - 0.12, 0, s * 0.18]); ctx.add('head', g, C.hair, { rough: 0.35 });
     }

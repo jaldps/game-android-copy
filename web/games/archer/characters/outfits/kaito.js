@@ -5,7 +5,9 @@ import { GOLD, skirt, latheAt, hatProfile, straw } from './kit.js';
 /** Lower-face cloth mask. */
 function mask(ctx, color) {
   const { B } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
-  ctx.add('head', xf(ball(R * 0.97, R * 0.62, R * 0.93, 18), [hx, hy - R * 0.47, hz + R * 0.08]), (x, y) => tint(color, 0.9 + 0.2 * Math.max(0, (y - hy + R) / R)), { rough: 0.7 });
+  // snug to the jaw (the nose tip pushes a little bump through it), with horizontal cloth folds
+  ctx.add('head', xf(ball(R * 0.87, R * 0.56, R * 0.88, 22), [hx, hy - R * 0.5, hz + R * 0.07]),
+    (x, y) => tint(color, (0.86 + 0.2 * Math.max(0, (y - hy + R) / R)) * (Math.sin(y * 260) > 0.7 ? 0.85 : 1)), { rough: 0.7 });
 }
 /** Ninjato across the back, hilt over the right shoulder. */
 function sword(ctx, wrap) {
