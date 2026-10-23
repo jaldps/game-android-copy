@@ -6,7 +6,7 @@ export const DEPTH = { front: 2.6, back: -2.6, bevel: 0.1 }; // terrain extrusio
 
 export const PHYS = {
   gravity: 24,            // world units / s^2
-  maxSpeed: 44,           // launch speed at power 100
+  maxSpeed: 54,           // launch speed at power 100 (flat range ~121, enough to cross the widest arena)
   windAccel: 0.34,        // acceleration per wind unit for a mass-1 arrow
   substep: 1 / 240,       // projectile integration step
   maxFlight: 9,           // seconds before a projectile is culled
