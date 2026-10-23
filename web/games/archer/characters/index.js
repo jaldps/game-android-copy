@@ -6,12 +6,16 @@
 //   createCharacter(def, outfit) -> Character (see rig.js for the runtime API)
 import vela from './roster/vela.js';
 import brock from './roster/brock.js';
+import nyx from './roster/nyx.js';
+import kaito from './roster/kaito.js';
+import sahra from './roster/sahra.js';
+import bjorn from './roster/bjorn.js';
 import { OUTFITS } from './outfits.js';
 import { PERK_TYPES, computeStats } from './perks.js';
 import { RigBuilder, Character, createCharacterMaterial } from './rig.js';
 import { makeCtx, buildBody, buildHead, buildBow } from './body.js';
 
-export const CHARACTERS = [vela, brock];
+export const CHARACTERS = [vela, brock, nyx, kaito, sahra, bjorn];   // 3 female, 3 male; order = menu/shop order
 export { OUTFITS, PERK_TYPES, computeStats };
 export const getCharacter = (id) => CHARACTERS.find((c) => c.id === id) ?? CHARACTERS[0];
 export const getOutfit = (id) => OUTFITS[id] ?? null;

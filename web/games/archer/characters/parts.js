@@ -68,3 +68,38 @@ export function mirrorX(g) {
   else { const pos = g.attributes.position, n = g.attributes.normal; for (let i = 0; i < pos.count; i += 3) for (const at of [pos, n]) { if (!at) continue; for (let c = 0; c < at.itemSize; c++) { const v1 = at.getComponent(i + 1, c); at.setComponent(i + 1, c, at.getComponent(i + 2, c)); at.setComponent(i + 2, c, v1); } } }
   return g;
 }
+
+/** Partial sphere cap (top `theta` radians from the pole), scaled to rx/ry/rz. Open at the rim. */
+export function dome(rx, ry = rx, rz = rx, theta = Math.PI / 2, seg = 20) {
+  const g = new THREE.SphereGeometry(1, seg, Math.max(6, Math.round(seg * 0.5)), 0, Math.PI * 2, 0, theta); g.scale(rx, ry, rz); return g;
+}
+
+/**
+ * Hanging cloth panel (cape, tabard, scarf tail, loincloth): top edge centred at the origin, hangs along -Y.
+ * Width w0 at the top -> w1 at the bottom, thickness `thick`; `curl` wraps the side edges toward +Z (around a body),
+ * `flare` swings the lower part toward -Z (billowing back). Rotate/translate with xf().
+ */
+export function drape(w0, w1, len, thick = 0.02, curl = 0, flare = 0, segX = 8, segY = 10) {
+  const g = new THREE.BoxGeometry(1, 1, 1, segX, segY, 1), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), t = 0.5 - y, w = w0 + (w1 - w0) * t;
+    p.setXYZ(i, x * w, -t * len, z * thick + curl * 4 * x * x * w - flare * t * t * len);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+// ---- procedural colour helpers (vertex colours stand in for textures) ----
+const cl = (v) => (v < 0 ? 0 : v > 255 ? 255 : v | 0);
+/** Brightness-scale a 0xRRGGBB colour. */
+export function tint(hex, k) { return (cl(((hex >> 16) & 255) * k) << 16) | (cl(((hex >> 8) & 255) * k) << 8) | cl((hex & 255) * k); }
+/** Mix two hex colours. */
+export function mix(a, b, t) { const f = (s) => cl(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t); return (f(16) << 16) | (f(8) << 8) | f(0); }
+/** Woven-cloth look: soft brightness ripple. */
+export const fabric = (hex, amp = 0.07, fr = 38) => (x, y, z) => tint(hex, 1 + amp * Math.sin(x * fr + y * fr * 1.3) * Math.sin(z * fr * 0.9 - y * fr * 0.7));
+/** Vertical gradient (k0 at y0 .. k1 at y1) — fakes occlusion / sheen on long garments. */
+export const vgrad = (hex, y0, y1, k0 = 0.78, k1 = 1.08) => (x, y) => tint(hex, k0 + (k1 - k0) * Math.min(1, Math.max(0, (y - y0) / (y1 - y0))));
+/** Horizontal stripes of two colours (period p, duty d). */
+export const stripes = (a, b, p = 0.08, d = 0.5) => (x, y) => ((((y / p) % 1) + 1) % 1 < d ? a : b);
+/** Chainmail / scale pattern. */
+export const mail = (hex) => (x, y, z) => tint(hex, 0.86 + 0.2 * Math.sin(y * 160) * Math.sin(x * 140 + z * 140));

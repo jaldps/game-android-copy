@@ -1,30 +1,50 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Character Viewer</title>
+<title>Character Viewer</title><link rel="icon" href="data:,">
 <script type="importmap">{"imports":{"three":"../../../lib/three.module.js","three/addons/":"../../../lib/addons/"}}</script>
-<style>html,body{margin:0;height:100%;background:#8ec9ee;overflow:hidden}canvas{display:block;width:100%;height:100%}</style></head>
-<body><canvas id="c"></canvas>
+<style>html,body{margin:0;height:100%;background:#8ec9ee;overflow:hidden;font:12px sans-serif}canvas{display:block;width:100%;height:100%}
+#lbl{position:fixed;left:0;right:0;bottom:6px;display:flex;justify-content:space-around;color:#123;font-weight:700;pointer-events:none}</style></head>
+<body><canvas id="c"></canvas><div id="lbl"></div>
 <script type="module">
-// Dev-only character turntable for the Characters specialist: ?anim=idle|walk|aim|victory|defeat|dead|fall&angle=40&draw=1&yaw=0.95
+// Dev-only character viewer for the Characters specialist.
+//   ?anim=idle|pose|walk|aim|release|hit|fall|victory|defeat|dead  &angle=40  &draw=1
+//   (default)        one hero per column, their first outfit (?o=1|2 picks another outfit index)
+//   ?char=kaito      all outfits of one hero        ?all=1  every outfit: columns = heroes, rows = outfit index
+//   ?anims=aim,walk,dead  per-column animation list
+//   ?close=1         head-and-shoulders close-up    ?face=1 all columns face the camera (+x) instead of alternating
 import * as THREE from 'three';
-import { CHARACTERS, OUTFITS, createCharacter } from '../characters/index.js';
+import { CHARACTERS, outfitsFor, createCharacter, computeStats } from '../characters/index.js';
 const q = new URLSearchParams(location.search);
 const r = new THREE.WebGLRenderer({ canvas: c, antialias: true }); r.setPixelRatio(Math.min(2, devicePixelRatio)); r.setSize(innerWidth, innerHeight, false);
 r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true;
-const s = new THREE.Scene(); s.background = new THREE.Color(0x8ec9ee); { const pm = new THREE.PMREMGenerator(r); s.environment = pm.fromScene(new (await import("three/addons/environments/RoomEnvironment.js")).RoomEnvironment(), 0.04).texture; s.environmentIntensity = 0.5; }
-const cam = new THREE.PerspectiveCamera(26, innerWidth / innerHeight, 0.1, 100); cam.position.set(0, 1.6, 13); cam.lookAt(0, 1.1, 0);
+const s = new THREE.Scene(); s.background = new THREE.Color(0x8ec9ee); { const pm = new THREE.PMREMGenerator(r); s.environment = pm.fromScene(new (await import('three/addons/environments/RoomEnvironment.js')).RoomEnvironment(), 0.04).texture; s.environmentIntensity = 0.5; }
 s.add(new THREE.HemisphereLight(0xcfe6ff, 0xb0906a, 1.1));
-const sun = new THREE.DirectionalLight(0xffe0b0, 3.2); sun.position.set(-4, 8, 6); sun.castShadow = true; s.add(sun);
-const ground = new THREE.Mesh(new THREE.CircleGeometry(8, 32), new THREE.MeshStandardMaterial({ color: 0x7cc35a })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
+const sun = new THREE.DirectionalLight(0xffe0b0, 3.2); sun.position.set(-4, 8, 6); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12 }); s.add(sun);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(20, 48), new THREE.MeshStandardMaterial({ color: 0x7cc35a })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
+
+const anim = q.get('anim') || 'idle', angDeg = +(q.get('angle') || 35), draw = +(q.get('draw') || 1);
+const cells = [];   // [def, outfit, col, row]
+if (q.get('char')) { const d = CHARACTERS.find((x) => x.id === q.get('char')) ?? CHARACTERS[0]; outfitsFor(d.id).forEach((o, i) => cells.push([d, o, i, 0])); }
+else if (q.get('all')) CHARACTERS.forEach((d, i) => outfitsFor(d.id).forEach((o, j) => cells.push([d, o, i, j])));
+else { const k = +(q.get('o') || 0); CHARACTERS.forEach((d, i) => { const os = outfitsFor(d.id); cells.push([d, os[Math.min(k, os.length - 1)], i, 0]); }); }
+const cols = Math.max(...cells.map((x) => x[2])) + 1, rows = Math.max(...cells.map((x) => x[3])) + 1, SP = cols > 4 ? 1.75 : 2.2;
 const list = [];
-const outs = Object.values(OUTFITS);
-outs.forEach((o, i) => {
-  const ch = createCharacter(CHARACTERS.find((d) => d.id === o.char), o);
-  ch.root.position.set((i - (outs.length - 1) / 2) * 2.1, 0, 0);
-  ch.setFacing(i % 2 ? -1 : 1); ch.root.scale.multiplyScalar(1);
-  ch.setAnim(q.get('anim') || 'idle'); ch.setAim((+(q.get('angle') || 35)) * Math.PI / 180 * 1 + (i % 2 ? Math.PI - 2 * (+(q.get('angle') || 35)) * Math.PI / 180 : 0), +(q.get('draw') || 1));
+for (const [d, o, ci, ri] of cells) {
+  const ch = createCharacter(d, o);
+  ch.root.position.set((ci - (cols - 1) / 2) * SP + ri * 0.35, 0, -ri * 2.4);
+  const f = q.get('face') ? 1 : (ci % 2 ? -1 : 1);
+  const al = q.get('anims')?.split(','); ch.setFacing(f); ch.setAnim(al ? al[ci % al.length] : anim);
+  const a = angDeg * Math.PI / 180; ch.setAim(f > 0 ? a : Math.PI - a, draw);
   s.add(ch.root); list.push(ch);
-});
+}
+lbl.innerHTML = rows === 1 ? cells.map(([d, o]) => `<span>${d.name} · ${o?.name ?? '-'}</span>`).join('') : '';
+const W = cols * SP + 0.6, aspect = innerWidth / innerHeight;
+const cam = new THREE.PerspectiveCamera(26, aspect, 0.1, 200);
+if (q.get('close')) { const d = Math.max(3.2, W * 0.62 / aspect / 0.2309 / 2 * 0.9); cam.position.set(0, 2.45, d); cam.lookAt(0, 2.25, 0); }
+else if (rows > 1) { cam.position.set(0, 6.5, 13 + rows * 2.2); cam.lookAt(0, 0.9, -2.4); }
+else { const d = Math.max(7.5, W / (2 * 0.2309 * aspect)); cam.position.set(0, 1.6, d); cam.lookAt(0, 1.2, 0); }
+window.__chars = { list, stats: cells.map(([d, o]) => ({ id: d.id, outfit: o?.id, ...computeStats(d, o) })) };
 let last = performance.now();
 function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; for (const ch of list) ch.update(dt); r.render(s, cam); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);

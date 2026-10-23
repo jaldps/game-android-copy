@@ -1,0 +1,57 @@
+// Bjorn — Stormbeard (male). Barrel-chested viking: huge braided ginger beard, rosy cheeks, short sturdy legs.
+// Owner: Characters specialist.
+import { ball, blade, torus, tube, xf, tint } from '../parts.js';
+
+export default {
+  id: 'bjorn', name: 'Bjorn', title: 'Stormbeard', gender: 'm', price: 1800,
+  blurb: 'Built like a longship. Laughs at crosswinds.',
+  stats: { hp: 118, move: 0.88, windResist: 0.15, drawSpeed: 0.92 },
+  palette: { skin: 0xf2b48c, hair: 0xe0862a, hair2: 0xffb648, eyes: 0x3a8ad8, brow: 0xc0641a, cheek: 0xf28a7a, braid: 0xf2c14e },
+  outfits: ['bjorn_raider', 'bjorn_skald', 'bjorn_beach'],
+  bow: { wood: 0x5a3a22, trim: 0xc8d2de, grip: 0x8a2a1e, length: 0.66 },
+  scale: 1.22,
+  body: {
+    legLen: 0.9, hipW: 0.14, thighLen: 0.42, shinLen: 0.4,
+    thighR: [0.165, 0.112], shinR: [0.108, 0.076], calf: 0.092,
+    footL: 0.29, footW: 0.135, footH: 0.115,
+    waistY: 1.2, shoulderY: 1.52, shoulderW: 0.37, neckY: 1.62, neckLen: 0.06, neckR: 0.115,
+    upperArm: 0.32, foreArm: 0.3, upperArmR: [0.112, 0.09], foreArmR: [0.097, 0.072], deltR: 0.135, bicep: [0.082, 0.1, 0.088], handR: 0.075,
+    headR: 0.2, bodyR: 0.33,
+    torso: [
+      [0.8, 0.1, 0.08, 0], [0.87, 0.22, 0.17, 0], [0.96, 0.26, 0.2, 0.02], [1.06, 0.28, 0.23, 0.05], [1.16, 0.285, 0.235, 0.06],
+      [1.26, 0.29, 0.222, 0.05], [1.36, 0.32, 0.212, 0.04], [1.45, 0.345, 0.2, 0.02], [1.52, 0.33, 0.182, 0], [1.58, 0.25, 0.15, -0.02], [1.64, 0.13, 0.115, -0.01],
+    ],
+    extras: [['torso', [0.15, 1.585, -0.03], [0.15, 0.08, 0.12], 'skin'], ['torso', [-0.15, 1.585, -0.03], [0.15, 0.08, 0.12], 'skin']],
+  },
+  face: { eyeSize: 0.165, eyeTall: 0.95, eyeSpread: 0.38, eyeY: 0.12, browThick: 0.75, browY: 1.25, browTilt: -0.12, jawX: 0.86, jawY: 0.6, jawZ: 0.8, chin: false, mouthW: 0.4, smirk: 0.05 },
+  build(ctx) {
+    const { B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
+    const streak = (x, y, z) => tint(Math.sin(x * 140 + z * 40) > 0.2 ? C.hair : C.hair2, 1 + 0.08 * Math.sin(y * 90));
+    // big nose + rosy cheeks
+    let g = ball(R * 0.2, R * 0.2, R * 0.2, 12); g.translate(hx, hy - R * 0.14, hz + R * 1.0); ctx.add('head', g, tint(C.skin, 1.02));
+    for (const s of [1, -1]) { g = ball(R * 0.2, R * 0.13, R * 0.08, 10); g.translate(hx + s * R * 0.52, hy - R * 0.2, hz + R * 0.78); ctx.add('head', g, C.cheek, { rough: 0.6 }); }
+    // beard: full, forked, braided
+    g = ball(R * 0.98, R * 0.95, R * 0.78, 20); g.translate(hx, hy - R * 0.72, hz + R * 0.3); ctx.add('head', g, streak, { rough: 0.75 });
+    g = ball(R * 0.7, R * 0.6, R * 0.5, 14); g.translate(hx, hy - R * 1.45, hz + R * 0.5); ctx.add('head', g, streak, { rough: 0.75 });
+    for (const s of [1, -1]) {
+      // braids hang on the chest (bound to chest so they never swing through it when the head turns)
+      g = tube([[hx + s * R * 0.3, hy - R * 1.5, hz + R * 0.9], [hx + s * R * 0.36, hy - R * 1.95, hz + R * 1.3], [hx + s * R * 0.3, hy - R * 2.45, hz + R * 1.42]], R * 0.17, R * 0.07, 10, 8);
+      ctx.add('chest', g, (x, y) => (Math.sin(y * 110) > 0 ? C.hair : C.hair2), { rough: 0.75 });
+      g = torus(R * 0.15, R * 0.05, 12, 6); xf(g, [hx + s * R * 0.35, hy - R * 1.95, hz + R * 1.3], [Math.PI / 2 - 0.5, 0, 0]); ctx.add('chest', g, C.braid, { metal: 0.9, rough: 0.25 });
+      // mustache
+      g = blade(R * 0.7, R * 0.26, R * 0.16, 0.0); xf(g, [hx + s * R * 0.05, hy - R * 0.35, hz + R * 1.0], [0, 0, s * -1.9]); ctx.add('head', g, C.hair2, { rough: 0.7 });
+    }
+    // mouth peeking through the beard
+    g = ball(R * 0.17, R * 0.07, R * 0.06, 10); g.translate(hx, hy - R * 0.56, hz + R * 1.02); ctx.add('head', g, 0x8a2a2a);
+    if (!C.hatOn) {
+      g = ball(R * 1.03, R * 0.85, R * 1.06, 18); g.translate(hx, hy + R * 0.3, hz - R * 0.12); ctx.add('head', g, streak, { rough: 0.6 });
+    }
+    // long hair at the back with a central braid (bound to chest so it follows the torso)
+    for (let i = 0; i < 5; i++) {
+      const a = (i - 2) / 2;
+      g = blade(R * (2.0 - Math.abs(a) * 0.5), R * 0.6, R * 0.3, 0.15);
+      xf(g, [hx + a * R * 0.72, hy + R * 0.3, hz - R * 0.62], [Math.PI + 0.22, 0, a * 0.28]);
+      ctx.add('chest', g, i % 2 ? C.hair : C.hair2, { rough: 0.6 });
+    }
+  },
+};

@@ -6,7 +6,7 @@ export default {
   blurb: 'Light on her feet and quick on the draw.',
   stats: { hp: 95, move: 1.08, windResist: 0.0, drawSpeed: 1.1 },
   palette: { skin: 0xf3c19d, hair: 0xd23a1f, hair2: 0xff7a3a, eyes: 0x2fae66, lips: 0xd02a48, brow: 0x8a2716 },
-  outfits: ['vela_leathers', 'vela_robes'],
+  outfits: ['vela_leathers', 'vela_robes', 'vela_lagoon'],
   bow: { wood: 0x6b3f22, trim: 0xf4c35a, gem: 0x4dffa0 },
   body: {
     legLen: 1.08, hipW: 0.1, thighLen: 0.5, shinLen: 0.5,

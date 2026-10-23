@@ -6,7 +6,7 @@ export default {
   blurb: 'Never skips arm day. Shrugs off hits.',
   stats: { hp: 112, move: 0.92, windResist: 0.12, drawSpeed: 0.95 },
   palette: { skin: 0xc98a64, hair: 0x2b1a10, hair2: 0x4a2c18, eyes: 0x3a78d8, brow: 0x24150c, stubble: 0xb47a52 },
-  outfits: ['brock_beach', 'brock_iron'],
+  outfits: ['brock_beach', 'brock_iron', 'brock_brawler'],
   bow: { wood: 0x3b2a22, trim: 0xd8dde6, grip: 0xc23b2b, length: 0.64 },
   body: {
     legLen: 0.98, hipW: 0.13, thighLen: 0.46, shinLen: 0.44,
@@ -32,7 +32,7 @@ export default {
     let g = ball(R * 0.9, R * 0.62, R * 0.8, 16); g.translate(hx, hy - R * 0.5, hz + R * 0.1);
     ctx.add('head', g, (x, y, z) => (z > hz + R * 0.55 && y > hy - R * 0.62 && Math.abs(x - hx) < R * 0.3 ? C.skin : C.stubble), { rough: 0.8 });
     // flat-top with undercut
-    g = box(R * 1.7, R * 0.75, R * 1.75, R * 0.3); xf(g, [hx, hy + R * 0.72, hz - R * 0.02], [-0.08, 0, 0]); ctx.add('head', g, C.hair, { rough: 0.7 });
+    if (!C.hatOn) { g = box(R * 1.7, R * 0.75, R * 1.75, R * 0.3); xf(g, [hx, hy + R * 0.72, hz - R * 0.02], [-0.08, 0, 0]); ctx.add('head', g, C.hair, { rough: 0.7 }); }
     g = ball(R * 0.96, R * 0.8, R * 0.98, 18); g.translate(hx, hy + R * 0.12, hz - R * 0.1); ctx.add('head', g, (x, y, z) => (z > hz + R * 0.5 && y < hy + R * 0.5 ? C.skin : C.hair2), { rough: 0.8 });
     // thick neck tendons / traps already in extras; add a neck chain
     g = ball(R * 0.12, R * 0.12, R * 0.12, 8); g.translate(0, B.neckY - 0.12, 0.17); ctx.add('chest', g, 0xffd25a, { metal: 0.95, rough: 0.2 });
