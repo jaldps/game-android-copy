@@ -3,7 +3,7 @@
 **VERDICT: NOT YET** · Blind A/B vs real Gunbound: ours preferred **4/7 (57%)**, bar is 75%.
 Console clean everywhere; input works (menu → quick match → angle, tray, hold-to-fire all respond).
 
-> Status: **fixes NOT yet applied.** This file is the input to fix pass 1.
+> Status: **all 15 fixes applied in fix pass 1** (fixer A: 1, 6-15 → daf0c17; fixer B: 2-5 → abd5bc6; merged b6caeac). Not yet re-judged: that is critic round 2. Partly verified only by code: hold-to-repeat timing, damage-number pop/outline, all audio.
 
 ## Blind pairings (judged before keys were read)
 - p1 Sunspire vs GB desert fortress — **ours** (cleaner, vivid 3D; target archer half under the HUD strip)
