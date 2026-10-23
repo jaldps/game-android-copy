@@ -23,7 +23,8 @@ World field bounds: x ∈ [-60, 60], y ∈ [-14, 32] (`core/config.js` FIELD). 1
 | **4. Meta** (shop, progression, modes, AI, menus/results) | `meta/**` (incl. `meta/meta.css`) | everything else |
 
 Shared read-only helpers anyone may import: `core/util.js` (math, seeded RNG, noise), `core/config.js` (constants),
-`core/terrain.js` (`MAT` ids, `Terrain` queries), `core/events.js`, `core/store.js`. `meta.json`, `thumb.jpg`,
+`core/terrain.js` (`MAT` ids, `Terrain` queries), `core/events.js`, `core/store.js`, and — for `audio/bindings.js`
+only, to play sounds from core events — `core/audio.js` (call `audio.play`/`audio.has`; never mutate it). `meta.json`, `thumb.jpg`,
 `CREDITS.md`: append-only for everyone (add your asset credits; never remove others').
 
 Each specialist works in its own git worktree. Since folders are disjoint, merges are conflict-free **as long as you
