@@ -71,7 +71,7 @@ export class Match {
     this._wasCharging = false; this.startT = 0;
     if (!cfg.showcase) { this._beginTurn(this._nextActor()); snap(); }
     else this._showcaseCam(true);
-    events.emit('match:start', this);
+    if (!cfg.thumb) events.emit('match:start', this);
   }
 
   // ------------------------------------------------------------------ setup
@@ -292,7 +292,11 @@ export class Match {
       for (let i = 0; i < this.actors.length; i++) { const x = this.actors[i]; if (x.alive && !x.grounded) { faller = x; break; } }
       const moving = !!faller || this.projectiles.active > 0;
       if (faller) { setInset(false); this._frameActor(faller, 13, 0.6, 3.5); }
-      else if (this.lastImpact && this.settleT < 0.6) { setInset(false); const L = this.lastImpact; lookAt(L.x, cyFor(L.y, 0.56, 13), 13, 3.5); }
+      else if (this.settleT < 0.6) {
+        // frame where the shot ended: the last explosion, or (sea / lava / off-map) where the arrow was last seen
+        const I = this.lastImpact, F = this.lastFlight, L = I && (!F || I.t >= F.t - 0.05) ? I : F;
+        if (L) { setInset(false); lookAt(L.x, cyFor(Math.max(L.y, this.killY + 1), 0.56, 13), 13, 3.5); }
+      }
       if (!moving && this.settleT > 0.85) {
         if (!this._checkWin()) this._beginTurn(this._nextActor());
       }
@@ -388,17 +392,22 @@ export class Match {
   }
   _flightCam(dt) {
     const p = this.projectiles.leader(); if (!p) return;
+    const LF = this.lastFlight ?? (this.lastFlight = { x: 0, y: 0, t: 0 }); LF.x = p.x; LF.y = p.y; LF.t = this.time;
     const RATE = 4.5, FLY_MIN = 15, FLY_MAX = 23;
     // lead by v/rate so the exponential follow keeps the arrow centred instead of trailing it
     const lx = p.x + clamp(p.vx / RATE, -11, 11), ly = p.y + clamp(p.vy / RATE, -8, 8);
     const foe = this._flightTarget(p);
     if (foe) {
       const h = this._height(foe);
-      const x0 = Math.min(lx - 3, foe.x - 1.6), x1 = Math.max(lx + 3, foe.x + 1.6);
-      const y0 = Math.min(ly - 2, foe.y - 0.3), y1 = Math.max(ly + 2, foe.y + h + 1);
+      let x0 = Math.min(lx - 3, foe.x - 1.6), x1 = Math.max(lx + 3, foe.x + 1.6);
+      let y0 = Math.min(ly - 2, foe.y - 0.3), y1 = Math.max(ly + 2, foe.y + h + 1);
+      const o = p.owner;   // right after the release keep the shooter in shot too, if it fits
+      if (o && p.age < 0.5 && boxHeight(Math.min(x0, o.x - 1.6), Math.min(y0, o.y - 0.3), Math.max(x1, o.x + 1.6), Math.max(y1, o.y + h + 1)) <= FLY_MAX) {
+        x0 = Math.min(x0, o.x - 1.6); x1 = Math.max(x1, o.x + 1.6); y0 = Math.min(y0, o.y - 0.3); y1 = Math.max(y1, o.y + h + 1);
+      }
       if (boxHeight(x0, y0, x1, y1) <= FLY_MAX) { frameBox(x0, y0, x1, y1, RATE, FLY_MIN, FLY_MAX); setInset(false); }
-      else { frameBox(lx - 3, ly - 2, lx + 3, ly + 2, RATE, FLY_MIN + 1, FLY_MIN + 1); this._insetOn(foe); }
-    } else { frameBox(lx - 3, ly - 2, lx + 3, ly + 2, RATE, FLY_MIN + 1, FLY_MIN + 1); setInset(false); }
+      else { this._frameArrow(p, lx, ly, RATE, FLY_MIN + 1); this._insetOn(foe); }
+    } else { this._frameArrow(p, lx, ly, RATE, FLY_MIN + 1); setInset(false); }
     // slow-mo when about to land near someone
     _sim.x = p.x; _sim.y = p.y; _sim.vx = p.vx; _sim.vy = p.vy;
     let near = false, landing = false;
@@ -414,6 +423,16 @@ export class Match {
     if (near && p.age > 0.3) { this.slowTarget = 0.28; this.slowHold = 0.14; }
     else if (landing && p.age > 0.5 && this.slowHold <= 0) { this.slowTarget = 0.55; this.slowHold = 0.08; }   // brief beat before any impact
   }
+  /** Follow the arrow alone (keeping its shooter in the shot for the first moments when it fits). */
+  _frameArrow(p, lx, ly, rate, H) {
+    let x0 = lx - 3, x1 = lx + 3, y0 = ly - 2, y1 = ly + 2;
+    const o = p.owner;
+    if (o && p.age < 0.6) {
+      const a0 = Math.min(x0, o.x - 1.6), a1 = Math.max(x1, o.x + 1.6), b0 = Math.min(y0, o.y - 0.3), b1 = Math.max(y1, o.y + this._height(o) + 1);
+      if (boxHeight(a0, b0, a1, b1) <= H + 3) { x0 = a0; x1 = a1; y0 = b0; y1 = b1; }
+    }
+    frameBox(x0, y0, x1, y1, rate, H, H + 3);
+  }
   /** The foe the camera should keep an eye on during a flight: the one closest to where the arrow is heading. */
   _flightTarget(p) {
     let best = null, bd = 1e9; const ax = p.x + p.vx * 0.6;
@@ -424,7 +443,8 @@ export class Match {
     setInset(false);
     const a = this.actors[0]; if (!a) return;
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
-    lookAt(a.x - (this.cfg.showcaseOffset ?? 2.4) * Math.min(1.6, aspect / 1.4), a.y + 1.3, this.cfg.showcaseZoom ?? 6.2, 2);
+    const H = this.cfg.showcaseZoom ?? 6.2, feet = this.cfg.showcaseFeet;
+    lookAt(a.x - (this.cfg.showcaseOffset ?? 2.4) * Math.min(1.6, aspect / 1.4), feet ? cyFor(a.y, feet, H) : a.y + 1.3, H, 2);
     if (snapNow) snap();
   }
 
@@ -459,7 +479,7 @@ export class Match {
   }
   dispose() {
     setInset(false);
-    this.projectiles.clear(); this.fx.clear(); this.props.dispose();
+    this.projectiles.clear(); if (!this.cfg.thumb) this.fx.clear(); this.props.dispose();
     for (const a of this.actors) { this.root.remove(a.character.root); a.character.dispose(); }
     for (const m of this.terrainMesh.meshes) m.geometry.dispose();
     this.root.traverse((o) => { if (o.isMesh || o.isPoints) { o.geometry?.dispose(); } });

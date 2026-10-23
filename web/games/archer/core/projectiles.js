@@ -44,7 +44,7 @@ class Trail {
     const tr = def.trail ?? {};
     this.mat.uniforms.uColor.value.set(tr.color ?? 0xffe2a0); this.alpha = tr.alpha ?? 0.85; this.width = (tr.width ?? 0.1) * 1.35;
     this.mat.blending = tr.additive ? THREE.AdditiveBlending : THREE.NormalBlending; this.mat.needsUpdate = true;
-    this.len = Math.min(TRAIL_N, tr.length ?? 24); this.maxLen = 2.2 + this.len * 0.2;
+    this.len = Math.min(TRAIL_N, tr.length ?? 24); this.maxLen = 1.6 + this.len * 0.12;
     this.time = 0; this.xs.fill(x); this.ys.fill(y); this.ts.fill(0); this.n = 1; this.busy = true; this.fade = 1; this.mesh.visible = true;
   }
   tick(dt) {

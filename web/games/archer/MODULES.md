@@ -235,14 +235,18 @@ callouts automatically.
 flash?: { color, intensity, radius, life }, shake? }`. Emitter fields: `count, shape ('glow'|'puff'|'streak'|'star'|'ring'),
 blend ('add'|'alpha'), life, speed, dir (rad | 'input' | null = radial), spread, offset, size, grow, color (hex|'terrain'),
 color2 (hex|'terrain'|'dark'), colorJitter, alpha:[a0,a1], gravity, drag, lift, spin, z, inherit, tintable, scaleCount`.
-Ids the core plays: `impact_dirt impact_body headshot explosion splash land_dust step_dust muzzle`. Pool: 900 particles,
+Ids the core plays: `impact_dirt impact_body headshot explosion splash land_dust step_dust muzzle`, plus
+`accent_<mapId>` (if registered) layered on every explosion on that map (embers on lava, snow powder, sand...).
+Debris may set `top: 0..1` = fraction of chunks in the map's surface colour (grass/snow) instead of the rock colour. Pool: 900 particles,
 140 debris — keep presets modest.
 
 ### Audio
 `SFX[id] = (k /*{ ac, out, t, noise }*/, opts) => void` — synthesize with WebAudio nodes into `k.out`.
 Ids the core/meta play: `ui_click ui_back select error turn_start timer_tick step land draw_start release whoosh
 impact_dirt impact_body headshot explosion split splash death victory defeat coin buy`. `createMusic(k, trackId)` →
-`{ stop() }`; tracks used: `menu`, `battle` (+ any id a MapDef names in `music`). The engine (`core/audio.js`) handles
+`{ stop() }`; tracks used: `menu`, `battle` (+ any id a MapDef names in `music`). Ambience beds: `audio/ambience.js`
+`createAmbience(k, mapId)` (core calls `audio.playAmbience(mapId)` per match). Per-arrow hit stingers `sting_<arrowId>`
+are played by `audio/bindings.js` on a damaging `impact`. The engine (`core/audio.js`) handles
 unlock-on-first-touch, mute persistence, pause/resume and per-id rate limiting.
 
 **Example — new arrow:** add to `ARROWS` in `arrows/index.js`:
@@ -265,8 +269,8 @@ meta.setMode(m), meta.mode        // 'menu'|'play'|'shop'|'settings'|'results'
 meta.createController(playerCfg, slot) -> Controller      // for controller === 'ai'
 meta.autoplayConfig(seed, over), meta.quickConfig(seed, over) -> MatchConfig
 ```
-`app` (provided by main.js): `startMatch(cfg)`, `endMatch()`, `showcase(charId, outfitId)` (live 3D hero on the menu
-backdrop), `restyle(charId, outfitId)`, `hud(visible)`, `setPaused(bool)`, `goHome()`, `quality()`, `toggleQuality()`,
+`app` (provided by main.js): `startMatch(cfg)`, `endMatch()`, `showcase(charId, outfitId, view?)` (live 3D hero on the menu
+backdrop; `view = { mapId, offset, zoom, feet }`), `mapThumb(id)` / `requestMapThumbs(cb)` (rendered 240×120 map frames), `restyle(charId, outfitId)`, `hud(visible)`, `setPaused(bool)`, `goHome()`, `quality()`, `toggleQuality()`,
 `audio`, `rng`, `seed()`, `newSeed()`.
 
 ### MatchConfig

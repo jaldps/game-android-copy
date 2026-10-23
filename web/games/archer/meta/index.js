@@ -2,11 +2,13 @@
 // the live title backdrop, the hero turntable and AI controllers.
 // The core (main.js) calls ONLY: createMeta(app) -> { showMenu, showShop, showResults, onMatchEnd, showPause, hidePause,
 //   isPauseOpen, isBlocking, back, setMode, mode, createController, autoplayConfig, quickConfig }.
-import { menuScreen, heroScreen, campaignScreen, setupScreen, pauseScreen, resultsScreen, settingsScreen, handoverScreen, ICONS } from './screens.js';
+import { menuScreen, heroScreen, campaignScreen, setupScreen, pauseScreen, resultsScreen, settingsScreen, handoverScreen, ICONS, setThumbSource } from './screens.js';
+export { portrait } from './screens.js';
 import { shopScreen } from './shop.js';
 import { createAIController } from './ai.js';
 import { profile, save, grantRewards, equipChar, equipOutfit, buy, blocker, priceOf, starsFor } from './progression.js';
-import { quickMatch, campaignMatch, hotseatMatch, autoplayMatch, menuBackdrop, CAMPAIGN } from './modes.js';
+import { quickMatch, campaignMatch, hotseatMatch, autoplayMatch, CAMPAIGN } from './modes.js';
+import { MAPS } from '../maps/index.js';
 import { events } from '../core/events.js';
 
 const MENUISH = new Set(['menu', 'campaign', 'setup', 'settings']);
@@ -33,12 +35,16 @@ export function createMeta(app) {
     if (pendingHand) { const a = pendingHand; pendingHand = null; showHandover(handInfo(a)); }
   };
   // ---------------------------------------------------------------- live backdrops
+  // Title backdrop = the equipped hero, large, in the open right-hand area (feet above the hero plate), on a map
+  // picked once per session.
+  const menuMap = MAPS[Math.floor(app.rng() * MAPS.length)].id;
+  const MENU_VIEW = { mapId: menuMap, offset: 3.4, zoom: 6.4, feet: 0.66 };
   const backdrop = () => {
-    if (cur && cur.cfg.mode === 'menubg' && !cur.over) return;
-    app.startMatch(menuBackdrop(app.rng, app.newSeed()));
+    app.showcase(profile.equipped.char, profile.equipped.outfit[profile.equipped.char], MENU_VIEW);
     app.hud(false); app.audio.playMusic('menu');
   };
-  const showcase = (c, o) => { app.showcase(c, o); app.audio.playMusic('menu'); };
+  const showcase = (c, o) => { app.showcase(c, o, { mapId: menuMap }); app.audio.playMusic('menu'); };
+  setThumbSource((id) => app.mapThumb?.(id) ?? null);
   // turntable: spin the showcase hero; drag on the empty right side to turn it by hand
   function startSpin(node) {
     stopSpin();
@@ -149,6 +155,7 @@ export function createMeta(app) {
     },
     showSetup(kind) {
       backdrop();
+      app.requestMapThumbs?.(() => { if (mode === 'setup') current?.refresh?.(); });
       mount(setupScreen(kind, {
         back: () => { sfx('ui_back'); api.showMenu(); },
         click: () => sfx('ui_click'), select: () => sfx('select'),

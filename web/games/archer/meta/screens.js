@@ -38,8 +38,13 @@ export function perkBadge(outfit, short = false) {
 }
 export const perkIcon = (outfit) => { const T = PERK_TYPES[outfit.type] ?? {}; return `<span class="perk-ic" style="--pc:${T.color ?? '#fff'}">${T.icon ?? ''}</span>`; };
 
-/** Mini landscape thumbnail of a map, painted from its own palette + lighting. */
+/** Rendered thumbnails (data URLs) come from the core once it has drawn each map; until then a palette sketch is shown. */
+let thumbSrc = null;
+export function setThumbSource(fn) { thumbSrc = fn; }
+/** Mini landscape thumbnail of a map: a real rendered frame when available, else painted from its palette + lighting. */
 export function mapThumb(def, cls = '') {
+  const url = thumbSrc?.(def.id);
+  if (url) return `<span class="map-thumb photo ${cls}"><img src="${url}" alt=""><b>${def.name}</b></span>`;
   const L = def.lighting ?? {}, P = def.palette ?? {};
   const sky = hex(L.hemiSky ?? 0x8fd0ff), fog = hex(L.fog ?? 0xcfe8ff), top = hex(P.snow ? 0xf4f8ff : P.grass ?? 0x6cc04a), rock = hex(P.rock ?? 0xc49a6c), deep = hex(P.deep ?? P.rock2 ?? 0x7a5a3a);
   return `<span class="map-thumb ${cls}" style="--sky:${sky};--fog:${fog}"><svg viewBox="0 0 120 60" preserveAspectRatio="none">
@@ -236,6 +241,7 @@ export function setupScreen(kind, h) {
     node.querySelector('.go').onclick = () => h.start({ ...st });
   };
   render();
+  node.refresh = render;      // re-run when rendered map thumbnails arrive
   return node;
 }
 
@@ -303,7 +309,15 @@ export function resultsScreen(summary, reward, h) {
   const won = hot || summary.won, acc = meA.shots ? Math.round(meA.hits / meA.shots * 100) : 0;
   const map = getMap(summary.mapId);
   // a reward without a breakdown (e.g. the ?scene=over hook) gets one derived from the summary, so the numbers add up
-  if (!reward.lines && !hot) { const R = rewardLines(summary); reward = { ...reward, lines: R.lines, stars: R.stars, coins: R.lines.reduce((t, l) => t + l[1], 0) }; }
+  // (stars and coins passed in are shown exactly; the breakdown is balanced to add up to them)
+  if (!reward.lines && !hot) {
+    const R = rewardLines(summary), stars = reward.stars ?? R.stars;
+    const lines = R.lines.filter((l) => !/^Stars/.test(l[0]));
+    if (stars > 0) lines.push([`Stars ×${stars}`, stars * 25]);
+    const sum = lines.reduce((t, l) => t + l[1], 0), coins = reward.coins ?? sum;
+    if (coins !== sum) lines.push(['Match bonus', coins - sum]);
+    reward = { ...reward, lines, stars, coins };
+  }
   const lines = reward.lines ?? [], stars = reward.stars ?? 0;
   const title = hot ? `${(meA.name ?? 'P1').toUpperCase()} WINS!` : won ? 'VICTORY!' : 'DEFEAT';
   const st = summary.mode === 'campaign' ? CAMPAIGN[summary.stage ?? 0] : null;

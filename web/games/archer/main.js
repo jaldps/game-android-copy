@@ -1,12 +1,12 @@
 // Bowbrawl — boot, app wiring, main loop and testing hooks (?autoplay ?scene ?seed ?warp ?fixedstep ?map ?char).
 import { setOrientation, goHome, onBack, onPauseResume } from '../../shared/platform.js';
 import { P } from './core/params.js';
-import { initRender, renderFrame, resize, R } from './core/render.js';
-import { updateCamera, addShake, cam, lookAt, snap } from './core/camera.js';
+import { initRender, renderFrame, resize, R, applyLighting } from './core/render.js';
+import { updateCamera, addShake, cam, lookAt, snap, setBounds } from './core/camera.js';
 import { FX } from './core/fx.js';
 import { Match } from './core/match.js';
 import { Hud } from './core/hud.js';
-import { input, bindInput, createHumanController } from './core/input.js';
+import { input, bindInput, createHumanController, releaseAll } from './core/input.js';
 import { audio } from './core/audio.js';
 import { store } from './core/store.js';
 import { makeRng } from './core/util.js';
@@ -25,15 +25,25 @@ let seedCounter = P.seed ?? ((Date.now() / 1000) | 0) % 1000000;
 const rng = makeRng((seedCounter ^ 0x5bd1e995) >>> 0);
 let match = null, paused = false, pendingEnd = null, autoplayT = -1, autoplayN = 0;
 const trayIds = () => trayArrows().map((a) => a.id);
+const thumbs = new Map(), thumbQueue = []; let thumbCb = null, thumbWait = 0;
 
 const app = {
   audio, rng,
   seed: () => seedCounter,
   newSeed: () => (seedCounter = (seedCounter * 1103515245 + 12345) % 2147483647),
   startMatch, endMatch,
-  showcase(charId, outfitId) {
-    if (match?.cfg.showcase) { match.restyle(0, charId, outfitId); return; }
-    startMatch({ mode: 'showcase', showcase: true, mapId: P.map || 'sunspire', seed: 7, players: [{ charId, outfitId, controller: 'none', team: 0 }] });
+  /** Live 3D hero on the menu backdrop. view: { mapId?, offset?, zoom?, feet? (screen fraction of the feet) }. */
+  showcase(charId, outfitId, view = {}) {
+    const apply = (cfg) => { cfg.showcaseOffset = view.offset; cfg.showcaseZoom = view.zoom; cfg.showcaseFeet = view.feet; };
+    if (match?.cfg.showcase) { apply(match.cfg); match.restyle(0, charId, outfitId); return; }
+    const cfg = { mode: 'showcase', showcase: true, mapId: P.map || view.mapId || 'sunspire', seed: 7, players: [{ charId, outfitId, controller: 'none', team: 0 }] };
+    apply(cfg); startMatch(cfg);
+  },
+  mapThumb: (id) => thumbs.get(id) ?? null,
+  /** Render one small frame of every map (one per animation frame) for the arena pickers; cb runs as each lands. */
+  requestMapThumbs(cb) {
+    for (const m of MAPS) if (!thumbs.has(m.id) && !thumbQueue.includes(m.id)) thumbQueue.push(m.id);
+    thumbCb = cb ?? null; thumbWait = 0.35;   // let the screen mount and animate in first
   },
   restyle(charId, outfitId) { if (match?.cfg.showcase) match.restyle(0, charId, outfitId); },
   hud(v) { hud.show(v); },
@@ -53,15 +63,53 @@ function controllers(pc, slot) {
 }
 function startMatch(cfg) {
   endMatch();
-  input.left = input.right = input.fire = input.angUp = input.angDown = false; input.arrowPick = null;
+  releaseAll();
   match = new Match(cfg, { scene: R.scene, fx, controllers, onEnd: (s) => (pendingEnd = s) });
   cam.menuDrift = !!cfg.showcase;
   hud.attach(match); hud.show(!cfg.showcase && P.hud);
   paused = false;
   audio.playMusic(cfg.showcase ? 'menu' : getMap(cfg.mapId).music ?? 'battle');
+  audio.playAmbience(cfg.showcase ? null : getMap(cfg.mapId).id);
   return match;
 }
 function endMatch() { if (match) { match.dispose(); match = null; } pendingEnd = null; }
+
+// ------------------------------------------------------------------ map thumbnails
+// Builds the map off to the side of the live scene (the current match is hidden for one draw), frames both spawn
+// islands, renders one graded frame to the main canvas and copies a 2:1 crop into a JPEG before the real frame is drawn.
+let thumbCanvas = null;
+function renderThumb(id) {
+  const keep = { x: cam.x, y: cam.y, h: cam.h, tx: cam.tx, ty: cam.ty, th: cam.th, panX: cam.panX, panY: cam.panY, drift: cam.menuDrift };
+  const insetOn = R.inset.on; R.inset.on = false;
+  if (match) match.root.visible = false;
+  const fxm = [fx.add.mesh, fx.alpha.mesh, fx.debris]; for (const o of fxm) o.visible = false;
+  let t = null;
+  try {
+    t = new Match({ mode: 'thumb', thumb: true, mapId: id, seed: 7, players: [] }, { scene: R.scene, fx, controllers: () => null, onEnd() {} });
+    const sp = t.gen.spawns ?? [], T = t.terrain;
+    let x0 = -24, x1 = 24, y0 = 1e9, y1 = -1e9;
+    if (sp.length >= 2) { x0 = Math.min(sp[0].x, sp[1].x); x1 = Math.max(sp[0].x, sp[1].x); }
+    for (const x of [x0, (x0 + x1) / 2, x1]) { const g = T.groundBelow(x, T.y1 - 0.5); if (!isNaN(g)) { y0 = Math.min(y0, g); y1 = Math.max(y1, g); } }
+    if (y0 > y1) { y0 = -2; y1 = 4; }
+    const H = Math.max(y1 - y0 + 9, (x1 - x0 + 12) / R.camera.aspect);
+    cam.menuDrift = false; lookAt((x0 + x1) / 2, (y0 + y1) / 2 + H * 0.12, H, 3); snap(); updateCamera(0);
+    t.props.update(1 / 60, T, t.killY, 0); t.backdrop?.update(1 / 60, 0, cam, 0);
+    renderFrame();
+    if (!thumbCanvas) { thumbCanvas = document.createElement('canvas'); thumbCanvas.width = 240; thumbCanvas.height = 120; }
+    const cv = R.renderer.domElement, sh = cv.height, sw = Math.min(cv.width, sh * 2);
+    thumbCanvas.getContext('2d').drawImage(cv, (cv.width - sw) / 2, 0, sw, sh, 0, 0, 240, 120);
+    thumbs.set(id, thumbCanvas.toDataURL('image/jpeg', 0.82));
+  } catch (e) { console.warn('[thumb ' + id + ']', e); thumbs.set(id, null); }
+  t?.dispose();
+  for (const o of fxm) o.visible = true;
+  if (match) {
+    match.root.visible = true; applyLighting(match.map.lighting);
+    const b = match.map.bounds ?? { minX: -60, maxX: 60, minY: -12, maxY: 34 }; setBounds(b.minX, b.maxX, b.minY, b.maxY);
+  }
+  Object.assign(cam, { x: keep.x, y: keep.y, h: keep.h, tx: keep.tx, ty: keep.ty, th: keep.th, panX: keep.panX, panY: keep.panY, menuDrift: keep.drift });
+  R.inset.on = insetOn;
+  thumbCb?.();
+}
 
 function handleEnd() {
   const s = pendingEnd; pendingEnd = null;
@@ -78,7 +126,7 @@ function startAutoplay() {
 
 // ------------------------------------------------------------------ scenes
 function boot() {
-  const over = { mapId: P.map || undefined, charId: P.char || undefined, outfitId: P.outfit || undefined };
+  const over = { mapId: P.map || undefined, charId: P.char || undefined, outfitId: P.outfit || undefined, force: !!(P.char || P.outfit) };
   if (P.autoplay) startAutoplay();
   else if (P.scene === 'play') { startMatch(meta.quickConfig(P.seed ?? app.newSeed(), over)); meta.setMode('play'); }
   else if (P.scene === 'shop') meta.showShop();
@@ -148,6 +196,7 @@ function frame(now) {
   if (pendingEnd) handleEnd();
   if (autoplayT >= 0) { autoplayT -= dt; if (autoplayT < 0) startAutoplay(); }
   if (match && !match.cfg.showcase && P.hud) hud.update(dt);
+  if (thumbQueue.length && (thumbWait -= dtRaw) <= 0) renderThumb(thumbQueue.shift());
   updateCamera(dt);
   renderFrame();
   if (!booted) { booted = true; document.getElementById('boot')?.classList.add('done'); }

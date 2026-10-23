@@ -31,7 +31,8 @@ const foeOf = (charId, rng) => { const outs = outfitsFor(charId); return { charI
 
 /** The human player's slot from the profile (equipped hero + outfit + arrow loadout). */
 export function me(over = {}) {
-  const e = equipped(), c = over.charId && owns('chars', over.charId) ? over.charId : e.charId;
+  // over.force (the ?char= / ?outfit= test hooks) shows any hero, owned or not
+  const e = equipped(), c = over.charId && (over.force || owns('chars', over.charId)) ? getCharacter(over.charId).id : e.charId;
   return { charId: c, outfitId: over.outfitId ?? profile.equipped.outfit[c], controller: 'human', team: 0, name: 'You', ammo: ammoFor() };
 }
 const randomMap = (rng) => MAPS[Math.floor(rng() * MAPS.length)].id;

@@ -270,7 +270,9 @@ export class Hud {
     const cx = W / 2, cy = H / 2 - 20; let dx = pt.nx, dy = -pt.ny;
     if (!isFinite(dx) || !isFinite(dy)) return;
     const s = Math.max(Math.abs(dx), Math.abs(dy) * (W / H)) || 1; dx /= s; dy /= s;
-    const x = clamp(cx + dx * (W / 2 - 34), 34, W - 34), y = clamp(cy + dy * (H / 2 - 34), 56, H - 96);
+    const x = clamp(cx + dx * (W / 2 - 34), 34, W - 34);
+    let y = clamp(cy + dy * (H / 2 - 34), 56, H - 96);
+    if (R.inset.on && R.inset.ready) { const r = R.inset.rect; if (x > r.x - 30 && x < r.x + r.w + 30 && y < r.y + r.h + 26) y = r.y + r.h + 28; }
     const ang = Math.atan2(pt.y - y, pt.x - x);
     c.save(); c.translate(x, y);
     c.fillStyle = 'rgba(8,14,32,0.75)'; c.beginPath(); c.arc(0, 0, 17, 0, 7); c.fill();
