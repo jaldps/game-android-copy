@@ -116,11 +116,12 @@ export class Hud {
     const d = document.createElement('div'); d.className = 'callout ' + kind; d.textContent = text;
     this.el.callouts.appendChild(d); setTimeout(() => d.remove(), 1500);
   }
-  /** World-anchored damage number over an actor's head. Wall-clock lifetime (FLOAT_LIFE) so it never lingers. */
+  /** World-anchored damage number over an actor's head. Lives FLOAT_LIFE of MATCH time, so warps, hitches and
+   *  backgrounding can never stack stale numbers. */
   float(a, text, color, big) {
     let f = this.floaters[0]; for (const g of this.floaters) if (g.t0 < f.t0) f = g;
     // stack on a number that is still fresh over the same actor instead of overlapping it
-    let k = 0; const now = this.clock;
+    let k = 0; const now = this.match ? this.match.time : 0;
     for (const g of this.floaters) if (g.a === a && now - g.t0 < 0.5) k++;
     f.t0 = now; f.a = a; f.x = a.hitShapes.hx + a.facing * -0.2; f.y = a.hitShapes.hy + 2.0 + k * 0.85;   // clear of the name plate + HP bar
     f.text = text; f.color = color; f.ring = a.color; f.big = big;
@@ -187,7 +188,14 @@ export class Hud {
     if (a && a.alive && m.phase === 'act') {
       project(a.x, a.y + 1.45, 0.8, pt);
       const s = a.grounded ? a.slope(m.terrain) : 0, f = a.facing;
-      const R = 50, base = f > 0 ? -s : Math.PI + s;           // screen angles (y down)
+      const base = f > 0 ? -s : Math.PI + s;                  // screen angles (y down)
+      // pressed against a wall: shrink the gauge so it never draws over the rock (probe the sector in world space)
+      let R = 50; const wpp = cam.h / H, ox = a.x, oy = a.y + 1.45;
+      for (let k = 0; k <= 6; k++) {
+        const tt = base + (f > 0 ? -1 : 1) * (k / 6) * Math.PI / 2, dx = Math.cos(tt), dy = -Math.sin(tt);
+        for (let r = 18; r <= 66; r += 4) if (m.terrain.solid(ox + dx * r * wpp, oy + dy * r * wpp)) { R = Math.min(R, r - 14); break; }
+      }
+      R = Math.max(22, R);
       const from = f > 0 ? base - Math.PI / 2 : base, to = f > 0 ? base : base + Math.PI / 2;
       c.lineCap = 'round';
       c.strokeStyle = 'rgba(10,18,40,0.45)'; c.lineWidth = 9; c.beginPath(); c.arc(pt.x, pt.y, R, from, to); c.stroke();
@@ -208,7 +216,8 @@ export class Hud {
       project(b.x, b.hitShapes.hy + 0.62, 0, pt);
       if (b === a && pt.y > gaugeTop) pt.y = gaugeTop;
       if (pt.vis && pt.y < strip) {
-        const w = 56, h = 7, x = pt.x - w / 2, y = Math.max(76, pt.y - 4);
+        // clamp below the top cluster (WIND dial ends ~70 px down): the label pill must never sit over it
+        const w = 56, h = 7, x = pt.x - w / 2, y = Math.max(92, pt.y - 4);
         // name plate on a dark pill so it reads over foliage and bright skies
         c.font = '800 11px Nunito, sans-serif';
         const label = b === a && m.phase !== 'end' ? '▼ ' + b.name : b.name, tw = c.measureText(label).width;
@@ -224,12 +233,12 @@ export class Hud {
     if (insetActor) this._insetFrame(insetActor);
     this._arrowMarker();
     // floating damage numbers: pop-scale in, drift up, fade by FLOAT_LIFE; never inside the top HUD band
-    const now = this.clock;
+    const now = m.time;
     c.textBaseline = 'middle'; c.lineJoin = 'round';
     for (const f of this.floaters) {
       const t = now - f.t0; if (t > FLOAT_LIFE || t < 0) continue;
       project(f.x, f.y + t * 0.9, 0, pt); if (!pt.vis) continue;
-      const y = clamp(pt.y, 92, H - 96);
+      const y = clamp(pt.y, 92, H - 96); pt.x = clamp(pt.x, 60, W - 60);   // never cut by the screen edge
       const pop = t < 0.09 ? 0.4 + 0.95 * t / 0.09 : t < 0.22 ? 1.35 - 0.35 * (t - 0.09) / 0.13 : 1;
       const al = t > FLOAT_LIFE - 0.35 ? Math.max(0, (FLOAT_LIFE - t) / 0.35) : 1, sz = (f.big ? 42 : 32) * pop;
       c.globalAlpha = al; c.font = `400 ${sz.toFixed(1)}px 'Lilita One', sans-serif`;
@@ -267,11 +276,11 @@ export class Hud {
   _edge(b) {
     const c = this.ctx, pt = this.pt, W = innerWidth, H = innerHeight;
     project(b.x, b.y + 1, 0, pt);
-    const cx = W / 2, cy = H / 2 - 20; let dx = pt.nx, dy = -pt.ny;
-    if (!isFinite(dx) || !isFinite(dy)) return;
-    const s = Math.max(Math.abs(dx), Math.abs(dy) * (W / H)) || 1; dx /= s; dy /= s;
-    const x = clamp(cx + dx * (W / 2 - 34), 34, W - 34);
-    let y = clamp(cy + dy * (H / 2 - 34), 56, H - 96);
+    // always on the true left/right screen edge (never mid-screen), at the archer's height clamped clear of the HUD
+    if (!isFinite(pt.nx) || !isFinite(pt.ny)) return;
+    const side = pt.nx >= 0 ? 1 : -1;
+    const x = side > 0 ? W - 34 : 34;
+    let y = clamp(pt.y, 104, H - 112);
     if (R.inset.on && R.inset.ready) { const r = R.inset.rect; if (x > r.x - 30 && x < r.x + r.w + 30 && y < r.y + r.h + 26) y = r.y + r.h + 28; }
     const ang = Math.atan2(pt.y - y, pt.x - x);
     c.save(); c.translate(x, y);

@@ -49,8 +49,9 @@ export const VFX = {
   // played by core/match.js on top of the arrow's own impact whenever someone takes damage (at the victim's body)
   impact_hit: {
     emitters: [
-      { count: 1, shape: 'glow', blend: 'add', life: 0.3, speed: 0, size: 2.2, grow: 1.5, color: 0xffe6b0, alpha: [0.75, 0], zBias: -1.6, scaleCount: false },
-      shockRing(0.6, 0xffffff, 0.34, 1),
+      // warm, small glow (a big white additive disc washed the victim out over bright sand / snow)
+      { count: 1, shape: 'glow', blend: 'add', life: 0.22, speed: 0, size: 1.3, grow: 1.4, color: 0xffb060, alpha: [0.5, 0], zBias: -1.6, scaleCount: false },
+      shockRing(0.6, 0xffe2b0, 0.3, 0.75),
       shockRing(0.35, 0xffd27a, 0.5, 0.9),
       { count: 16, shape: 'star', blend: 'add', life: [0.3, 0.55], speed: [5, 11], size: [0.14, 0.26], color: 0xffffff, color2: 0xffc04a, alpha: [1, 0], drag: 4, spin: 9 },
       { count: 10, shape: 'puff', blend: 'alpha', life: [0.5, 0.9], speed: [3, 7], dir: 'input', spread: 2.2, size: [0.2, 0.34], grow: 1.9, color: 'terrain', color2: 'dark', colorJitter: 0.5, alpha: [1, 0], gravity: 5, drag: 3, zBias: 0.6 },
@@ -61,26 +62,26 @@ export const VFX = {
     shake: 0.6,
   },
   explosion: {
-    // order matters inside a blend group: earlier emitters draw underneath
+    // order matters inside a blend group: earlier emitters draw underneath. No hard-edged discs: the fireball is soft
+    // licking 'fire' sprites (alpha body + additive hot core), the smoke soft 'smoke' billows, the chunks are terrain.
     emitters: [
-      // lingering smoke column
-      { count: [12, 16], shape: 'puff', blend: 'alpha', life: [1.1, 2.0], speed: [2.5, 5.5], size: [0.3, 0.48], grow: 2.7, color: 0x5a4844, color2: 0xb8aca4, colorJitter: 0.5, alpha: [0.95, 0], drag: 2.4, lift: 2.8, gravity: -1.3, zBias: -1.1 },
+      // lingering smoke column (soft billows, sooty to ash)
+      { count: [10, 13], shape: 'smoke', blend: 'alpha', life: [1.1, 2.0], speed: [2, 4.5], size: [0.6, 0.95], grow: 2.4, color: 0x3e3430, color2: 0x9c938c, colorJitter: 0.4, alpha: [0.85, 0], drag: 2.4, lift: 2.6, gravity: -1.3, zBias: -1.1 },
       // dust skirts rolling along the ground
       groundSkirt(0, 5), groundSkirt(Math.PI, 5),
-      // fireball
-      { count: [13, 15], shape: 'puff', blend: 'alpha', life: [0.3, 0.55], speed: [4, 8.5], size: [0.34, 0.52], grow: 0.7, color: 0xffd23a, color2: 0xff3a10, colorJitter: 0.6, alpha: [1, 1], drag: 6, lift: 1.5, zBias: -0.9 },
-      // white-hot core
-      // hot core: additive yellow, small and pushed behind the z=0 plane so it never paints a white disc over a victim
-      { count: [4, 5], shape: 'puff', blend: 'add', life: [0.14, 0.24], speed: [1.5, 3.5], size: [0.2, 0.3], grow: 0.6, color: 0xfff07a, color2: 0xff9a2a, alpha: [0.8, 0], drag: 7, zBias: -1.0 },
-      { count: 1, shape: 'glow', blend: 'add', life: 0.16, speed: 0, size: 1.3, grow: 1.6, color: 0xffd890, alpha: [0.7, 0], zBias: -1.2, scaleCount: false },
+      // fireball body: soft orange-red flame sprites that bloom and burn out (alpha so it reads over bright sand / snow)
+      { count: [10, 12], shape: 'fire', blend: 'alpha', life: [0.38, 0.62], speed: [3, 7], size: [0.8, 1.2], grow: 1.5, color: 0xffb12e, color2: 0xc8280a, colorJitter: 0.35, alpha: [0.95, 0], drag: 6, lift: 1.8, zBias: -0.9 },
+      // additive hot core on top: bright, short, pushed behind the z=0 plane so it never paints a disc over a victim
+      { count: [5, 6], shape: 'fire', blend: 'add', life: [0.2, 0.34], speed: [1.5, 4], size: [0.6, 0.9], grow: 1.3, color: 0xffe07a, color2: 0xff6a1a, alpha: [0.9, 0], drag: 7, zBias: -1.0 },
+      { count: 1, shape: 'glow', blend: 'add', life: 0.2, speed: 0, size: 1.8, grow: 1.6, color: 0xffc070, alpha: [0.75, 0], zBias: -1.2, scaleCount: false },
       // sparks + embers
-      { count: 22, shape: 'streak', blend: 'add', life: [0.25, 0.55], speed: [10, 19], size: 0.09, color: 0xffe9a8, color2: 0xff7a2a, alpha: [1, 0], gravity: 14, drag: 1.5 },
+      { count: 20, shape: 'streak', blend: 'add', life: [0.25, 0.55], speed: [10, 19], size: 0.09, color: 0xffe9a8, color2: 0xff7a2a, alpha: [1, 0], gravity: 14, drag: 1.5 },
       { count: 8, shape: 'glow', blend: 'add', life: [0.6, 1.2], speed: [3, 7], dir: UP, spread: 2.2, size: [0.06, 0.11], color: 0xffd27a, color2: 0xff4a10, alpha: [1, 0], gravity: 5, drag: 1.2, z: [0, 1.5] },
       // second (late, wide) shockwave
-      shockRing(0.9, 0xffffff, 0.24, 0.8),
+      shockRing(0.9, 0xffd9a0, 0.22, 0.45),
     ],
-    debris: { count: 18, speed: [6, 15], size: [0.1, 0.28], life: [1.2, 2.2], color: 'terrain', spread: 3.0, top: 0.35 },
-    ring: { radius: 3.2, color: 0xffe0a0, life: 0.32 },
+    debris: { count: 14, speed: [6, 13], size: [0.08, 0.2], life: [1.0, 1.8], color: 'terrain', spread: 2.6, top: 0.3 },
+    ring: { radius: 3.2, color: 0xffc070, life: 0.3, alpha: 0.5 },
     flash: { color: 0xff9a4a, intensity: 110, radius: 16, life: 0.32 },
     shake: 0.8,
   },
@@ -136,7 +137,7 @@ export const VFX = {
     emitters: [
       { count: [8, 10], shape: 'puff', blend: 'alpha', life: [0.8, 1.4], speed: [2, 4.5], size: [0.26, 0.4], grow: 2.2, color: 0x6a6a5a, color2: 0xc8c8b8, colorJitter: 0.5, alpha: [0.9, 0], drag: 2.6, lift: 2.2, gravity: -1 },
       groundSkirt(0, 3), groundSkirt(Math.PI, 3),
-      { count: [9, 11], shape: 'puff', blend: 'alpha', life: [0.25, 0.45], speed: [3.5, 7], size: [0.28, 0.42], grow: 0.7, color: 0xf6ff8a, color2: 0x5ad82a, colorJitter: 0.6, alpha: [1, 1], drag: 6, lift: 1.2 },
+      { count: [9, 11], shape: 'fire', blend: 'alpha', life: [0.25, 0.45], speed: [3.5, 7], size: [0.28, 0.42], grow: 1.3, color: 0xf6ff8a, color2: 0x5ad82a, colorJitter: 0.6, alpha: [0.95, 0], drag: 6, lift: 1.2 },
       { count: 1, shape: 'glow', blend: 'add', life: 0.14, speed: 0, size: 1.1, grow: 1.6, color: 0xf0ffd0, alpha: [0.85, 0], scaleCount: false },
       { count: 14, shape: 'star', blend: 'add', life: [0.3, 0.55], speed: [6, 12], size: [0.12, 0.22], color: 0xffffff, color2: 0x9dff6a, alpha: [1, 0], gravity: 10, drag: 2, spin: 10 },
     ],
@@ -166,7 +167,7 @@ export const VFX = {
     emitters: [
       { count: [14, 18], shape: 'puff', blend: 'alpha', life: [0.9, 1.6], speed: [3, 7], dir: UP, spread: 2.4, size: [0.3, 0.48], grow: 2.4, color: 'terrain', color2: 0xd8ccbc, colorJitter: 0.6, alpha: [1, 0], drag: 2.4, lift: 1.8, gravity: 1 },
       groundSkirt(0, 5), groundSkirt(Math.PI, 5),
-      { count: [7, 9], shape: 'puff', blend: 'alpha', life: [0.25, 0.45], speed: [3, 6], size: [0.3, 0.44], grow: 0.7, color: 0xffc23a, color2: 0xff4a10, colorJitter: 0.6, alpha: [1, 1], drag: 6, lift: 1 },
+      { count: [7, 9], shape: 'fire', blend: 'alpha', life: [0.25, 0.45], speed: [3, 6], size: [0.3, 0.44], grow: 1.3, color: 0xffc23a, color2: 0xff4a10, colorJitter: 0.6, alpha: [0.95, 0], drag: 6, lift: 1 },
       { count: 1, shape: 'glow', blend: 'add', life: 0.16, speed: 0, size: 1.3, grow: 1.6, color: 0xffd8a0, alpha: [0.8, 0], scaleCount: false },
       { count: 14, shape: 'streak', blend: 'add', life: [0.25, 0.5], speed: [9, 16], dir: UP, spread: 2.2, size: 0.08, color: 0xffe0a0, color2: 0xff7a1a, alpha: [1, 0], gravity: 16, drag: 1.5 },
     ],
@@ -240,7 +241,7 @@ export const VFX = {
     emitters: [
       // steam/smoke first (draws underneath), molten glops on top
       { count: 8, shape: 'puff', blend: 'alpha', life: [1.0, 1.6], speed: [1, 2.5], dir: UP, spread: 1.2, size: [0.26, 0.4], grow: 2.4, color: 0x7a5a50, color2: 0xb8aaa4, colorJitter: 0.5, alpha: [0.7, 0], drag: 2, lift: 2.4 },
-      { count: 16, shape: 'puff', blend: 'alpha', life: [0.4, 0.7], speed: [4, 10], dir: UP, spread: 0.9, size: [0.24, 0.4], grow: 0.6, color: 0xffe04a, color2: 0xff3a10, colorJitter: 0.7, alpha: [1, 1], gravity: 16, drag: 1.2 },
+      { count: 16, shape: 'fire', blend: 'alpha', life: [0.4, 0.7], speed: [4, 10], dir: UP, spread: 0.9, size: [0.24, 0.4], grow: 1.3, color: 0xffe04a, color2: 0xff3a10, colorJitter: 0.7, alpha: [0.95, 0], gravity: 16, drag: 1.2 },
       { count: 16, shape: 'glow', blend: 'add', life: [0.8, 1.6], speed: [3, 8], dir: UP, spread: 1.4, size: [0.06, 0.12], color: 0xffe08a, color2: 0xff4a10, alpha: [1, 0], gravity: 2, drag: 1, z: [0, 1.2] },
       { count: 1, shape: 'glow', blend: 'add', life: 0.25, speed: 0, size: 2.2, grow: 1.4, color: 0xffa040, alpha: [0.9, 0], scaleCount: false },
     ],
@@ -271,7 +272,7 @@ export const VFX = {
   accent_emberforge: {
     emitters: [
       { count: [10, 14], shape: 'glow', blend: 'add', life: [0.9, 1.7], speed: [2, 6], dir: UP, spread: 1.8, size: [0.05, 0.11], color: 0xffe08a, color2: 0xff3a0a, alpha: [1, 0], gravity: -0.6, drag: 1.4, z: [0, 1.4] },
-      { count: 8, shape: 'puff', blend: 'alpha', life: [0.3, 0.55], speed: [4, 9], dir: UP, spread: 1.4, size: [0.1, 0.18], grow: 0.5, color: 0xffd23a, color2: 0xff3a10, alpha: [1, 1], gravity: 18, drag: 1 },
+      { count: 8, shape: 'fire', blend: 'alpha', life: [0.3, 0.55], speed: [4, 9], dir: UP, spread: 1.4, size: [0.1, 0.18], grow: 1.3, color: 0xffd23a, color2: 0xff3a10, alpha: [0.95, 0], gravity: 18, drag: 1 },
       { count: 4, shape: 'puff', blend: 'alpha', life: [1.0, 1.6], speed: [1, 2.5], dir: UP, spread: 1.4, size: [0.22, 0.34], grow: 2.4, color: 0x4a3434, color2: 0x8a7a76, alpha: [0.7, 0], drag: 2, lift: 2.2 },
     ],
   },

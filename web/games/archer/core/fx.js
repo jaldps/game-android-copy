@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { VFX } from '../vfx/presets.js';
 
 const MAXP = 900, MAXD = 140, MAXR = 8;
-const SHAPES = { glow: 0, puff: 1, streak: 2, star: 3, ring: 4 };
+const SHAPES = { glow: 0, puff: 1, streak: 2, star: 3, ring: 4, fire: 5, smoke: 6 };
 const PKEYS = ['x', 'y', 'z', 'vx', 'vy', 'life', 'max', 's0', 's1', 'r0', 'g0', 'b0', 'r1', 'g1', 'b1', 'a0', 'a1', 'grav', 'drag', 'rot', 'spin', 'shape', 'alignVel'];
 const DKEYS = ['x', 'y', 'z', 'vx', 'vy', 'vz', 's', 'life', 'rx', 'ry', 'c'];
 
@@ -42,7 +42,17 @@ function makeSystem(additive) {
         }
         else if (vShape < 2.5) { a = pow(max(0.0, 1.0 - length(vUv * vec2(1.0, 2.6))), 1.4); }
         else if (vShape < 3.5) { vec2 u = abs(vUv); a = max(0.0, 1.0 - (u.x * 3.0 + u.y)) + max(0.0, 1.0 - (u.y * 3.0 + u.x)); a = clamp(a, 0.0, 1.0); }
-        else { a = smoothstep(0.62, 0.78, r) * (1.0 - smoothstep(0.86, 1.0, r)); }
+        else if (vShape < 4.5) { a = smoothstep(0.62, 0.78, r) * (1.0 - smoothstep(0.86, 1.0, r)); }
+        else if (vShape < 5.5) { // fireball: soft licking edge (angular ripple), white-hot centre fading to the flame colour
+          float th = atan(vUv.y, vUv.x), w = 0.82 + 0.18 * sin(th * 5.0 + r * 6.0) * sin(th * 3.0 - 1.3);
+          a = pow(max(0.0, 1.0 - r / w), 1.15);
+          col = mix(col, vec3(1.0, 0.96, 0.82), pow(max(0.0, 1.0 - r * 1.7), 2.0) * 0.8);
+        }
+        else { // smoke: soft billow (no hard rim), darker toward the lower right
+          float th = atan(vUv.y, vUv.x), w = 0.86 + 0.14 * sin(th * 4.0 + 0.7);
+          a = (1.0 - smoothstep(0.35 * w, w, r)) * 0.92;
+          col *= mix(1.12, 0.72, smoothstep(-0.6, 0.9, dot(vUv, vec2(0.45, -0.6)) + r * 0.3));
+        }
         if (a * vCol.a < 0.004) discard;
         gl_FragColor = vec4(col, a * vCol.a);
         #include <colorspace_fragment>
@@ -141,7 +151,7 @@ export class FX {
       d.x[i] = x; d.y[i] = y + 0.1; d.z[i] = (rnd() - 0.5) * 2.5;
       d.vx[i] = Math.cos(a) * sp; d.vy[i] = Math.sin(a) * sp; d.vz[i] = (rnd() - 0.2) * 3;
       d.s[i] = range(def.size, 0.15); d.life[i] = range(def.life, 1.6); d.rx[i] = rnd() * 6; d.ry[i] = rnd() * 6;
-      const tone = 0.75 + rnd() * 0.4; d.c[i] = (Math.min(255, col.r * 255 * tone) << 16) | (Math.min(255, col.g * 255 * tone) << 8) | Math.min(255, col.b * 255 * tone);
+      const tone = 0.55 + rnd() * 0.35; d.c[i] = (Math.min(255, col.r * 255 * tone) << 16) | (Math.min(255, col.g * 255 * tone) << 8) | Math.min(255, col.b * 255 * tone);
     }
   }
   ring(x, y, def, sc = 1) {

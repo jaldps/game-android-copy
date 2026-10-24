@@ -107,7 +107,7 @@ export function createHumanController(trayIds) {
             const th = Math.atan2(dy, dx), facing = dx >= 0 ? 1 : -1, s = a.grounded ? a.slope(match.terrain) : 0;
             const rel = facing > 0 ? th - s : Math.PI + s - th;
             let deg = rel / DEG; while (deg > 180) deg -= 360; while (deg < -180) deg += 360;
-            it.facing = facing; it.aimTo = clamp(deg, -5, 90);
+            it.facing = facing; it.aimTo = clamp(Math.round(deg), -5, 90);   // whole degrees, so a later tap is exactly 1°
           }
         } else if (P.mode === 'pan') {
           const k = cam.h / window.innerHeight;

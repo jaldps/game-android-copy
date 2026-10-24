@@ -100,7 +100,7 @@ export const ARROWS = [
     physics: { mass: 1.6, drag: 0.02, windFactor: 1, gravityScale: 1.08 },
     damage: { base: 42, radius: 3.4, crater: 3.1, knockback: 13 },
     trail: { color: 0xff4a2a, width: 0.18, length: 28, additive: true, alpha: 0.95,
-      puff: { count: 2, shape: 'puff', blend: 'alpha', life: [0.5, 0.9], speed: [0.2, 0.6], size: [0.12, 0.2], grow: 2.4, color: 0x8a7a72, color2: 0xe8ded5, alpha: [0.75, 0], drag: 2, lift: 0.8, scaleCount: false }, puffEvery: 0.03 },
+      puff: { count: 2, shape: 'smoke', blend: 'alpha', life: [0.5, 0.9], speed: [0.2, 0.6], size: [0.16, 0.26], grow: 2.4, color: 0x8a7a72, color2: 0xe8ded5, alpha: [0.75, 0], drag: 2, lift: 0.8, scaleCount: false }, puffEvery: 0.03 },
     sfx: { launch: 'release_heavy', impact: 'explosion', body: 'explosion', flight: 'fuse' },
     vfx: { impact: 'explosion', body: 'explosion' },
     createModel: () => instance('explosive', () => addBomb(buildArrow({ shaft: 0x3a2a24, fletch: 0xff8a2a, fletch2: 0x2a2a32 }))),

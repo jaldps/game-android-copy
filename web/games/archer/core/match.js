@@ -8,11 +8,11 @@ import { PropLayer } from './props.js';
 import { Actor } from './actors.js';
 import { Projectiles } from './projectiles.js';
 import { simulateShot, stepBody, distToShapes, launchSpeed } from './physics.js';
-import { cam, lookAt, frameBox, boxHeight, cyFor, setInset, addShake, addPunch, setBounds, snap } from './camera.js';
+import { cam, lookAt, frameBox, boxHeight, cyFor, setInset, addShake, addPunch, setBounds, snap, flightFit, flightRange } from './camera.js';
 import { makeRng, clamp, damp, DEG } from './util.js';
 import { events } from './events.js';
 import { audio } from './audio.js';
-import { applyLighting, R } from './render.js';
+import { applyLighting, R, insetRect } from './render.js';
 import { getMap, terrainMaterialFor, PROP_TYPES, createPropMaterial } from '../maps/index.js';
 import { getCharacter, getOutfit, defaultOutfit, createCharacter, computeStats } from '../characters/index.js';
 import { getArrow, trayArrows } from '../arrows/index.js';
@@ -20,7 +20,7 @@ import { getArrow, trayArrows } from '../arrows/index.js';
 const TEAM_COLORS = ['#3fa8ff', '#ff5a4a', '#5ee07a', '#ffcf3a'];
 /** Visible height needed to show an archer and a point at x side by side (inside 72% of the width). */
 const _need = (a, x, asp) => (Math.abs(a.x - x) + 2.4) / (0.72 * asp);
-const _pt = { x: 0, y: 0 }, _sim = { x: 0, y: 0, vx: 0, vy: 0 }, _res = {};
+const _pt = { x: 0, y: 0 }, _sim = { x: 0, y: 0, vx: 0, vy: 0 }, _res = {}, _fit = { h: 0, n: 0, m: 0, hasB: false, x0: 0, x1: 0, y0: 0, y1: 0 }, _ir = { x: 0, y: 0, w: 0, h: 0 };
 
 export class Match {
   /**
@@ -203,6 +203,7 @@ export class Match {
   _beginTurn(a) {
     if (!a) return;
     this.active = a; this.turnNo++; this.phase = 'intro'; this.phaseT = 0; this.timer = TURN.time;
+    a.angle = Math.round(a.angle);                         // whole degrees at turn start: every angle tap is exactly 1°
     a.moveLeft = a.stats.moveGauge; a.power = 0; a.charging = false; this.movedThisTurn = 0; this.firedThisTurn = false; this.firedHit = false;
     if (!(a.ammo[a.arrowId] > 0)) a.arrowId = 'standard';
     cam.panX = 0; cam.panY = 0; cam.zoomRate = 2.2;
@@ -265,6 +266,7 @@ export class Match {
     if (this.phase === 'showcase') { this._updateActors(dt); this._showcaseCam(false); this._common(dt); return; }
 
     const a = this.active;
+    cam.keep.on = false;                                   // re-armed by _flightCam every flight frame
     if (this.phase === 'intro') {
       this._updateActors(dt);
       if (this.phaseT > (this.cfg.fastIntro ? 0.5 : 1.0)) { this.phase = 'act'; this.phaseT = 0; events.emit('turn:act', a); }
@@ -407,44 +409,58 @@ export class Match {
     return clamp((h > 1e8 ? 2.6 : h) / 0.15, 14, 21);
   }
   /**
-   * Flight camera. Rule (critic r2): every frame of a shot shows an archer (shooter early, target late), the arrow, and
-   * terrain filling the lower part of the view; the target, while it is not the anchor, sits in the inset on the
-   * trailing side (away from where the arrow is heading). Altitude never wins over terrain: a very high arrow leaves the top of the
-   * view (HUD chevron) instead of the camera panning up into empty sky.
+   * Flight camera (critic r3, gated by tools/flightcheck.mjs). Every frame of a shot shows the arrow inside the HUD-safe
+   * box (camera.js KEEP.arrow: clear of the top cluster, the minimap, WIND and the control strip / HOLD) AND one archer
+   * whole (KEEP.archer). The anchor archer is whichever one needs the least zoom (with hysteresis); the target zoom
+   * fits the arrow's swept box over the next ~0.45 s, so a high lob zooms out *before* it climbs. On top of the smooth
+   * target, cam.keep makes updateCamera enforce the arrow / archer boxes as a hard constraint every frame.
    */
   _flightCam(dt) {
     const p = this.projectiles.leader(); if (!p) return;
     const LF = this.lastFlight ?? (this.lastFlight = { x: 0, y: 0, t: 0 }); LF.x = p.x; LF.y = p.y; LF.t = this.time;
-    const RATE = 7, asp = R.camera.aspect, capH = this._capH(), minH = Math.min(13, capH);
-    const o = p.owner && p.owner.alive ? p.owner : null, foe = this._flightTarget(p);
-    // lead by v/rate so the exponential follow keeps the arrow where we put it instead of trailing it
-    const lx = p.x + clamp(p.vx / RATE, -8, 8), ly = p.y + clamp(p.vy / RATE, -6, 6);
-    const dir = foe ? (Math.sign(foe.x - p.x) || Math.sign(p.vx) || 1) : (Math.sign(p.vx) || 1);
-    // anchor archer: the shooter, until the target is nearer to the arrow or fits beside it (then never back). The zoom
-    // stays inside the 15%-archer cap whenever the pair fits; only on long shots, while the arrow is mid-way, it may
-    // widen to a hard limit (archers ~11% of the screen) so an archer and the arrow still share the frame.
-    const capH2 = clamp(capH * 0.15 / 0.11, capH, 23);
-    if (p !== this._flyP) { this._flyP = p; this._flyA = o ?? foe; }
-    let A = this._flyA;
-    if (foe && A !== foe && (!o || A !== o || Math.abs(foe.x - lx) <= Math.abs(o.x - lx) || _need(foe, lx, asp) <= capH)) A = foe;
-    if (!A || !A.alive) A = foe ?? o;
-    this._flyA = A;
-    // height: fit the pair side by side, and also vertically (arrow at >= 12% from the top, ground at <= 76%)
-    const gA = A ? A.y : p.y, needV = (ly - gA + 0.6) / 0.64;
-    const H = clamp(Math.max(A ? _need(A, lx, asp) : capH, needV), minH, capH2), W = H * asp, half = 0.36 * W;   // archer centre within 14%..86% of the width: never cut by the edge
-    let cx = lx + dir * 0.17 * W;                          // arrow on the trailing third, open ground ahead of it
-    if (A) {
-      const lo = Math.max(lx, A.x) - half, hi = Math.min(lx, A.x) + half;
-      cx = lo <= hi ? clamp(cx, lo, hi) : (lo + hi) / 2;   // beyond the hard limit: split the overflow (a moment at most)
+    const RATE = 6, asp = R.camera.aspect, capH = this._capH(), minH = Math.min(13, capH);
+    const foe = this._flightTarget(p);
+    // the arrow's swept box: where it is now and where it will be over the next ~0.45 s (stops at terrain / the sea)
+    let ax0 = p.x, ax1 = p.x, ay0 = p.y, ay1 = p.y;
+    _sim.x = p.x; _sim.y = p.y; _sim.vx = p.vx; _sim.vy = p.vy;
+    for (let k = 0; k < 27; k++) {
+      stepBody(_sim, 1 / 60, this.wind, p.phys, p.windResist);
+      if (this.terrain.solid(_sim.x, _sim.y) || _sim.y < this.killY) break;
+      if (_sim.x < ax0) ax0 = _sim.x; if (_sim.x > ax1) ax1 = _sim.x; if (_sim.y < ay0) ay0 = _sim.y; if (_sim.y > ay1) ay1 = _sim.y;
     }
-    // ground line: the anchor archer's feet
-    const gy = gA;
-    let cy = gy + 0.14 * H;                                // ground at ~64% of the screen height
-    cy = clamp(cy, ly - 0.38 * H, ly + 0.26 * H);          // arrow between 12% and 76% of the height
-    cy = clamp(cy, gy - 0.2 * H, gy + 0.26 * H);           // ...but terrain always fills the lower part (ground <= 76%)
-    lookAt(cx, cy, H, RATE); cam.zoomRate = 3.6;
-    if (A === foe || !foe) setInset(false);
-    else this._insetOn(foe, -dir);
+    // anchor archer: least zoom needed, sticky unless another needs clearly less
+    if (p !== this._flyP) { this._flyP = p; this._flyA = null; this._noInset = false; }
+    let A = this._flyA && this._flyA.alive ? this._flyA : null, hA = A ? this._fitFor(A, ax0, ax1, ay0, ay1) : 1e9;
+    for (const b of this.actors) {
+      if (!b.alive || b === A) continue;
+      const hb = this._fitFor(b, ax0, ax1, ay0, ay1);
+      if (hb < hA * 0.85 || !A) { A = b; hA = hb; }
+    }
+    if (A && hA > 76) A = null;                                     // nobody fits: the arrow alone
+    this._flyA = A;
+    const bx = A ? A.x : NaN, by0 = A ? A.y - 0.2 : 0, by1 = A ? A.y + this._height(A) + 0.3 : 0;
+    const H = clamp(Math.max(minH, (A ? hA : flightFit(ax0, ax1, ay0, ay1, NaN, 0, 0, _fit)) * 1.06), minH, 78), W = H * asp;
+    flightRange(ax0, ax1, ay0, ay1, bx, by0, by1, H, _fit);
+    // preferred centre: the arrow on the trailing third (open air ahead of it), ground at ~64% of the screen height
+    const dir = Math.sign(p.vx) || 1, lx = p.x + clamp(p.vx / RATE, -8, 8);
+    let cx = lx + dir * 0.17 * W;
+    cx = _fit.x0 <= _fit.x1 ? clamp(cx, _fit.x0, _fit.x1) : (_fit.x0 + _fit.x1) / 2;
+    const gy = A ? A.y : (foe ? foe.y : p.y);
+    let cy = gy + 0.14 * H;
+    cy = _fit.y0 <= _fit.y1 ? clamp(cy, _fit.y0, _fit.y1) : (_fit.y0 + _fit.y1) / 2;
+    lookAt(cx, cy, H, RATE); cam.zoomRate = H > cam.h ? 5 : 2.4;
+    const K = cam.keep; K.on = true; K.ax = p.x; K.ay = p.y; K.hasB = !!A; K.bx = bx; K.by0 = by0; K.by1 = by1;
+    // the target in the picture-in-picture inset (trailing side) while the anchor is someone else, unless the arrow
+    // would pass under the inset: then no inset for the rest of this flight
+    if (!foe || A === foe || this._noInset) setInset(false);
+    else {
+      this._insetOn(foe, -dir);
+      if (R.inset.on) {
+        const ir = insetRect(R.inset.side, _ir), fx = 0.5 + (p.x - cam.x) / (cam.h * asp), fy = 0.5 - (p.y - cam.y) / cam.h;
+        const Wp = window.innerWidth, Hp = window.innerHeight;
+        if (fx * Wp > ir.x - 40 && fx * Wp < ir.x + ir.w + 40 && fy * Hp < ir.y + ir.h + 30) { this._noInset = true; setInset(false); }
+      }
+    }
     // slow-mo when about to land near someone
     _sim.x = p.x; _sim.y = p.y; _sim.vx = p.vx; _sim.vy = p.vy;
     let near = false, landing = false;
@@ -460,6 +476,8 @@ export class Match {
     if (near && p.age > 0.3) { this.slowTarget = 0.28; this.slowHold = 0.14; }
     else if (landing && p.age > 0.5 && this.slowHold <= 0) { this.slowTarget = 0.55; this.slowHold = 0.08; }   // brief beat before any impact
   }
+  /** Visible height needed to frame archer b with the arrow's swept box (flight camera). */
+  _fitFor(b, ax0, ax1, ay0, ay1) { return flightFit(ax0, ax1, ay0, ay1, b.x, b.y - 0.2, b.y + this._height(b) + 0.3, _fit); }
   /** After the shot: frame where it ended together with the archer nearest to it (feet inside the HUD-safe band). */
   _settleCam(L) {
     const capH = this._capH(), y = Math.max(L.y, this.killY + 1);
@@ -468,8 +486,11 @@ export class Match {
     if (a) {
       const h = this._height(a);
       const x0 = Math.min(L.x - 2.2, a.x - 1.6), x1 = Math.max(L.x + 2.2, a.x + 1.6), y0 = Math.min(y - 0.8, a.y - 0.3), y1 = Math.max(y + 2.5, a.y + h + 1);
-      if (boxHeight(x0, y0, x1, y1) <= capH) { frameBox(x0, y0, x1, y1, 3.5, Math.min(12, capH), capH); return; }
-      if (L.y < this.killY + 1.5) { this._frameActor(a, Math.min(13, capH), 0.66, 3.5); return; }   // lost at sea: show who it missed
+      // a miss far from everyone still shows who it missed: widen up to ~2x the close zoom before giving up the impact
+      const need = boxHeight(x0, y0, x1, y1);
+      if (need <= 32) { frameBox(x0, y0, x1, y1, 3.5, Math.min(12, capH), Math.max(capH, need)); return; }
+      const W = Math.min(13, capH) * R.camera.aspect, lean = clamp(L.x - a.x, -W * 0.3, W * 0.3);   // nearest archer, leaning toward the impact
+      lookAt(a.x + lean, cyFor(a.y, 0.66, Math.min(13, capH)), Math.min(13, capH), 3.5); return;
     }
     const gy = this.terrain.groundBelow(L.x, y + 1.5, 6);
     lookAt(L.x, cyFor(isNaN(gy) ? y : gy, 0.64, 13), 13, 3.5);
@@ -519,7 +540,7 @@ export class Match {
     };
   }
   dispose() {
-    setInset(false);
+    setInset(false); cam.keep.on = false;
     this.projectiles.clear(); if (!this.cfg.thumb) this.fx.clear(); this.props.dispose();
     for (const a of this.actors) { this.root.remove(a.character.root); a.character.dispose(); }
     for (const m of this.terrainMesh.meshes) m.geometry.dispose();

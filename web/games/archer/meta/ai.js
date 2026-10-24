@@ -7,6 +7,8 @@
 //   - learn: error shrinks on consecutive turns against the same target from the same spot (Gunbound "bracketing")
 // Controller interface: { kind, beginTurn(actor, match), update(dt, actor, match, intent) }.
 import { makeRng, clamp } from '../core/util.js';
+import { launchSpeed } from '../core/physics.js';
+import { PHYS } from '../core/config.js';
 import { getArrow, trayArrows } from '../arrows/index.js';
 
 export const DIFFICULTY = {
@@ -54,7 +56,10 @@ export function solveShot(a, m, target, arrowId, facing) {
   _tgt.x = target.x; _tgt.y = target.y + 1;
   let best = { v: -1e9, ang: 45, pow: 60, hit: null, part: null };
   const test = (ang, pow) => {
-    const r = m.simulate(a, ang, pow, arrowId, _tgt, facing), v = value(r, a, target, def);
+    const r = m.simulate(a, ang, pow, arrowId, _tgt, facing);
+    // among comparable shots prefer the flatter one: sky-high lobs (rise > 24 units) are hard to follow on a phone
+    const vy = launchSpeed(pow) * Math.sin(ang * Math.PI / 180), rise = vy > 0 ? vy * vy / (2 * PHYS.gravity) : 0;
+    const v = value(r, a, target, def) - Math.max(0, rise - 24) * 0.35;
     if (v > best.v) best = { v, ang, pow, hit: r.hit === 'actor' && r.actor === target ? 'target' : r.hit, part: r.part };
   };
   for (let ang = 8; ang <= 86; ang += 6) for (let pow = 22; pow <= 100; pow += 4) test(ang, pow);

@@ -5,6 +5,21 @@ import { PHYS } from './config.js';
 import { stepBody, hitTestShapes, launchSpeed, DEFAULT_PHYS } from './physics.js';
 import { getArrow } from '../arrows/index.js';
 import { events } from './events.js';
+import { cam } from './camera.js';
+
+// In-flight readability (critic r3): the arrow, its head glow and its ribbon scale with the camera's visible height so
+// the arrow stays ~40 px long on a phone however far the flight camera zooms out (never below its rest size).
+const flightScale = () => Math.min(4, Math.max(1.25, cam.h * 0.072));
+let _glowTex = null;
+function glowTexture() {
+  if (_glowTex) return _glowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.22, 'rgba(255,255,255,0.85)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.28)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  _glowTex = new THREE.CanvasTexture(c); _glowTex.colorSpace = THREE.SRGBColorSpace;
+  return _glowTex;
+}
 
 const TRAIL_N = 32, MAX_TRAILS = 14, MAX_STUCK = 10;
 
@@ -12,6 +27,7 @@ const TRAIL_N = 32, MAX_TRAILS = 14, MAX_STUCK = 10;
 // capped in WORLD units and every point expires after TRAIL_LIFE, so a trail is always a short fading comet tail and
 // never a long straight streak across the screen, whatever the frame rate.
 const TRAIL_LIFE = 0.42;
+const _white = new THREE.Color(1, 1, 1);
 class Trail {
   constructor(parent) {
     const g = new THREE.BufferGeometry();
@@ -38,16 +54,26 @@ class Trail {
     });
     this.mesh = new THREE.Mesh(g, this.mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = 8; this.mesh.visible = false;
     parent.add(this.mesh);
+    // bright head glow riding on the arrow tip (additive, arrow-coloured, white-hot core)
+    this.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffffff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false }));
+    this.glow.renderOrder = 9; this.glow.visible = false; parent.add(this.glow);
+    this.scale = 1;
     this.xs = new Float32Array(TRAIL_N); this.ys = new Float32Array(TRAIL_N); this.ts = new Float32Array(TRAIL_N);
     this.n = 0; this.busy = false; this.fade = 0; this.width = 0.1; this.alpha = 1; this.maxLen = 6; this.time = 0;
   }
   start(def, x, y) {
     const tr = def.trail ?? {};
-    this.mat.uniforms.uColor.value.set(tr.color ?? 0xffe2a0); this.alpha = Math.max(0.9, tr.alpha ?? 0.9); this.width = (tr.width ?? 0.1) * 1.8;
+    this.mat.uniforms.uColor.value.set(tr.color ?? 0xffe2a0); this.alpha = Math.max(0.9, tr.alpha ?? 0.9); this.baseWidth = Math.max(0.1, tr.width ?? 0.1) * 2.6; this.width = this.baseWidth;
+    this.glow.material.color.set(tr.color ?? 0xffe2a0).lerp(_white, 0.35); this.glow.position.set(x, y, 0.05); this.glow.visible = true;
     // always alpha-blended: additive ribbons wash out to white over bright skies, snow and neon windows
     this.mat.blending = THREE.NormalBlending;
-    this.len = Math.min(TRAIL_N, tr.length ?? 24); this.maxLen = 1.6 + this.len * 0.12;
+    this.len = Math.min(TRAIL_N, tr.length ?? 24); this.baseLen = 2.2 + this.len * 0.14; this.maxLen = this.baseLen;
     this.time = 0; this.xs.fill(x); this.ys.fill(y); this.ts.fill(0); this.n = 1; this.busy = true; this.fade = 1; this.mesh.visible = true;
+  }
+  /** Per-frame zoom compensation (k = flightScale()); the head glow follows the arrow tip at (x, y). */
+  setScale(k, x, y, on) {
+    this.width = this.baseWidth * k; this.maxLen = this.baseLen * Math.min(k, 2.6);
+    this.glow.visible = on; if (on) { this.glow.position.set(x, y, 0.05); this.glow.scale.setScalar(0.95 * k); }
   }
   tick(dt) {
     this.time += dt;
@@ -95,7 +121,7 @@ export class Projectiles {
   clear() {
     for (const p of this.list) this._free(p); this.list.length = 0;
     for (const s of this.stuck) this.parent.remove(s.mesh); this.stuck.length = 0;
-    for (const t of this.trails) { t.busy = false; t.mesh.visible = false; }
+    for (const t of this.trails) { t.busy = false; t.mesh.visible = false; t.glow.visible = false; }
   }
   /** Spawn a projectile of arrow type `id`. opts: { owner, parent, data, damageScale } */
   spawn(id, x, y, vx, vy, opts = {}) {
@@ -105,7 +131,7 @@ export class Projectiles {
     p.owner = opts.owner ?? opts.parent?.owner ?? null; p.damageScale = opts.damageScale ?? 1; p.puffT = 0;
     for (const k in p.data) delete p.data[k]; if (opts.data) Object.assign(p.data, opts.data);
     p.phys = def.physics ?? DEFAULT_PHYS; p.windResist = p.owner?.stats.windResist ?? 0;
-    p.mesh = def.createModel(); p.mesh.position.set(x, y, 0); this.parent.add(p.mesh);
+    p.mesh = def.createModel(); p.mesh.position.set(x, y, 0); this.parent.add(p.mesh); p.baseScale = p.mesh.scale.x;
     p.trail = this.trails.find((t) => !t.busy) ?? null; p.trail?.start(def, x, y);
     this.list.push(p);
     def.onLaunch?.(p, this.api);
@@ -123,7 +149,7 @@ export class Projectiles {
     this.pool.push(p);
   }
   _stick(p, x, y) {
-    const m = p.mesh; p.mesh = null;
+    const m = p.mesh; p.mesh = null; m.scale.setScalar(p.baseScale ?? m.scale.x);
     const a = Math.atan2(p.vy, p.vx);
     m.position.set(x + Math.cos(a) * 0.25, y + Math.sin(a) * 0.25, 0); m.rotation.z = a;
     this.stuck.push({ mesh: m, x, y, t: 0 });
@@ -161,8 +187,9 @@ export class Projectiles {
           p.alive = false; break;
         }
       }
-      if (p.mesh) { p.mesh.position.set(p.x, p.y, 0); p.mesh.rotation.z = Math.atan2(p.vy, p.vx); }
-      if (p.trail) p.trail.push(p.x, p.y);
+      const k = flightScale();
+      if (p.mesh) { p.mesh.position.set(p.x, p.y, 0); p.mesh.rotation.z = Math.atan2(p.vy, p.vx); p.mesh.scale.setScalar(p.baseScale * k); }
+      if (p.trail) { p.trail.setScale(k, p.x, p.y, p.alive); p.trail.push(p.x, p.y); }
       if (p.def.trail?.puff && p.alive) { p.puffT += dt; const ev = p.def.trail.puffEvery ?? 0.04; while (p.puffT > ev) { p.puffT -= ev; this.fx.emit(p.def.trail.puff, p.x, p.y); } }
     }
     // reap
@@ -175,7 +202,7 @@ export class Projectiles {
       if (!t.busy) continue;
       let owned = false; for (const p of this.list) if (p.trail === t) { owned = true; break; }
       t.tick(dt);
-      if (!owned) { t.fade -= dt * 3.5; if (t.fade <= 0 || t.n < 2) { t.busy = false; t.mesh.visible = false; continue; } }
+      if (!owned) { t.glow.visible = false; t.fade -= dt * 3.5; if (t.fade <= 0 || t.n < 2) { t.busy = false; t.mesh.visible = false; continue; } }
       t.write();
     }
     // stuck arrows sink with the terrain (fall if the ground is gone)
