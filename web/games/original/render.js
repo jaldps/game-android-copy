@@ -351,6 +351,14 @@ export let SPECIES = 0; export function setSpecies(i) { SPECIES = i; }
 function drawBirds(P, camX) {
   const s = V.s;
   const night = P.stars > 0.6;
+  // A restrained atmospheric lift separates the flock from similarly toned terrain.
+  // Keep it broad and faint so it reads as air, not a gameplay marker.
+  if (F.alive > 0) {
+    const x = (F.cx - camX) * s, y = F.cy * s, r = 22 * s;
+    const halo = c.createRadialGradient(x, y, 0, x, y, r);
+    halo.addColorStop(0, css(P.glow, 0.09)); halo.addColorStop(0.52, css(P.glow, 0.035)); halo.addColorStop(1, css(P.glow, 0));
+    c.fillStyle = halo; c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
   // species tint
   let col = P.bird;
   if (SPECIES === 2) { mix(P.bird, [250, 246, 238], 0.75, _a); col = _a; }
@@ -360,22 +368,26 @@ function drawBirds(P, camX) {
   c.beginPath();
   for (const b of F.birds) {
     if (b.isLead) continue;
-    const x = (b.x - camX) * s, y = b.y * s;
+    // Slightly open the natural formation without changing its simulation or silhouette style.
+    const x = (F.cx + (b.x - F.cx) * 1.45 - camX) * s, y = (F.cy + (b.y - F.cy) * 1.45) * s;
     if (x < -20 || x > V.w + 20) continue;
     if (!b.alive) { if (b.die > 1.2) continue; c.save(); c.globalAlpha = 1 - b.die / 1.2; }
-    const L = 1.5 * s * b.sz * (SPECIES === 2 ? 1.15 : 1);
+    const L = 3.05 * s * b.sz * (SPECIES === 2 ? 1.15 : 1);
     birdPath(x, y, b.alive ? angOf(b) : b.rot, b.alive ? wingOf(b) : 0.3, L);
     if (!b.alive) { c.fill(); c.restore(); c.beginPath(); }
-    if ((night || SPECIES === 3) && b.alive && (b.ox * 7 | 0) % 3 === 0) glowPush(b.x - camX, b.y, 0.9, 0.35, SPECIES === 3 ? LANT : null);
+    if ((night || SPECIES === 3) && b.alive && (b.ox * 7 | 0) % 3 === 0) glowPush(F.cx + (b.x - F.cx) * 1.45 - camX, F.cy + (b.y - F.cy) * 1.45, 0.9, 0.35, SPECIES === 3 ? LANT : null);
   }
-  c.fill();
+  // A fine sun-side edge keeps the swarm legible across both bright skies and dark silhouettes.
+  c.strokeStyle = css(P.rim, 0.68); c.lineWidth = Math.max(1, 0.36 * s); c.lineJoin = 'round';
+  c.stroke(); c.fill();
   // lead bird: pale with a warm rim
   const Lb = F.lead;
   if (Lb && Lb.alive) {
-    const x = (Lb.x - camX) * s, y = Lb.y * s;
+    const x = (F.cx + (Lb.x - F.cx) * 1.45 - camX) * s, y = (F.cy + (Lb.y - F.cy) * 1.45) * s;
     mix([255, 247, 236], P.rim, 0.25, _b);
-    c.fillStyle = css(_b); c.beginPath(); birdPath(x, y, angOf(Lb), wingOf(Lb), 1.55 * s); c.fill();
-    glowPush(Lb.x - camX, Lb.y, 2.2, 0.35);
+    c.fillStyle = css(_b); c.beginPath(); birdPath(x, y, angOf(Lb), wingOf(Lb), 3.55 * s);
+    c.strokeStyle = css(P.rim, 0.78); c.lineWidth = Math.max(1.2, 0.44 * s); c.lineJoin = 'round'; c.stroke(); c.fill();
+    glowPush((F.cx + (Lb.x - F.cx) * 1.45) - camX, F.cy + (Lb.y - F.cy) * 1.45, 3.0, 0.42);
   }
 }
 function drawRibbon(P, camX) {
@@ -428,7 +440,7 @@ function drawTouchRings(P, G) {
   const s = V.s; const n = F.split ? 2 : 1;
   for (let g = 0; g < n; g++) {
     const a = F.anchors[g]; c.strokeStyle = css(P.mote, 0.22); c.lineWidth = Math.max(1, 0.2 * s);
-    c.beginPath(); c.arc(a.x * s, a.y * s, (F.radius * (F.split ? 0.8 : 1.2)) * s, 0, 6.283); c.stroke();
+    c.beginPath(); c.arc((a.x + G.camX - V.camX) * s, a.y * s, (F.radius * (F.split ? 0.8 : 1.2)) * s, 0, 6.283); c.stroke();
   }
 }
 

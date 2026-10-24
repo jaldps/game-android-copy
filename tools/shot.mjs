@@ -9,7 +9,9 @@ const all = k => a.flatMap((v,i)=> v==='--'+k ? [a[i+1]] : []);
 let w = +opt('w',412), h = +opt('h',915); if (a.includes('--landscape')) [w,h]=[Math.max(w,h),Math.min(w,h)];
 const dpr = +opt('dpr',2), times = opt('times','3000,8000').split(',').map(Number), port = opt('port','8080');
 fs.mkdirSync(out.split('/').slice(0,-1).join('/')||'.',{recursive:true});
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required'] });
+// Chromium location: $CHROMIUM_PATH, else the cloud container's preinstalled build, else Playwright's own.
+const exe = process.env.CHROMIUM_PATH || ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(p => fs.existsSync(p));
+const browser = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport:{width:w,height:h}, deviceScaleFactor:dpr, hasTouch:true, isMobile:true });
 const log=[]; page.on('console',m=>log.push(`[${m.type()}] ${m.text()}`)); page.on('pageerror',e=>log.push(`[pageerror] ${e.message}\n${e.stack}`));
 await page.goto(`http://127.0.0.1:${port}/${target}`, { waitUntil:'load', timeout:150000 });

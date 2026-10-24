@@ -1,0 +1,2 @@
+[eval] "{\"game\":true,\"mode\":\"play\",\"alive\":52,\"leg\":2}"
+[fps] 2

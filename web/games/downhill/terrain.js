@@ -113,8 +113,13 @@ function commonUniforms(sh, extra) {
     .replace('#include <common>', '#include <common>\nvarying vec3 vWPos; varying vec3 vWN;')
     .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vWN = normalize(mat3(modelMatrix) * objectNormal);');
 }
-export function makeTerrainMaterial(bio, id) {
-  const ground = groundTexture(bio, id), rock = rockTexture(bio, id), noise = noiseTexture();
+export function makeTerrainMaterial(bio, id, quality = 'high') {
+  const ground = groundTexture(bio, id);
+  // On low-end devices, avoid the multi-texture/bump terrain shader. The low
+  // pixel budget already hides its fine detail; a single diffuse map is much
+  // cheaper and keeps the race responsive.
+  if (quality === 'low') return new THREE.MeshLambertMaterial({ map: ground, vertexColors: true });
+  const rock = rockTexture(bio, id), noise = noiseTexture();
   const m = new THREE.MeshStandardMaterial({ map: ground, bumpMap: ground, bumpScale: 1.6, roughness: 1, metalness: 0, vertexColors: true });
   const tint2 = new THREE.Color(id === 'desert' ? '#e0a070' : id === 'autumn' ? '#d08a40' : id === 'village' ? '#c8b880' : '#a8b860');
   m.onBeforeCompile = sh => {
@@ -126,8 +131,10 @@ export function makeTerrainMaterial(bio, id) {
   m.customProgramCacheKey = () => 'terrain_' + id;
   return m;
 }
-export function makeTrailMaterial(bio, id) {
-  const ground = groundTexture(bio, id), rock = rockTexture(bio, id), noise = noiseTexture(), trail = trailTexture(bio, id);
+export function makeTrailMaterial(bio, id, quality = 'high') {
+  const trail = trailTexture(bio, id);
+  if (quality === 'low') return new THREE.MeshLambertMaterial({ map: trail, vertexColors: true });
+  const ground = groundTexture(bio, id), rock = rockTexture(bio, id), noise = noiseTexture();
   const m = new THREE.MeshStandardMaterial({ map: trail, bumpMap: trail, bumpScale: bio.trail === 'cobble' ? 3 : 1.6, roughness: bio.trail === 'cobble' ? 0.8 : 1, metalness: 0, vertexColors: true });
   const cobble = bio.trail === 'cobble';
   const tint2 = new THREE.Color(id === 'desert' ? '#e0a070' : id === 'autumn' ? '#d08a40' : id === 'village' ? '#c8b880' : '#a8b860');
@@ -175,9 +182,12 @@ function aoAt(x, z) {
 
 // ------------------------------------------------------------------ meshes
 const TILE = 128, SEG = 64;
-export function buildTerrain(scene, mat) {
+export function buildTerrain(scene, mat, quality = 'high') {
   const tiles = new Set();
-  for (let i = 0; i < T.N; i += 6) {
+  const stride = quality === 'low' ? 40 : 12;
+  const samples = Array.from({ length: Math.ceil(T.N / stride) }, (_, k) => k * stride);
+  if (quality === 'low') samples.push(Math.round(T.start));
+  for (const i of samples) {
     const r = 120;
     for (let tx = Math.floor((T.X[i] - r) / TILE); tx <= Math.floor((T.X[i] + r) / TILE); tx++)
       for (let tz = Math.floor((T.Z[i] - r) / TILE); tz <= Math.floor((T.Z[i] + r) / TILE); tz++) {
@@ -188,12 +198,12 @@ export function buildTerrain(scene, mat) {
   const meshes = [];
   for (const key of tiles) {
     const [tx, tz] = key.split(',').map(Number);
-    const geo = tileGeometry(tx * TILE, tz * TILE, TILE, SEG, true);
+    const geo = tileGeometry(tx * TILE, tz * TILE, TILE, quality === 'low' ? 12 : 32, quality !== 'low');
     const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; m.matrixAutoUpdate = false;
     scene.add(m); meshes.push(m);
   }
   // far terrain to the horizon (coarse), sunk where detailed tiles exist
-  const far = farGeometry(tiles);
+  const far = farGeometry(tiles, quality === 'low' ? 120 : 48);
   const fm = new THREE.Mesh(far, mat); fm.receiveShadow = false; fm.matrixAutoUpdate = false; scene.add(fm); meshes.push(fm);
   return meshes;
 }
@@ -223,8 +233,8 @@ function tileGeometry(x0, z0, size, seg, detailed) {
   g.setIndex(new THREE.BufferAttribute(idx, 1)); g.computeBoundingSphere(); g.computeBoundingBox();
   return g;
 }
-function farGeometry(tiles) {
-  const M = 1700, st = 34;
+function farGeometry(tiles, st = 34) {
+  const M = 1700;
   const x0 = T.minX - M, z0 = T.minZ - M, nx = Math.ceil((T.maxX - T.minX + 2 * M) / st) + 1, nz = Math.ceil((T.maxZ - T.minZ + 2 * M) / st) + 1;
   const pos = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), col = new Float32Array(nx * nz * 3);
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
@@ -250,7 +260,7 @@ function farGeometry(tiles) {
 
 /** trail ribbon meshes, one per 100 m chunk. Lateral span covers the trail plus a feathered grass margin. */
 export function buildTrail(scene, mat) {
-  const CH = 100, meshes = [];
+  const CH = 200, meshes = [];
   const LAT = [-1.0, -0.8, -0.55, -0.3, -0.1, 0.1, 0.3, 0.55, 0.8, 1.0]; // fractions of (tw) inside, extended below
   const EXT = 2.8; // grass margin beyond trail edge
   for (let c0 = 0; c0 < T.N - 1; c0 += CH) {

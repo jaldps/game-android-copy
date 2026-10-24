@@ -14,6 +14,7 @@ import { initFx, updateFx, puff, sparkleRing, burst, resetFx, stars } from './fx
 import * as A from './audio.js';
 import * as H from './hud.js';
 import { store } from './store.js';
+import { countStaticEdibles, matchEndReason, rankMatchHoles } from './match-rules.js';
 
 const Q = {
   autoplay: params.get('autoplay') === '1', scene: params.get('scene'), seed: parseInt(params.get('seed') || '0', 10) || (Date.now() % 100000),
@@ -21,11 +22,15 @@ const Q = {
 };
 const headless = navigator.webdriver === true;
 let userGesture = false;
+const MODES = { classic: 'Classic', standing: 'Last Hole Standing', bite: 'Last Bite' };
+const DURATIONS = [60, 90, 120, 180];
+function selectedMode() { return Object.hasOwn(MODES, store.matchMode) ? store.matchMode : 'classic'; }
+function selectedDuration() { return DURATIONS.includes(Number(store.matchDuration)) ? Number(store.matchDuration) : 120; }
 const vibrate = ms => { if (userGesture && !Q.autoplay) hostVibrate(ms); };
 for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => { userGesture = true; }, { capture: true });
 setOrientation('portrait');
 
-const G = { mode: 'boot', time: 0, roundT: ROUND_TIME, paused: false, player: null, countdown: 0, round: 0, sorted: [], popAcc: 0, popT: 0, lastTick: 99, menuCam: null, autoRestart: 0, overT: 0, lead: null };
+const G = { mode: 'boot', time: 0, roundT: ROUND_TIME, paused: false, player: null, countdown: 0, round: 0, sorted: [], popAcc: 0, popT: 0, lastTick: 99, menuCam: null, autoRestart: 0, overT: 0, lead: null, rules: 'classic', duration: 120, lastBiteWinner: null, resultReason: '' };
 const $ = id => document.getElementById(id);
 
 // ---------------- world ----------------
@@ -88,6 +93,10 @@ function sim(dt, fx = true) {
   updateHoles(dt, G.time);
   respawnClock -= dt; if (respawnClock <= 0) { respawnClock = 0.4; respawnLife(holes, dt); }
   handleEvents(fx);
+  if (G.mode === 'play' && G.countdown <= 0) {
+    const reason = matchEndReason({ mode: G.rules, aliveCount: holes.filter(h => h.alive).length, staticLeft: staticObjectsLeft(), lastEater: G.lastBiteWinner, clockExpired: G.roundT <= 0 });
+    if (reason) endRound(fx, reason);
+  }
   for (const o of objects) if (o.dirty && o.state !== 2) writeObject(o);
   for (const h of holes) h.updateVisual();
   updateUniforms();
@@ -106,11 +115,16 @@ function sim(dt, fx = true) {
 }
 
 function visibleNear(x, z) { const c = R.camTarget; return Math.hypot(x - c.x, z - c.z) < R.camD * 0.9; }
+function staticObjectsLeft() { return countStaticEdibles(objects); }
 function handleEvents(fx) {
-  if (!fx) { events.length = 0; return; }
+  if (!fx) {
+    for (const e of events) if (e.type === 'eat' && G.rules === 'bite' && !e.obj.moving) G.lastBiteWinner = e.hole;
+    events.length = 0; return;
+  }
   for (const e of events) {
     const h = e.hole;
     if (e.type === 'eat') {
+      if (G.rules === 'bite' && !e.obj.moving) G.lastBiteWinner = h;
       if (visibleNear(e.obj.x, e.obj.z)) puff(h.x + (e.obj.x - h.x) * 0.6, h.z + (e.obj.z - h.z) * 0.6, Math.min(h.r * 0.6, 3), e.obj.size);
       if (h === G.player) {
         A.sEat(e.obj.size, h.combo);
@@ -125,7 +139,11 @@ function handleEvents(fx) {
     } else if (e.type === 'eatHole') {
       if (visibleNear(e.victim.x, e.victim.z)) burst(e.victim.x, e.victim.z, e.victim.r, e.victim.color);
       if (h === G.player) { H.banner('GULP!', '#7ef0ff'); H.feed(`You swallowed <span style="color:${e.victim.color}">${e.victim.name}</span> +${e.pts}`); A.sEatHole(); R.shake = 1; vibrate(60); G.popAcc += e.pts; }
-      else if (e.victim === G.player) { A.sEaten(); vibrate(120); $('respawnBy').innerHTML = `by <span style="color:${h.color}">${h.name}</span>`; H.show('respawn', G.mode === 'play'); }
+      else if (e.victim === G.player) {
+        A.sEaten(); vibrate(120); $('respawnBy').innerHTML = `by <span style="color:${h.color}">${h.name}</span>`;
+        if (G.rules === 'standing') { $('respawn').classList.add('eliminated'); $('respawn').querySelector('.t1').textContent = 'ELIMINATED'; $('respawn').querySelector('.t3').textContent = 'No respawns — match continues'; H.show('respawn', G.mode === 'play'); }
+        else H.show('respawn', G.mode === 'play');
+      }
       else H.feed(`<span style="color:${h.color}">${h.name}</span> swallowed <span style="color:${e.victim.color}">${e.victim.name}</span>`);
     } else if (e.type === 'respawn') {
       if (h === G.player) H.show('respawn', false);
@@ -140,35 +158,42 @@ function showMenu() {
   G.mode = 'menu'; G.paused = false;
   H.show('hud', false); H.show('over', false); H.show('pause', false); H.show('skins', false); H.show('menu', true);
   $('bestTxt').textContent = store.best; H.setCoins();
+  syncMatchSetup();
   buildWorld(false);
   frameCamera(holes[0].x, holes[0].z, 3.2, 0, true); G.forceCull = true;
 }
 function startRound(opts = {}) {
   G.round++;
+  G.rules = selectedMode(); G.duration = selectedDuration(); G.lastBiteWinner = null; G.resultReason = '';
+  respawnClock = 0; inp.active = false; inp.x = inp.z = 0; inp.keys.clear(); $('respawn').classList.remove('eliminated'); $('respawn').querySelector('.t1').textContent = 'SWALLOWED!'; $('respawn').querySelector('.t3').textContent = 'Respawning…';
   buildWorld(true);
-  G.mode = 'play'; G.paused = false; G.roundT = ROUND_TIME; G.lastTick = 99; G.popAcc = 0; G.autoRestart = 0;
+  for (const h of holes) h.noRespawn = G.rules === 'standing';
+  G.mode = 'play'; G.paused = false; G.roundT = G.duration; G.lastTick = 99; G.sorted = []; G.popAcc = 0; G.popT = 0; G.autoRestart = 0;
+  H.resetResults(); H.clearPopups(); H.clearLabels();
   G.countdown = (Q.autoplay || opts.instant) ? 0 : 2.4;
   H.show('menu', false); H.show('over', false); H.show('pause', false); H.show('skins', false); H.show('respawn', false); H.show('hud', true);
   $('hint').style.opacity = Q.autoplay ? '0' : '1'; hintShown = !Q.autoplay;
   frameCamera(G.player.x, G.player.z, G.player.r, 0, true); G.forceCull = true;
   H.setTimer(G.roundT);
+  H.setObjective(G.rules, staticObjectsLeft(), holes.filter(h => h.alive).length);
   A.startMusic();
 }
-function endRound(fx) {
+function endRound(fx, reason = 'timeout') {
   if (G.mode !== 'play') return;
-  G.mode = 'over'; G.overT = 0;
-  const sorted = [...holes].sort((a, b) => b.score - a.score); G.sorted = sorted;
+  G.mode = 'over'; G.overT = 0; G.resultReason = reason;
+  const sorted = rankMatchHoles(holes, G.rules, reason, G.lastBiteWinner); G.sorted = sorted;
   const rank = sorted.indexOf(G.player) + 1;
-  const coins = Math.floor(G.player.score / 6) + [120, 70, 45, 30, 20, 14, 10, 8][rank - 1];
+  const coins = Math.floor(G.player.score / 6) + ([120, 70, 45, 30, 20, 14, 10, 8][rank - 1] || 8);
   G.coinsEarned = coins;
   if (Q.autoplay) { G.autoRestart = 3; if (fx) H.banner("TIME'S UP!", '#fff'); return; }
   if (!G.testScene) store.coins = store.coins + coins;
   if (!G.testScene) store.best = Math.max(store.best, G.player.score); store.played = store.played + 1;
-  if (fx) { H.banner("TIME'S UP!", '#fff'); A.sFanfare(rank <= 3); }
+  if (fx) { H.banner(reason === 'last-bite' ? 'LAST BITE!' : reason === 'last-standing' ? 'LAST ONE!' : reason === 'empty' ? 'NO HOLES LEFT!' : reason === 'timeout' && G.rules === 'bite' ? 'TIME UP — SCORE WINS' : "TIME'S UP!", '#fff'); A.sFanfare(rank <= 3); }
+  const resultRound = G.round;
   setTimeout(() => {
-    if (G.mode !== 'over') return;
+    if (G.mode !== 'over' || G.round !== resultRound) return;
     H.show('hud', false); H.show('over', true);
-    H.showResults(sorted, G.player, coins, (done) => { A.sCoin(); });
+    H.showResults(sorted, G.player, coins, (done) => { A.sCoin(); }, { title: MODES[G.rules], reason, winner: G.lastBiteWinner });
     H.setCoins();
   }, fx ? 1400 : 0);
 }
@@ -227,6 +252,14 @@ click('btnAgain', () => { fade(true); setTimeout(() => { startRound(); fade(fals
 click('btnMenu2', () => { A.stopMusic(); fade(true); setTimeout(() => { showMenu(); fade(false); }, 300); });
 
 function syncSettings() { $('btnSound').textContent = 'SOUND: ' + (A.isMuted() ? 'OFF' : 'ON'); $('btnQuality').textContent = 'QUALITY: ' + store.quality.toUpperCase(); }
+function syncMatchSetup() {
+  const mode = selectedMode(), duration = selectedDuration();
+  for (const b of document.querySelectorAll('.modeChoice')) b.classList.toggle('selected', b.dataset.mode === mode);
+  for (const b of document.querySelectorAll('[data-duration]')) b.classList.toggle('selected', Number(b.dataset.duration) === duration);
+  $('setupSummary').textContent = `${MODES[mode]} · ${duration}s · VS BOTS`;
+}
+for (const b of document.querySelectorAll('.modeChoice')) b.addEventListener('click', () => { store.matchMode = b.dataset.mode; syncMatchSetup(); A.sClick(); });
+for (const b of document.querySelectorAll('[data-duration]')) b.addEventListener('click', () => { store.matchDuration = Number(b.dataset.duration); syncMatchSetup(); A.sClick(); });
 function openPause(settingsOnly = false) {
   if (G.mode === 'play') G.paused = true;
   $('pauseTitle').textContent = settingsOnly ? 'SETTINGS' : 'PAUSED';
@@ -287,14 +320,18 @@ function frame(now) {
   if (G.mode === 'menu') {
     const t = holes.reduce((a, b) => (b.alive && b.r > a.r ? b : a), holes[0]);
     frameCamera(t.x, t.z, Math.max(3.4, t.r), dt);
-  } else if (G.player) frameCamera(G.player.x, G.player.z, G.player.r, dt);
+  } else if (G.player) {
+    let cameraHole = G.player;
+    if (G.mode === 'play' && G.rules === 'standing' && !G.player.alive) cameraHole = holes.filter(h => h.alive).sort((a, b) => b.score - a.score)[0] || G.player;
+    frameCamera(cameraHole.x, cameraHole.z, cameraHole.r, dt);
+  }
   // HUD
   const lead = holes.reduce((a, b) => (b.score > a.score ? b : a), holes[0]);
   document.getElementById('labels').style.display = G.mode === 'menu' ? 'none' : '';
   if (G.mode !== 'menu') H.updateLabels(holes, R.camera, lead.score > 0 ? lead : null);
   H.updatePopups(G.paused ? 0 : dt); H.tickCombo(dt);
   if (G.mode === 'play' || G.mode === 'over') {
-    boardT -= dt; if (boardT <= 0) { boardT = 0.25; window.__dbg.board++; G.sorted = H.updateBoard(holes, G.player); }
+    boardT -= dt; if (boardT <= 0) { boardT = 0.25; window.__dbg.board++; const left = staticObjectsLeft(); const finalBiteWinner = left === 0 ? G.lastBiteWinner : null; G.sorted = H.updateBoard(holes, G.player, G.rules, finalBiteWinner); H.setObjective(G.rules, left, holes.filter(h => h.alive).length); }
     H.setTimer(G.roundT); H.setScore(G.player.score); H.setSize(G.player.level, G.player.progress);
     G.popT -= dt;
     if (G.popAcc > 0 && G.popT <= 0) {
@@ -314,7 +351,7 @@ function frame(now) {
 }
 
 window.__game = {
-  get mode() { return G.mode; }, get time() { return G.time; }, get roundT() { return G.roundT; },
+  get mode() { return G.mode; }, get rules() { return G.rules; }, get duration() { return G.duration; }, get resultReason() { return G.resultReason; }, get lastBiteWinner() { return G.lastBiteWinner && G.lastBiteWinner.name; }, get time() { return G.time; }, get roundT() { return G.roundT; },
   get player() { const p = G.player; return p && { x: p.x, z: p.z, r: p.r, level: p.level, score: p.score, eaten: p.eaten, alive: p.alive }; },
   get holes() { return holes.map(h => ({ name: h.name, level: h.level, r: +h.r.toFixed(2), score: h.score, alive: h.alive })); },
   get objectsLeft() { return objects.filter(o => o.state === 0).length; },

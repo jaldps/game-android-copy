@@ -8,19 +8,21 @@ export const R = { renderer: null, scene: null, camera: null, sun: null, hemi: n
 export function initRender(canvas, quality) {
   R.quality = quality;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
-  R.basePR = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1.25 : 2);
+  // Keep low-quality rendering GPU-bound work proportional to a small device
+  // framebuffer. A quarter-pixel-count target is a large gain on mobile GPUs.
+  R.basePR = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 0.45 : 2);
   renderer.setPixelRatio(R.basePR);
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = quality !== 'low';
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   R.renderer = renderer;
   R.scene = new THREE.Scene();
   R.camera = new THREE.PerspectiveCamera(66, window.innerWidth / window.innerHeight, 0.15, 5000);
   R.hemi = new THREE.HemisphereLight('#cfe4ff', '#5a6b3a', 1.0); R.scene.add(R.hemi);
   const sun = new THREE.DirectionalLight('#fff0d8', 3.4);
-  sun.castShadow = true;
+  sun.castShadow = quality !== 'low';
   const sm = quality === 'low' ? 1024 : 2048; sun.shadow.mapSize.set(sm, sm);
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.035; sun.shadow.radius = 2.5;
   const sc = sun.shadow.camera; sc.near = 1; sc.far = 260; sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34;
@@ -41,21 +43,27 @@ export function applyBiome(b, seed) {
   R.sunDir.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).normalize();
   R.renderer.toneMappingExposure = b.exposure;
   // env map for glossy bike paint / helmets
-  if (R.envRT) R.envRT.dispose();
-  const pm = new THREE.PMREMGenerator(R.renderer);
-  const es = new THREE.Scene();
-  es.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), skyMaterial(b, true)));
-  R.envRT = pm.fromScene(es, 0.03); s.environment = R.envRT.texture; s.environmentIntensity = 0.6; pm.dispose();
-  // sky dome
+  if (R.quality !== 'low') {
+    if (R.envRT) R.envRT.dispose();
+    const pm = new THREE.PMREMGenerator(R.renderer);
+    const es = new THREE.Scene();
+    es.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), skyMaterial(b, true)));
+    R.envRT = pm.fromScene(es, 0.03); s.environment = R.envRT.texture; s.environmentIntensity = 0.6; pm.dispose();
+  } else { s.environment = null; }
+  // Low quality keeps the fog-colored scene background instead of shading a
+  // full-screen procedural sky and several horizon rings every frame.
   if (R.sky) { s.remove(R.sky); R.sky.geometry.dispose(); R.sky.material.dispose(); }
-  R.sky = new THREE.Mesh(new THREE.SphereGeometry(4000, 48, 24), skyMaterial(b, false));
-  R.sky.renderOrder = -10; R.sky.frustumCulled = false; s.add(R.sky);
+  R.sky = null;
+  if (R.quality !== 'low') {
+    R.sky = new THREE.Mesh(new THREE.SphereGeometry(4000, 48, 24), skyMaterial(b, false));
+    R.sky.renderOrder = -10; R.sky.frustumCulled = false; s.add(R.sky);
+  }
   // mountains
   for (const m of R.mountains) { s.remove(m); m.geometry.dispose(); m.material.dispose(); }
-  R.mountains = buildMountains(b, seed);
+  R.mountains = R.quality === 'low' ? [] : buildMountains(b, seed);
   R.mountains.forEach(m => s.add(m));
   if (R.sea) { s.remove(R.sea); R.sea = null; }
-  if (b.mountains === 'sea') { R.sea = buildSea(b); s.add(R.sea); }
+  if (b.mountains === 'sea' && R.quality !== 'low') { R.sea = buildSea(b); s.add(R.sea); }
   R.fx.sat = b.mountains === 'mesa' ? 1.1 : 1.14; R.fx.con = 1.07;
   R.fx.warm.set(...(b.mountains === 'mesa' ? [1.05, 1.0, 0.93] : b.mountains === 'hills' ? [1.05, 1.0, 0.94] : b.mountains === 'sea' ? [1.0, 1.0, 1.01] : [1.02, 1.0, 0.98]));
   if (R.post) { const u = R.post.mat.uniforms; u.uSat.value = R.fx.sat; u.uCon.value = R.fx.con; u.uWarm.value.copy(R.fx.warm); }
@@ -64,7 +72,7 @@ export function applyBiome(b, seed) {
 function skyMaterial(b, env) {
   return new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { uTop: { value: new THREE.Color(b.skyTop) }, uHor: { value: new THREE.Color(b.skyHor) }, uGnd: { value: new THREE.Color(b.fog) }, uSun: { value: R.sunDir.clone() }, uSunCol: { value: new THREE.Color(b.sun) }, uClouds: { value: env ? 0 : b.clouds }, tNoise: { value: noiseTexture() }, uTime: { value: 0 } },
+    uniforms: { uTop: { value: new THREE.Color(b.skyTop) }, uHor: { value: new THREE.Color(b.skyHor) }, uGnd: { value: new THREE.Color(b.fog) }, uSun: { value: R.sunDir.clone() }, uSunCol: { value: new THREE.Color(b.sun) }, uClouds: { value: env || R.quality === 'low' ? 0 : b.clouds }, tNoise: { value: noiseTexture() }, uTime: { value: 0 } },
     vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); vec4 p = modelViewMatrix*vec4(position,1.0); gl_Position = projectionMatrix*p; gl_Position.z = gl_Position.w*0.99999; }',
     fragmentShader: `uniform vec3 uTop, uHor, uGnd, uSun, uSunCol; uniform float uClouds, uTime; uniform sampler2D tNoise; varying vec3 vD;
       void main(){
@@ -217,6 +225,7 @@ function setupPost() {
 const _sz = new THREE.Vector2();
 export function renderFrame(t) {
   const r = R.renderer, P = R.post;
+  if (R.quality === 'low') { r.setRenderTarget(null); r.render(R.scene, R.camera); return; }
   r.getDrawingBufferSize(_sz);
   if (P.rt.width !== _sz.x || P.rt.height !== _sz.y) P.rt.setSize(_sz.x, _sz.y);
   const u = P.mat.uniforms; u.uSpeed.value = R.fx.speed; u.uBlur.value = R.fx.blur; u.uFlash.value = R.fx.flash; u.uTime.value = t; u.uAspect.value = _sz.x / _sz.y; u.uVig.value = R.fx.vig;

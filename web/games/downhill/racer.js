@@ -22,9 +22,10 @@ const V = () => new THREE.Vector3();
 
 export class Racer {
   constructor(scene, T, o) {
+    this.quality = o.quality || 'high';
     this.T = T; this.name = o.name; this.isPlayer = !!o.isPlayer; this.skill = o.skill ?? 1; this.idx = o.idx ?? 0;
     this.kit = o.kit; this.paint = o.paint; this.up = o.up || { speed: 0, grip: 0, armor: 0, boost: 0 };
-    this.bike = buildBike(o.paint); this.rider = buildRider(o.kit);
+    this.bike = buildBike(o.paint, this.quality); this.rider = buildRider(o.kit, this.quality);
     this.bikeRoot = new THREE.Group(); this.riderRoot = new THREE.Group();
     this.bikeRoot.add(this.bike.mesh); this.riderRoot.add(this.rider.mesh);
     scene.add(this.bikeRoot); scene.add(this.riderRoot);

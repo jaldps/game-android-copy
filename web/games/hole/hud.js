@@ -60,9 +60,19 @@ export function setTimer(sec) {
   $('timeTxt').textContent = `${m}:${r < 10 ? '0' : ''}${r}`;
   $('timer').classList.toggle('low', s <= 10);
 }
+export function setObjective(mode, objectsLeft, survivors) {
+  const el = $('objective');
+  const html = mode === 'bite' ? `<b>LAST BITE</b><span>${objectsLeft.toLocaleString()} static ${objectsLeft === 1 ? 'object' : 'objects'} left</span>` : mode === 'standing' ? `<b>LAST HOLE STANDING</b><span>${survivors} alive · no respawns</span>` : '<b>CLASSIC</b><span>Highest score wins</span>';
+  if (el.dataset.objective !== html) { el.dataset.objective = html; el.innerHTML = html; }
+}
 let boardKey = '';
-export function updateBoard(holes, player) {
-  const sorted = [...holes].sort((a, b) => b.score - a.score);
+export function updateBoard(holes, player, mode = 'classic', winner = null) {
+  const sorted = [...holes].sort((a, b) => {
+    if (mode === 'standing' && a.alive !== b.alive) return a.alive ? -1 : 1;
+    if (mode === 'bite' && winner && a === winner) return -1;
+    if (mode === 'bite' && winner && b === winner) return 1;
+    return b.score - a.score;
+  });
   const rows = []; const top = sorted.slice(0, 5); const pi = sorted.indexOf(player);
   const row = (h, i) => `<div class="r${h === player ? ' me' : ''}"><span class="n">${i + 1}</span><span class="d" style="background:${h.color}"></span><span class="nm">${h.name}</span><span class="sc">${fmt(h.score)}</span></div>`;
   top.forEach((h, i) => rows.push(row(h, i)));
@@ -120,10 +130,13 @@ export function renderSkins(onPick) {
 }
 
 // ---------- results ----------
-export function showResults(sorted, player, coins, onDone) {
+let resultCoinTimer = null;
+export function resetResults() { if (resultCoinTimer) clearInterval(resultCoinTimer); resultCoinTimer = null; }
+export function showResults(sorted, player, coins, onDone, info = {}) {
   const rank = sorted.indexOf(player) + 1;
+  $('over').querySelector('.rhead').textContent = info.reason === 'last-bite' ? 'LAST BITE!' : info.reason === 'last-standing' ? 'LAST HOLE STANDING!' : info.reason === 'empty' ? 'NO SURVIVORS — SCORE RESULT' : info.reason === 'timeout' && info.title === 'Last Bite' ? 'TIME OUT — SCORE RESULT' : `${info.title || 'ROUND'} OVER`;
   $('rankTxt').textContent = '#' + rank;
-  $('rankSub').textContent = rank === 1 ? 'CHAMPION!' : rank <= 3 ? 'PODIUM!' : rank <= 5 ? 'NICE ROUND!' : 'KEEP GROWING!';
+  $('rankSub').textContent = info.reason === 'last-bite' && info.winner === player ? 'FINAL OBJECT EATEN — YOU WIN!' : info.reason === 'last-standing' && player.alive ? 'LAST ONE ALIVE — YOU WIN!' : info.reason === 'empty' ? 'NO SURVIVORS — SCORE DECIDES' : rank === 1 ? 'CHAMPION!' : info.reason === 'timeout' && info.title === 'Last Bite' ? 'SCORE DECIDES THE RESULT' : rank <= 3 ? 'PODIUM!' : rank <= 5 ? 'NICE ROUND!' : 'KEEP GROWING!';
   document.querySelector('.rank .crown').style.visibility = rank === 1 ? 'visible' : 'hidden';
   const stars = rank === 1 ? 3 : rank <= 3 ? 2 : 1;
   for (let i = 1; i <= 3; i++) { const el = $('st' + i); el.classList.remove('on'); setTimeout(() => { if (i <= stars) el.classList.add('on'); }, 350 + i * 220); }
@@ -134,8 +147,8 @@ export function showResults(sorted, player, coins, onDone) {
   $('rsScore').textContent = player.score; $('rsEaten').textContent = player.eaten; $('rsHoles').textContent = player.holesEaten; $('rsSize').textContent = player.maxLevel;
   // coin count-up
   const el = $('rsCoins'); let c = 0; const step = Math.max(1, Math.ceil(coins / 30));
-  clearInterval(el._t); el.textContent = '0';
-  el._t = setInterval(() => { c = Math.min(coins, c + step); el.textContent = c; onDone && onDone(c === coins); if (c >= coins) clearInterval(el._t); }, 40);
+  resetResults(); el.textContent = '0';
+  resultCoinTimer = setInterval(() => { c = Math.min(coins, c + step); el.textContent = c; onDone && onDone(c === coins); if (c >= coins) { clearInterval(resultCoinTimer); resultCoinTimer = null; } }, 40);
   // next skin progress
   const owned = store.owned; const next = SKINS.find(s => !owned.includes(s.id));
   if (next) {

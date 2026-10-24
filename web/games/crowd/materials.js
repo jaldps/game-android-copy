@@ -176,10 +176,10 @@ vec3 groundColor(vec2 p, float up, float wy, float gk, vec4 rt){
     float ring = floor(rr / 1.5);
     float nseg = 8.0 + ring*5.0;
     float seg = floor((ang + 3.14159) / 6.28318 * nseg);
-    vec3 c = mix(uPlazaA, uPlazaB, step(0.5, mod(ring, 2.0)) * 0.75);
-    c *= 0.94 + 0.07*hash12(vec2(ring, seg));
-    float fr = fract(rr/1.5); c *= 0.9 + 0.1*smoothstep(0.0, 0.04, min(fr, 1.-fr));
-    float fs = fract((ang + 3.14159) / 6.28318 * nseg); c *= 0.92 + 0.08*smoothstep(0.0, 0.03, min(fs, 1.-fs));
+    vec3 c = mix(uPlazaA, uPlazaB, step(0.5, mod(ring, 2.0)) * 0.9);
+    c *= 0.88 + 0.15*hash12(vec2(ring, seg));
+    float fr = fract(rr/1.5); c *= 0.84 + 0.16*smoothstep(0.0, 0.04, min(fr, 1.-fr));
+    float fs = fract((ang + 3.14159) / 6.28318 * nseg); c *= 0.88 + 0.12*smoothstep(0.0, 0.03, min(fs, 1.-fs));
     if (max(abs(cq.x), abs(cq.y)) > 9.6) c = pavers(p, vec2(1.0), uPlazaA*0.97, uPlazaA*1.03, 0.05, 0.0);
     return c;
   } else if (type < 3.5) {
@@ -316,7 +316,7 @@ function patch(mat, o) {
   transformed.z += cos(uTime*1.3 + ip.z*0.29) * k * 0.7;
 }`;
     vs = vs.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + anim);
-    if (o.kind === 'paint') vs = vs.replace('#include <color_vertex>', 'vColor = color.rgb;\n#ifdef USE_INSTANCING_COLOR\nif (tint > 0.5) vColor *= instanceColor.rgb;\n#endif\n');
+    if (o.kind === 'paint') vs = vs.replace('#include <color_vertex>', 'vColor = vec4(color.rgb, 1.0);\n#ifdef USE_INSTANCING_COLOR\nif (tint > 0.5) vColor.rgb *= instanceColor.rgb;\n#endif\n');
     let post = `
 {
   vec4 hw = vec4(transformed, 1.0);
@@ -411,7 +411,7 @@ mat3 rotX(float a){ float c = cos(a), s = sin(a); return mat3(1.,0.,0., 0.,c,s, 
 `;
     vs = vs.replace('#include <beginnormal_vertex>', `vec3 objectNormal; vec3 _Pp;\n{ ${pose} objectNormal = N; _Pp = P; }\n#ifdef USE_TANGENT\nvec3 objectTangent = vec3(1.0,0.0,0.0);\n#endif\n`);
     vs = vs.replace('#include <begin_vertex>', 'vec3 transformed = _Pp;\n');
-    vs = vs.replace('#include <color_vertex>', `vColor = color.rgb * iCol.rgb; vFlash = iCol.w;`);
+    vs = vs.replace('#include <color_vertex>', `vColor = vec4(color.rgb * iCol.rgb, 1.0); vFlash = iCol.w;`);
     sh.vertexShader = vs;
     let fs = sh.fragmentShader;
     fs = fs.replace('#include <common>', '#include <common>\nvarying float vFlash;\n');

@@ -9,4 +9,6 @@ export const store = {
   get skin() { return get('skin', 'classic'); }, set skin(v) { set('skin', v); },
   get quality() { return get('quality', 'high'); }, set quality(v) { set('quality', v); },
   get played() { return get('played', 0); }, set played(v) { set('played', v); },
+  get matchMode() { return get('matchMode', 'classic'); }, set matchMode(v) { set('matchMode', v); },
+  get matchDuration() { return get('matchDuration', 120); }, set matchDuration(v) { set('matchDuration', v); },
 };

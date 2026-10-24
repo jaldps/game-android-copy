@@ -4,6 +4,7 @@ import { CITY, HOLE, levelRadius, levelMass, objectMass } from './config.js';
 import { U, MAX_HOLES } from './materials.js';
 import { gridQuery, gridRemove, writeObject, hideObject } from './objects.js';
 import { rand, range } from './rng.js';
+import { respawnEligible } from './match-rules.js';
 
 export const holes = [];
 export const events = [];
@@ -187,8 +188,7 @@ export function updateHoles(dt, time) {
   for (const o of leaning) o.leanT = 0;
   for (const h of holes) {
     if (!h.alive) {
-      h.respawnT -= dt;
-      if (h.respawnT <= 0) respawn(h);
+      if (respawnEligible(h)) { h.respawnT -= dt; if (h.respawnT <= 0) respawn(h); }
       continue;
     }
     h.invuln = Math.max(0, h.invuln - dt);
@@ -230,7 +230,7 @@ export function updateHoles(dt, time) {
     if (a.r > b.r * HOLE.EAT_HOLE_RATIO) {
       const d = Math.hypot(a.x - b.x, a.z - b.z);
       if (d < a.r - b.r * 0.35) {
-        b.alive = false; b.respawnT = 3.0; b.group.visible = false;
+        b.alive = false; b.respawnT = 3.0; b.eliminated = !!b.noRespawn; b.group.visible = false;
         const pts = 40 + Math.round(b.score * 0.15);
         a.score += pts; a.holesEaten++; a.addMass(levelMass(b.level) * 1.5 + 3);
         events.push({ type: 'eatHole', hole: a, victim: b, pts });

@@ -13,7 +13,8 @@ const CH = 100;
 const _q = { i: 0, s: 0, u: 0, d: 0 };
 const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _qq = new THREE.Quaternion(), _s = new THREE.Vector3(), _e = new THREE.Euler(), _c = new THREE.Color();
 
-export function planScenery(T, bio, biomeId, seed) {
+export function planScenery(T, bio, biomeId, seed, quality = 'high') {
+  const low = quality === 'low';
   const R = mulberry(seed * 31 + 5), rr = (a, b) => a + (b - a) * R();
   const P = { trees: [], grass: [], rocks: [], bushes: [], cypress: [], boug: [], houses: [], pines: [], obstacles: [] };
   const nCh = Math.ceil(T.N / CH);
@@ -32,12 +33,12 @@ export function planScenery(T, bio, biomeId, seed) {
   const tw0 = bio.width * 0.5;
 
   // ---- trees / cacti ----
-  const treeStep = biomeId === 'desert' ? 6 : biomeId === 'village' ? 4.5 : 2.0;
+  const treeStep = (biomeId === 'desert' ? 6 : biomeId === 'village' ? 4.5 : 2.0) * (low ? 2.5 : 1);
   const bands = biomeId === 'desert' ? [[3, 10, 0.18], [10, 40, 0.3], [40, 90, 0.2]] :
     biomeId === 'village' ? [[9, 22, 0.25], [22, 60, 0.35]] :
     [[2.2, 7, 0.5], [7, 20, 0.62], [20, 45, 0.7], [45, 85, 0.5]];
   for (let s = 0; s < T.N; s += treeStep) for (const side of [-1, 1]) for (const [a, b, pr] of bands) {
-    if (R() > pr) continue;
+    if (R() > pr * (low ? 0.48 : 1)) continue;
     if (clearZone(s) && a < 6) continue;
     const u = side * (tw0 + rr(a, b));
     const p = at(s + rr(-1, 1), u, a - 0.3); if (!p) continue;
@@ -71,9 +72,9 @@ export function planScenery(T, bio, biomeId, seed) {
     }
   }
   // ---- rocks ----
-  const rockStep = biomeId === 'desert' ? 3 : 5;
+  const rockStep = (biomeId === 'desert' ? 3 : 5) * (low ? 2 : 1);
   for (let s = 8; s < T.N; s += rockStep) for (const side of [-1, 1]) {
-    if (R() > (biomeId === 'village' ? 0.15 : 0.55)) continue;
+    if (R() > (biomeId === 'village' ? 0.15 : 0.55) * (low ? 0.5 : 1)) continue;
     const near = R() < 0.6; const dd = near ? rr(0.6, 4) : rr(4, 50);
     const p = at(s + rr(-2, 2), side * (tw0 + dd), dd - 0.2); if (!p) continue;
     p.v = Math.floor(R() * 3); p.sc = near ? rr(0.18, 0.5) : rr(0.5, biomeId === 'desert' ? 3.2 : 2.0) * (R() < 0.15 ? 1.8 : 1); p.rot = R() * 6.28; p.sink = 0.25;
@@ -87,15 +88,15 @@ export function planScenery(T, bio, biomeId, seed) {
     for (let k = 0; k < 4; k++) { const q = at(r.s + rr(-3, 3), rr(-tw0 + 0.3, tw0 - 0.3), -tw0 - 1); if (q) { q.v = k % 3; q.sc = rr(0.08, 0.16); q.rot = R() * 6; q.sink = 0.3; P.rocks.push(q); } }
   }
   // ---- grass tufts / bushes ----
-  const gStep = biomeId === 'desert' ? 1.4 : 0.42;
+  const gStep = (biomeId === 'desert' ? 1.4 : 0.42) * (low ? 3.5 : 1);
   for (let s = 2; s < T.N; s += gStep) for (const side of [-1, 1]) {
-    if (R() > 0.85) continue;
+    if (R() > (low ? 0.55 : 0.85)) continue;
     const dd = -0.35 + Math.pow(R(), 1.8) * (biomeId === 'village' ? 3 : 11);
     if (bio.houses && dd > 0.2 && dd < 1) continue;
     const p = at(s + rr(-0.3, 0.3), side * (tw0 + dd), dd - 0.05); if (!p) continue;
     p.sc = rr(0.6, 1.25) * (dd < 0.5 ? 0.75 : 1); p.rot = R() * 6.28; P.grass.push(p);
   }
-  for (let s = 6; s < T.N; s += 7) for (const side of [-1, 1]) {
+  for (let s = 6; s < T.N; s += low ? 18 : 7) for (const side of [-1, 1]) {
     if (R() > 0.5) continue;
     const dd = rr(1.2, 14); const p = at(s + rr(-3, 3), side * (tw0 + dd), dd - 0.2); if (!p) continue;
     p.sc = rr(0.7, 1.5); p.rot = R() * 6.28; p.tint = R(); P.bushes.push(p);
@@ -279,19 +280,24 @@ function buildProps(scene, T, bio, biomeId, P, R, out) {
   // ---- arches: start, checkpoints, finish ----
   const arch = (s, text, key, bannerBg) => {
     const i = Math.round(s); const tw = T.W[i] * 0.5 + 1.0; const th = thAt(s);
-    const pts = []; for (let k = 0; k <= 16; k++) { const a = Math.PI * k / 16; const p = fr(s, -Math.cos(a) * tw); p.y = trackY(T, s) + Math.sin(a) * 4.4 - 0.2; pts.push(p); }
-    add(s, key, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.42, 10));
-    const c = fr(s, 0); c.y = trackY(T, s) + 3.55;
+    const isStart = text === 'START', rise = isStart ? 2.75 : 4.4, tube = isStart ? 0.24 : 0.42;
+    const pts = []; for (let k = 0; k <= 16; k++) { const a = Math.PI * k / 16; const p = fr(s, -Math.cos(a) * tw); p.y = trackY(T, s) + Math.sin(a) * rise - 0.2; pts.push(p); }
+    add(s, key, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, tube, 10));
+    const c = fr(s, 0); c.y = trackY(T, s) + (isStart ? 2.05 : 3.55);
+    const bannerH = isStart ? 0.62 : 0.85;
     const bm = new THREE.MeshStandardMaterial({ map: bannerTexture(text, bannerBg, '#ffffff', 512, 96), roughness: 0.6, side: THREE.DoubleSide });
-    const bg = new THREE.PlaneGeometry(tw * 1.3, 0.85); bg.rotateY(th + Math.PI); bg.translate(c.x, c.y, c.z);
+    const bg = new THREE.PlaneGeometry(tw * 1.3, bannerH); bg.rotateY(th + Math.PI); bg.translate(c.x, c.y, c.z);
     const bmesh = new THREE.Mesh(bg, bm); bmesh.castShadow = true; scene.add(bmesh); out.meshes.push(bmesh);
     out.arches.push({ s, text });
   };
   arch(T.start + 2, 'START', 'arch', '#1f6fe0');
   T.cps.forEach((s, k) => arch(s, 'CHECKPOINT ' + (k + 1), k % 2 ? 'arch' : 'arch2', k % 2 ? '#ff5a1a' : '#1f6fe0'));
   arch(T.finish, 'FINISH', 'arch', '#e8203a');
-  // start platform (wooden deck behind the grid) + finish fence banners
-  for (let s = 2; s < T.start - 1; s += 0.4) { const i = Math.round(s); const p = fr(s, 0); p.y = trackY(T, s) - 0.02; box(T.W[i] + 0.6, 0.08, 0.36, p, thAt(s), 'wood', s); }
+  // Two painted start stripes keep the dirt ribbon visible and give racers a clear grid.
+  for (const [s, key] of [[T.start - 4, 'white'], [T.start - 1.2, 'arch2']]) {
+    const p = fr(s, 0); p.y = trackY(T, s) + 0.035;
+    box(T.W[Math.round(s)] + 0.4, 0.025, 0.12, p, thAt(s), key, s);
+  }
   const bannerMat = new THREE.MeshStandardMaterial({ map: bannerTexture('RIDGELINE', '#14213a', '#ffd21a', 1024, 128), roughness: 0.7, side: THREE.DoubleSide });
   const banners = [];
   const fence = (s0, s1, side) => {

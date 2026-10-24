@@ -1,0 +1,212 @@
+// Bowbrawl — boot, app wiring, main loop and testing hooks (?autoplay ?scene ?seed ?warp ?fixedstep ?map ?char).
+import { setOrientation, goHome, onBack, onPauseResume } from '../../shared/platform.js';
+import { P } from './core/params.js';
+import { initRender, renderFrame, resize, R, applyLighting } from './core/render.js';
+import { updateCamera, addShake, cam, lookAt, snap, setBounds } from './core/camera.js';
+import { FX } from './core/fx.js';
+import { Match } from './core/match.js';
+import { Hud } from './core/hud.js';
+import { input, bindInput, createHumanController, releaseAll } from './core/input.js';
+import { audio } from './core/audio.js';
+import { store } from './core/store.js';
+import { makeRng } from './core/util.js';
+import { trayArrows } from './arrows/index.js';
+import { MAPS, getMap } from './maps/index.js';
+import { getCharacter, CHARACTERS } from './characters/index.js';
+import { createMeta, setPortraitSource } from './meta/index.js';
+import { renderPortraits, portraitURL } from './core/portraits.js';
+
+setOrientation('landscape');
+const canvas = document.getElementById('c');
+let quality = P.quality || store.get('quality', 'high');
+initRender(canvas, quality);
+const fx = new FX(R.scene); fx.onShake = (a) => addShake(a);
+// hero busts for the turn strip / shop / setup, rendered once from the real models before any screen is built
+renderPortraits(); setPortraitSource(portraitURL);
+
+let seedCounter = P.seed ?? ((Date.now() / 1000) | 0) % 1000000;
+const rng = makeRng((seedCounter ^ 0x5bd1e995) >>> 0);
+let match = null, paused = false, pendingEnd = null, autoplayT = -1, autoplayN = 0;
+const trayIds = () => trayArrows().map((a) => a.id);
+const thumbs = new Map(), thumbQueue = []; let thumbCb = null, thumbWait = 0;
+
+const app = {
+  audio, rng,
+  seed: () => seedCounter,
+  newSeed: () => (seedCounter = (seedCounter * 1103515245 + 12345) % 2147483647),
+  startMatch, endMatch,
+  /** Live 3D hero on the menu backdrop. view: { mapId?, offset?, zoom?, feet? (screen fraction of the feet) }. */
+  showcase(charId, outfitId, view = {}) {
+    const apply = (cfg) => { cfg.showcaseOffset = view.offset; cfg.showcaseZoom = view.zoom; cfg.showcaseFeet = view.feet; };
+    if (match?.cfg.showcase) { apply(match.cfg); match.restyle(0, charId, outfitId); return; }
+    const cfg = { mode: 'showcase', showcase: true, mapId: P.map || view.mapId || 'sunspire', seed: 7, players: [{ charId, outfitId, controller: 'none', team: 0 }] };
+    apply(cfg); startMatch(cfg);
+  },
+  mapThumb: (id) => thumbs.get(id) ?? null,
+  /** Render one small frame of every map (one per animation frame) for the arena pickers; cb runs as each lands. */
+  requestMapThumbs(cb) {
+    for (const m of MAPS) if (!thumbs.has(m.id) && !thumbQueue.includes(m.id)) thumbQueue.push(m.id);
+    thumbCb = cb ?? null; thumbWait = Math.max(thumbWait, 0.35);   // let the screen mount and animate in first
+    if (!thumbQueue.length) cb?.();
+  },
+  restyle(charId, outfitId) { if (match?.cfg.showcase) match.restyle(0, charId, outfitId); },
+  hud(v) { hud.show(v); },
+  setPaused(v) { paused = v; if (v) audio.music?.gain.setTargetAtTime(0.12, audio.ac.currentTime, 0.2); else if (audio.ac) audio.music.gain.setTargetAtTime(0.32, audio.ac.currentTime, 0.2); },
+  goHome() { goHome(); },
+  quality: () => quality,
+  toggleQuality() { quality = quality === 'high' ? 'low' : 'high'; store.set('quality', quality); location.reload(); },
+};
+const meta = createMeta(app);
+const hud = new Hud(document.getElementById('hud'), { onPause: () => meta.showPause() });
+bindInput(canvas, () => (meta.isPauseOpen() ? meta.hidePause() : match && !match.cfg.showcase && !P.autoplay && meta.showPause()));
+
+function controllers(pc, slot) {
+  if (pc.controller === 'human') return createHumanController(trayIds);
+  if (pc.controller === 'ai') return meta.createController(pc, slot);
+  return null;
+}
+function startMatch(cfg) {
+  endMatch();
+  releaseAll();
+  match = new Match(cfg, { scene: R.scene, fx, controllers, onEnd: (s) => (pendingEnd = s) });
+  cam.menuDrift = !!cfg.showcase;
+  hud.attach(match); hud.show(!cfg.showcase && P.hud);
+  paused = false;
+  audio.playMusic(cfg.showcase ? 'menu' : getMap(cfg.mapId).music ?? 'battle');
+  audio.playAmbience(cfg.showcase ? null : getMap(cfg.mapId).id);
+  return match;
+}
+function endMatch() { if (match) { match.dispose(); match = null; } pendingEnd = null; }
+
+// ------------------------------------------------------------------ map thumbnails
+// Builds the map off to the side of the live scene (the current match is hidden for one draw), frames both spawn
+// islands, renders one graded frame to the main canvas and copies a 2:1 crop into a JPEG before the real frame is drawn.
+let thumbCanvas = null;
+function renderThumb(id) {
+  const keep = { x: cam.x, y: cam.y, h: cam.h, tx: cam.tx, ty: cam.ty, th: cam.th, panX: cam.panX, panY: cam.panY, drift: cam.menuDrift };
+  const insetOn = R.inset.on; R.inset.on = false;
+  if (match) match.root.visible = false;
+  const fxm = [fx.add.mesh, fx.alpha.mesh, fx.debris]; for (const o of fxm) o.visible = false;
+  let t = null;
+  try {
+    t = new Match({ mode: 'thumb', thumb: true, mapId: id, seed: 7, players: [] }, { scene: R.scene, fx, controllers: () => null, onEnd() {} });
+    const sp = t.gen.spawns ?? [], T = t.terrain;
+    let x0 = -24, x1 = 24, y0 = 1e9, y1 = -1e9;
+    if (sp.length >= 2) { x0 = Math.min(sp[0].x, sp[1].x); x1 = Math.max(sp[0].x, sp[1].x); }
+    for (const x of [x0, (x0 + x1) / 2, x1]) { const g = T.groundBelow(x, T.y1 - 0.5); if (!isNaN(g)) { y0 = Math.min(y0, g); y1 = Math.max(y1, g); } }
+    if (y0 > y1) { y0 = -2; y1 = 4; }
+    const H = Math.max(y1 - y0 + 9, (x1 - x0 + 12) / R.camera.aspect);
+    cam.menuDrift = false; lookAt((x0 + x1) / 2, (y0 + y1) / 2 + H * 0.12, H, 3); snap(); updateCamera(0);
+    t.props.update(1 / 60, T, t.killY, 0); t.backdrop?.update(1 / 60, 0, cam, 0);
+    renderFrame();
+    if (!thumbCanvas) { thumbCanvas = document.createElement('canvas'); thumbCanvas.width = 240; thumbCanvas.height = 120; }
+    const cv = R.renderer.domElement, sh = cv.height, sw = Math.min(cv.width, sh * 2);
+    thumbCanvas.getContext('2d').drawImage(cv, (cv.width - sw) / 2, 0, sw, sh, 0, 0, 240, 120);
+    thumbs.set(id, thumbCanvas.toDataURL('image/jpeg', 0.82));
+  } catch (e) { console.warn('[thumb ' + id + ']', e); thumbs.set(id, null); }
+  t?.dispose();
+  for (const o of fxm) o.visible = true;
+  if (match) {
+    match.root.visible = true; applyLighting(match.map.lighting);
+    const b = match.map.bounds ?? { minX: -60, maxX: 60, minY: -12, maxY: 34 }; setBounds(b.minX, b.maxX, b.minY, b.maxY);
+  }
+  Object.assign(cam, { x: keep.x, y: keep.y, h: keep.h, tx: keep.tx, ty: keep.ty, th: keep.th, panX: keep.panX, panY: keep.panY, menuDrift: keep.drift });
+  R.inset.on = insetOn;
+  thumbCb?.();
+}
+
+function handleEnd() {
+  const s = pendingEnd; pendingEnd = null;
+  if (P.autoplay) { autoplayT = 0.6; return; }
+  meta.onMatchEnd(s);
+}
+function startAutoplay() {
+  const s = app.newSeed();
+  const over = { mapId: P.map || MAPS[autoplayN % MAPS.length].id, charId: P.char || undefined, outfitId: P.outfit || undefined };
+  if (P.seed !== null && autoplayN === 0) seedCounter = P.seed;
+  autoplayN++;
+  startMatch(meta.autoplayConfig(P.seed !== null && autoplayN === 1 ? P.seed : s, over));
+}
+
+// ------------------------------------------------------------------ scenes
+function boot() {
+  const over = { mapId: P.map || undefined, charId: P.char || undefined, outfitId: P.outfit || undefined, force: !!(P.char || P.outfit) };
+  if (P.autoplay) startAutoplay();
+  else if (P.scene === 'play') { startMatch(meta.quickConfig(P.seed ?? app.newSeed(), over)); meta.setMode('play'); }
+  else if (P.scene === 'shop') meta.showShop();
+  else if (P.scene === 'over') {
+    startMatch(meta.autoplayConfig(P.seed ?? 11, { mapId: P.map || 'sunspire', charId: P.char || 'vela' }));
+    for (let t = 0; t < 6; t += 1 / 60) { match.update(1 / 60); updateCamera(1 / 60); }
+    match.actors[1].damage(999, match.actors[0], {}); match.over = true; match.winnerTeam = 0; match.phase = 'end'; match._celebrate?.();
+    const s = match.summary(); s.won = true; s.mode = 'quick';
+    const me = s.actors[0]; me.human = true; me.damage = Math.max(me.damage, 112); me.headshots = Math.max(me.headshots, 1); me.shots = Math.max(me.shots, 5); me.hits = Math.max(me.hits, 4); me.hp = Math.max(me.hp, 71);
+    s.turns = Math.max(s.turns, 9);
+    meta.showResults(s, { coins: 236, xp: 168, stars: 2, levelUp: false, after: { level: 3, xp: 260, need: 440 } });
+  } else meta.showMenu();
+  if (P.warp > 0 && match) {
+    const step = 1 / 60;
+    for (let t = 0; t < P.warp; t += step) {
+      match.update(step); updateCamera(step);
+      if (pendingEnd) { if (P.autoplay) { pendingEnd = null; startAutoplay(); } else handleEnd(); }
+    }
+  }
+}
+
+// ------------------------------------------------------------------ platform
+onBack(() => {
+  if (P.autoplay) return false;
+  return meta.back();
+});
+onPauseResume(() => { audio.pause(); if (match && !match.cfg.showcase && !P.autoplay && meta.mode === 'play') meta.showPause(); }, () => audio.resume());
+window.addEventListener('resize', () => { resize(); });
+
+// ------------------------------------------------------------------ hooks for the critic
+window.__game = {
+  get scene() { return match?.cfg.showcase ? 'menu' : meta.mode; },
+  get phase() { return match?.phase; },
+  get turn() { return match?.turnNo; },
+  get map() { return match?.map.id; },
+  get seed() { return match?.seed; },
+  get wind() { return match ? { strength: match.wind.strength, angleDeg: Math.round(match.wind.angle * 180 / Math.PI) } : null; },
+  get active() { return match?.active?.name; },
+  get actors() { return match?.actors.map((a) => ({ name: a.name, char: a.charDef.id, outfit: a.outfitDef?.id, hp: a.hp, alive: a.alive, x: +a.x.toFixed(2), y: +a.y.toFixed(2), angle: Math.round(a.angle), lastPower: Math.round(a.lastPower), delay: Math.round(a.delay) })); },
+  get match() { return match; },
+  /** testing: frame a world point (x, y, visible height) instantly */
+  look(x, y, h = 14) { lookAt(x, y, h, 30); snap(); },
+};
+window.__fps = 0;
+
+// ------------------------------------------------------------------ loop
+let last = performance.now(), fpsN = 0, fpsT = 0, booted = false;
+// adaptive resolution: drop the pixel ratio when frames run long on real devices (not under automation)
+let slowT = 0, fastT = 0;
+const adaptive = !navigator.webdriver;
+function adapt(dtRaw) {
+  if (!adaptive || paused) return;
+  if (dtRaw > 0.024) { slowT += dtRaw; fastT = 0; } else if (dtRaw < 0.0155) { fastT += dtRaw; slowT = Math.max(0, slowT - dtRaw * 0.5); }
+  const max = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1.25 : 2);
+  if (slowT > 2 && R.pr > 1) { R.pr = Math.max(1, R.pr - 0.25); R.renderer.setPixelRatio(R.pr); resize(); slowT = 0; }
+  else if (fastT > 8 && R.pr < max) { R.pr = Math.min(max, R.pr + 0.25); R.renderer.setPixelRatio(R.pr); resize(); fastT = 0; }
+}
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dtRaw = Math.max(0, (now - last) / 1000);
+  let dt = Math.min(1 / 30, dtRaw); last = now;
+  adapt(dtRaw);
+  if (P.fixedstep) dt = 1 / 60;
+  fpsN++; fpsT += Math.max(1e-3, (now - (frame.prev ?? now)) / 1000); frame.prev = now;
+  if (fpsT >= 1) { window.__fps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
+  if (match && !paused) match.update(dt);
+  if (pendingEnd) handleEnd();
+  if (autoplayT >= 0) { autoplayT -= dt; if (autoplayT < 0) startAutoplay(); }
+  if (match && !match.cfg.showcase && P.hud) hud.update(dt);
+  if (thumbQueue.length && (thumbWait -= dtRaw) <= 0) { renderThumb(thumbQueue.shift()); thumbWait = 0.15; }   // spread out: one per few frames
+  updateCamera(dt);
+  renderFrame();
+  if (!booted) { booted = true; document.getElementById('boot')?.classList.add('done'); }
+}
+document.fonts.ready.then(() => {}).catch(() => {});
+boot();
+// pre-render the arena thumbnails in the background while the title screen idles, so Quick Match opens instantly
+if (!P.autoplay && P.scene !== 'play') { app.requestMapThumbs(null); thumbWait = 1.2; }
+requestAnimationFrame(frame);

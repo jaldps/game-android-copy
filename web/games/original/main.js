@@ -305,7 +305,9 @@ function frame(now) {
   if (G.mode !== 'paused' && G.mode !== 'over') sim(dt);
   else if (G.mode === 'over') { G.t += dt * 0.3; V.t = G.t; }
   // camera + shake
-  V.camX = G.camX; V.speed = G.speed;
+  // Keep the player's flock near the visual center, with the HUD clear above it.
+  // The gameplay simulation still uses G.camX; this is a render-only framing offset.
+  V.camX = G.camX - Math.min(22, V.W * 0.13); V.speed = G.speed;
   const sh = G.shake * G.shake * 0.8; V.shakeX = (Math.random() - 0.5) * sh; V.shakeY = (Math.random() - 0.5) * sh;
   updatePalette(G.camX + V.W * 0.25, G.flash);
   const t0 = performance.now(); drawFrame(P, G); window.__drawMs = Math.round(performance.now() - t0);

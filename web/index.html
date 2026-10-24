@@ -20,8 +20,11 @@ main{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:
   box-shadow:0 6px 0 rgba(0,0,0,.35),0 14px 30px rgba(0,0,0,.35),inset 0 0 0 2px rgba(255,255,255,.14);
   transform:translateY(20px) scale(.96);opacity:0;animation:pop .55s cubic-bezier(.2,1.4,.4,1) forwards;transition:transform .15s}
 .card:active{transform:scale(.95)!important}
-.card .art{position:absolute;inset:0;background-size:cover;background-position:center}
-.card .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(10,4,30,.88) 100%)}
+.card .art{position:absolute;inset:0;background-size:cover;background-position:center;overflow:hidden}
+.card .art img{width:100%;height:100%;display:block;object-fit:cover}
+.card .art.thumb-error{display:grid;place-items:center;background:#21183c;color:#ddd6ff;text-align:center;padding:20px;font-size:13px;font-weight:900}
+.card .art.thumb-error:after{content:'Gameplay screenshot unavailable'}
+.card .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(10,4,30,.88) 100%);pointer-events:none}
 .card .info{position:absolute;left:14px;right:14px;bottom:12px}
 .card h2{font-family:'Lilita One';font-weight:400;font-size:24px;margin:0;line-height:1;text-shadow:0 3px 0 rgba(0,0,0,.45)}
 .card p{margin:5px 0 0;font-size:12px;font-weight:800;color:#ddd6ff;line-height:1.2}
@@ -55,7 +58,7 @@ GAMES.forEach(async (g, i) => {
   try { meta = await (await fetch(`games/${g.id}/meta.json`, {cache:'no-store'})).json(); } catch (e) {}
   let ok = false; try { ok = (await fetch(`games/${g.id}/index.html`, {method:'GET', cache:'no-store'})).ok; } catch (e) {}
   if (meta) { if (meta.title) a.querySelector('h2').textContent = meta.title; if (meta.tagline) a.querySelector('p').textContent = meta.tagline;
-    if (meta.thumb) a.querySelector('.art').style.backgroundImage = `url(games/${g.id}/${meta.thumb}), linear-gradient(160deg,${g.g[0]},${g.g[1]})`;
+    if (meta.thumb) { const art = a.querySelector('.art'); const img = document.createElement('img'); img.src = `games/${g.id}/${meta.thumb}`; img.alt = `${meta.title || g.title} gameplay screenshot`; img.onerror = () => { art.classList.add('thumb-error'); img.remove(); }; art.appendChild(img); }
     if (meta.bestKey) { try { const b = localStorage.getItem(meta.bestKey); if (b) a.insertAdjacentHTML('beforeend', `<div class="best">★ ${b}</div>`); } catch (e) {} } }
   if (!ok) a.classList.add('locked');
   a.onclick = () => { if (ok) location.href = `games/${g.id}/index.html`; };

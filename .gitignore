@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 android/build/
 android/app/build/
 android/.gradle/
@@ -9,3 +9,4 @@ shots/
 refs/**/*.jpg
 refs/**/*.png
 .DS_Store
+.claude/worktrees/

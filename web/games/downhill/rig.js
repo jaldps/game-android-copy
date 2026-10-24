@@ -69,20 +69,25 @@ export const BIKE = {
 BIKE.axis = BIKE.HT.clone().sub(BIKE.HB).normalize();
 BIKE.grip = [V(-0.36, 1.115, 0.295), V(0.36, 1.115, 0.295)];
 
-function wheelParts(rb, bone, paint, rear) {
+function wheelParts(rb, bone, paint, rear, quality = 'high') {
+  const low = quality === 'low';
   const R = BIKE.wheelR;
-  const tire = new THREE.TorusGeometry(R - 0.046, 0.046, 10, 48); tire.rotateY(Math.PI / 2); rb.add(tire, bone, 1, '#1d1d1f');
+  const tireSeg = low ? 24 : 48;
+  const tire = new THREE.TorusGeometry(R - 0.046, 0.046, 10, tireSeg); tire.rotateY(Math.PI / 2); rb.add(tire, bone, 1, '#1d1d1f');
   // tread knobs
   const knobs = [];
-  for (let i = 0; i < 40; i++) for (const side of [-1, 1]) {
+  const knobCount = low ? 16 : 40;
+  for (let i = 0; i < knobCount; i++) for (const side of [-1, 1]) {
     const a = (i + (side > 0 ? 0.5 : 0)) / 40 * Math.PI * 2; const k = new THREE.BoxGeometry(0.022, 0.018, 0.028);
     k.translate(side * 0.022, R - 0.006, 0); k.rotateX(a); knobs.push(k);
   }
   for (const k of knobs) rb.add(k, bone, 1, '#151516');
-  const wall = new THREE.TorusGeometry(R - 0.07, 0.022, 6, 40); wall.rotateY(Math.PI / 2); wall.scale(1.25, 1, 1); rb.add(wall, bone, 1, '#6e5a44');
-  const rim = new THREE.TorusGeometry(R - 0.085, 0.017, 6, 40); rim.rotateY(Math.PI / 2); rb.add(rim, bone, 0, paint.rim);
+  const wr = low ? 20 : 40;
+  const wall = new THREE.TorusGeometry(R - 0.07, 0.022, 6, wr); wall.rotateY(Math.PI / 2); wall.scale(1.25, 1, 1); rb.add(wall, bone, 1, '#6e5a44');
+  const rim = new THREE.TorusGeometry(R - 0.085, 0.017, 6, wr); rim.rotateY(Math.PI / 2); rb.add(rim, bone, 0, paint.rim);
   const hub = new THREE.CylinderGeometry(0.032, 0.032, 0.13, 10); hub.rotateZ(Math.PI / 2); rb.add(hub, bone, 2, '#c8ccd2');
-  for (let i = 0; i < 28; i++) {
+  const spokeCount = low ? 12 : 28;
+  for (let i = 0; i < spokeCount; i++) {
     const a = i / 28 * Math.PI * 2, side = i % 2 ? 1 : -1;
     const p0 = V(side * 0.045, Math.cos(a + side * 0.25) * 0.03, Math.sin(a + side * 0.25) * 0.03);
     const p1 = V(side * 0.008, Math.cos(a) * (R - 0.095), Math.sin(a) * (R - 0.095));
@@ -94,7 +99,8 @@ function wheelParts(rb, bone, paint, rear) {
   if (rear) for (let k = 0; k < 6; k++) { const c = new THREE.CylinderGeometry(0.075 - k * 0.008, 0.075 - k * 0.008, 0.005, 20); c.rotateZ(Math.PI / 2); c.translate(0.035 + k * 0.007, 0, 0); rb.add(c, bone, 2, '#9aa0a8'); }
 }
 
-export function buildBike(paint) {
+export function buildBike(paint, quality = 'high') {
+  const low = quality === 'low';
   const rb = new RigBuilder(); const B = BIKE;
   const F = paint.frame, A = paint.acc;
   // frame (bone 0)
@@ -115,8 +121,9 @@ export function buildBike(paint) {
   rb.add(tubeBetween(s0, s1, 0.018), 0, 2, '#222');
   const coil = []; const dir = s1.clone().sub(s0); const L = dir.length(); dir.normalize();
   const q = new THREE.Quaternion().setFromUnitVectors(_up, dir);
-  for (let i = 0; i <= 60; i++) { const t = i / 60; const a = t * Math.PI * 2 * 7; coil.push(V(Math.cos(a) * 0.032, 0.05 + t * (L - 0.14), Math.sin(a) * 0.032).applyQuaternion(q).add(s0)); }
-  rb.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(coil), 120, 0.006, 4), 0, 0, A);
+  const coilN = low ? 30 : 60;
+  for (let i = 0; i <= coilN; i++) { const t = i / 60; const a = t * Math.PI * 2 * 7; coil.push(V(Math.cos(a) * 0.032, 0.05 + t * (L - 0.14), Math.sin(a) * 0.032).applyQuaternion(q).add(s0)); }
+  rb.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(coil), low ? 60 : 120, 0.006, 4), 0, 0, A);
   // seatpost + saddle
   rb.add(tubeBetween(V(0, 0.84, -0.235), V(0, 0.93, -0.27), 0.016), 0, 2, '#2a2a2a');
   const saddle = new THREE.SphereGeometry(1, 12, 8); saddle.scale(0.072, 0.03, 0.135); saddle.translate(0, 0.955, -0.27); rb.add(saddle, 0, 1, '#1a1a1a');
@@ -147,7 +154,7 @@ export function buildBike(paint) {
     const lever = new THREE.BoxGeometry(0.1, 0.008, 0.02); lever.rotateY(s * 0.3); const lp = rel(V(s * 0.28, 1.1, 0.32)); lever.translate(lp.x, lp.y, lp.z + 0.02); rb.add(lever, 1, 2, '#b0b4ba');
   }
   // wheels (bones 2 front, 3 rear)
-  wheelParts(rb, 2, paint, false); wheelParts(rb, 3, paint, true);
+  wheelParts(rb, 2, paint, false, quality); wheelParts(rb, 3, paint, true, quality);
   // crank (bone 4): chainring + arms
   const ring = new THREE.TorusGeometry(0.09, 0.006, 4, 32); ring.rotateY(Math.PI / 2); ring.translate(0.07, 0, 0); rb.add(ring, 4, 2, '#3a3a3e');
   const ringD = new THREE.CylinderGeometry(0.088, 0.088, 0.004, 24); ringD.rotateZ(Math.PI / 2); ringD.translate(0.068, 0, 0); rb.add(ringD, 4, 1, '#222');
@@ -208,7 +215,8 @@ function riderAtlas(kit) {
     g.fillStyle = kit.hacc; g.fillRect(128, 128 + 52, 128, 24); g.fillRect(128, 128 + 30, 128, 7); g.fillRect(128, 128 + 91, 128, 7);
   }, { repeat: false });
 }
-export function buildRider(kit) {
+export function buildRider(kit, quality = 'high') {
+  const low = quality === 'low';
   const rb = new RigBuilder();
   const J = kit.jersey, A = kit.acc, Pn = kit.pants, skin = '#e0a582', glove = A === '#ffffff' ? '#202024' : A;
   // pelvis (0): shorts seat

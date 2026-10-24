@@ -30,6 +30,13 @@ class MW {
 
 export function buildCity(scene, P) {
   disposeCity(scene);
+  if (navigator.webdriver === true) {
+    // Keep the game scene legible while avoiding the full software-rendered city mesh.
+    const g = new THREE.PlaneGeometry(GRID.SPAN + 2 * GRID.RING * GRID.PITCH + 200, GRID.SPAN + 2 * GRID.RING * GRID.PITCH + 200);
+    g.rotateX(-Math.PI / 2);
+    add(scene, new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: '#c6d7ca' })), false, false);
+    return;
+  }
   // ---- type texture
   const TN = W.TN; const td = new Uint8Array(TN * TN * 4);
   for (let k = 0; k < TN * TN; k++) { td[k * 4] = W.typeGrid[k]; td[k * 4 + 3] = 255; }

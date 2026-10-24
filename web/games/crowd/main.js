@@ -42,7 +42,8 @@ function buildRound(withPlayer, cityIdx) {
   buildCity(R.scene, P);
   applyCityLook(P); setPalette(P);
   resetSim(); resetFx(); clearPops(); H.resetBoard(); H.clearFeed();
-  spawnNeutrals(SIM.NEUTRAL0);
+  // Software-rendered headless screenshots need a small crowd; keep normal gameplay unchanged.
+  spawnNeutrals(headless ? 128 : SIM.NEUTRAL0);
   const spots = W.leaderSpots.slice();
   // choose well-separated spots
   const chosen = [];
@@ -335,8 +336,9 @@ let bgPaused = false;
 onPauseResume(() => { bgPaused = true; AU.pauseAudio(); if (G.mode === 'play' && !G.paused && !Q.autoplay) togglePause(true); }, () => { bgPaused = false; AU.resumeAudio(); });
 
 function applyQuality() {
-  const q = store.quality; R.quality = q;
-  R.pr = Math.min(window.devicePixelRatio || 1, q === 'low' ? 1.25 : 2); R.renderer.setPixelRatio(R.pr); resize();
+  // Never let a stored High preference defeat the software-renderer safety path.
+  const q = headless ? 'low' : store.quality; R.quality = q;
+  R.pr = headless ? 0.5 : Math.min(window.devicePixelRatio || 1, q === 'low' ? 1.25 : 2); R.renderer.setPixelRatio(R.pr); resize();
   setupGrade(q === 'high');
   R.renderer.shadowMap.type = q === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap; R.renderer.shadowMap.needsUpdate = true;
 }
@@ -396,11 +398,17 @@ function loop(now) {
 
 // ---------------- boot ----------------
 async function boot() {
-  initRender($('gl'), store.quality);
-  setupGrade(store.quality === 'high');
-  initOverlay($('ov'));
-  initPeople(R.scene, store.quality === 'low');
-  initFx(R.scene);
+  const bootQuality = headless ? 'low' : store.quality;
+  window.__crowdPerf = [];
+  const mark = (label, start) => window.__crowdPerf.push({ label, ms: Math.round(performance.now() - start) });
+  let t = performance.now();
+  initRender($('gl'), bootQuality);
+  // Lower the software-renderer backbuffer, not the normal-quality scene, for snapshots.
+  if (headless) { R.renderer.setPixelRatio(0.5); resize(); }
+  mark('init-render', t);
+  t = performance.now(); setupGrade(bootQuality === 'high'); mark('setup-grade', t);
+  t = performance.now(); initOverlay($('ov')); initPeople(R.scene, bootQuality === 'low'); mark('init-people', t);
+  t = performance.now(); initFx(R.scene); mark('init-fx', t);
   window.addEventListener('resize', () => { resize(); resizeOverlay(); if (R.grade) setupGrade(true); });
   try { await document.fonts.ready; } catch (e) {}
   H.setCoins(store.coins); AU.setMuted(AU.isMuted());
