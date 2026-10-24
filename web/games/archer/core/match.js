@@ -18,8 +18,8 @@ import { getCharacter, getOutfit, defaultOutfit, createCharacter, computeStats }
 import { getArrow, trayArrows } from '../arrows/index.js';
 
 const TEAM_COLORS = ['#3fa8ff', '#ff5a4a', '#5ee07a', '#ffcf3a'];
-/** Visible height needed to show an archer and a point at x side by side (inside 84% of the width). */
-const _need = (a, x, asp) => (Math.abs(a.x - x) + 3.4) / (0.84 * asp);
+/** Visible height needed to show an archer and a point at x side by side (inside 72% of the width). */
+const _need = (a, x, asp) => (Math.abs(a.x - x) + 2.4) / (0.72 * asp);
 const _pt = { x: 0, y: 0 }, _sim = { x: 0, y: 0, vx: 0, vy: 0 }, _res = {};
 
 export class Match {
@@ -203,7 +203,7 @@ export class Match {
     this.active = a; this.turnNo++; this.phase = 'intro'; this.phaseT = 0; this.timer = TURN.time;
     a.moveLeft = a.stats.moveGauge; a.power = 0; a.charging = false; this.movedThisTurn = 0; this.firedThisTurn = false; this.firedHit = false;
     if (!(a.ammo[a.arrowId] > 0)) a.arrowId = 'standard';
-    cam.panX = 0; cam.panY = 0;
+    cam.panX = 0; cam.panY = 0; cam.zoomRate = 2.2;
     this._rollWind();
     a.controller?.beginTurn?.(a, this);
     const foe = this.nearestFoe(a);
@@ -254,7 +254,7 @@ export class Match {
 
   // ------------------------------------------------------------------ update
   update(dtReal) {
-    if (this.hitStop > 0) { this.hitStop -= dtReal; this._visualOnly(dtReal * 0.05); return; }
+    if (this.hitStop > 0) { this.hitStop -= dtReal; this._visualOnly(dtReal * 0.6); return; }   // world frozen; heroes keep reacting so the hit flash fades instead of a white victim
     this.slowHold = Math.max(0, (this.slowHold ?? 0) - dtReal);
     this.timeScale = damp(this.timeScale, this.slowHold > 0 ? this.slowTarget : 1, 10, dtReal);
     const dt = dtReal * this.timeScale;
@@ -406,38 +406,41 @@ export class Match {
   }
   /**
    * Flight camera. Rule (critic r2): every frame of a shot shows an archer (shooter early, target late), the arrow, and
-   * terrain filling the lower part of the view. The zoom never goes past the 15%-archer cap; when the arrow and an
-   * archer can't share the frame (long shots, mid-way) the view tracks the arrow along the ground line and shows the
-   * target in the inset on the trailing side. Altitude never wins over terrain: a very high arrow leaves the top of the
+   * terrain filling the lower part of the view; the target, while it is not the anchor, sits in the inset on the
+   * trailing side (away from where the arrow is heading). Altitude never wins over terrain: a very high arrow leaves the top of the
    * view (HUD chevron) instead of the camera panning up into empty sky.
    */
   _flightCam(dt) {
     const p = this.projectiles.leader(); if (!p) return;
     const LF = this.lastFlight ?? (this.lastFlight = { x: 0, y: 0, t: 0 }); LF.x = p.x; LF.y = p.y; LF.t = this.time;
-    const RATE = 4.5, asp = R.camera.aspect, capH = this._capH(), minH = Math.min(13, capH);
+    const RATE = 7, asp = R.camera.aspect, capH = this._capH(), minH = Math.min(13, capH);
     const o = p.owner && p.owner.alive ? p.owner : null, foe = this._flightTarget(p);
     // lead by v/rate so the exponential follow keeps the arrow where we put it instead of trailing it
     const lx = p.x + clamp(p.vx / RATE, -8, 8), ly = p.y + clamp(p.vy / RATE, -6, 6);
     const dir = foe ? (Math.sign(foe.x - p.x) || Math.sign(p.vx) || 1) : (Math.sign(p.vx) || 1);
-    // anchor archer: shooter until the arrow outruns it, then the target as soon as both fit (never back)
-    if (p !== this._flyP) { this._flyP = p; this._flyA = o; }
+    // anchor archer: the shooter, until the target is nearer to the arrow or fits beside it (then never back). The zoom
+    // stays inside the 15%-archer cap whenever the pair fits; only on long shots, while the arrow is mid-way, it may
+    // widen to a hard limit (archers ~11% of the screen) so an archer and the arrow still share the frame.
+    const capH2 = clamp(capH * 0.15 / 0.11, capH, 23);
+    if (p !== this._flyP) { this._flyP = p; this._flyA = o ?? foe; }
     let A = this._flyA;
-    if (foe && _need(foe, lx, asp) <= capH) A = foe;
-    else if (A && A !== foe && (!A.alive || _need(A, lx, asp) > capH)) A = null;
-    if (A && !A.alive) A = null;
+    if (foe && A !== foe && (!o || A !== o || Math.abs(foe.x - lx) <= Math.abs(o.x - lx) || _need(foe, lx, asp) <= capH)) A = foe;
+    if (!A || !A.alive) A = foe ?? o;
     this._flyA = A;
-    const H = clamp(A ? _need(A, lx, asp) : capH, minH, capH), W = H * asp, half = 0.42 * W;
+    // height: fit the pair side by side, and also vertically (arrow at >= 12% from the top, ground at <= 76%)
+    const gA = A ? A.y : p.y, needV = (ly - gA + 0.6) / 0.64;
+    const H = clamp(Math.max(A ? _need(A, lx, asp) : capH, needV), minH, capH2), W = H * asp, half = 0.36 * W;   // archer centre within 14%..86% of the width: never cut by the edge
     let cx = lx + dir * 0.17 * W;                          // arrow on the trailing third, open ground ahead of it
-    if (A) cx = clamp(cx, Math.max(lx, A.x) - half, Math.min(lx, A.x) + half);
-    // ground line: the anchor's feet, else interpolated between shooter and target by progress along x
-    let gy;
-    if (A) gy = A.y;
-    else if (o && foe && Math.abs(foe.x - o.x) > 1) { const k = clamp((p.x - o.x) / (foe.x - o.x), 0, 1); gy = o.y + (foe.y - o.y) * (k * k * (3 - 2 * k)); }
-    else gy = (foe ?? o)?.y ?? p.y;
+    if (A) {
+      const lo = Math.max(lx, A.x) - half, hi = Math.min(lx, A.x) + half;
+      cx = lo <= hi ? clamp(cx, lo, hi) : (lo + hi) / 2;   // beyond the hard limit: split the overflow (a moment at most)
+    }
+    // ground line: the anchor archer's feet
+    const gy = gA;
     let cy = gy + 0.14 * H;                                // ground at ~64% of the screen height
-    cy = clamp(cy, ly - 0.28 * H, ly + 0.26 * H);          // arrow between 22% (below the top HUD) and 76%
-    cy = clamp(cy, gy - 0.2 * H, gy + 0.22 * H);           // ...but terrain always fills the lower part (ground <= 72%)
-    lookAt(cx, cy, H, RATE);
+    cy = clamp(cy, ly - 0.38 * H, ly + 0.26 * H);          // arrow between 12% and 76% of the height
+    cy = clamp(cy, gy - 0.2 * H, gy + 0.26 * H);           // ...but terrain always fills the lower part (ground <= 76%)
+    lookAt(cx, cy, H, RATE); cam.zoomRate = 3.6;
     if (A === foe || !foe) setInset(false);
     else this._insetOn(foe, -dir);
     // slow-mo when about to land near someone

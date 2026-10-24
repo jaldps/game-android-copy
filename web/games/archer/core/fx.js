@@ -104,13 +104,15 @@ export class FX {
     col.set(o.tint && e.tintable ? o.tint : (e.color === 'terrain' ? (o.terrainColor ?? 0x8a7a60) : (e.color ?? 0xffffff)));
     if (e.color2 === 'dark') col2.copy(col).multiplyScalar(0.45);
     else col2.set(o.tint && e.tintable ? o.tint : (e.color2 === 'terrain' ? (o.terrainColor ?? 0x8a7a60) : (e.color2 ?? (e.color === 'terrain' ? (o.terrainColor ?? 0x8a7a60) : e.color) ?? 0xffffff)));
+    // big bloom glows default to sitting behind the z=0 plane: a hero inside a blast stays a silhouette, not a white disc
+    const zb = e.zBias ?? ((e.shape ?? 'glow') === 'glow' && e.blend === 'add' && range(e.size, 0.3) >= 0.8 ? -1.3 : 0);
     for (let k = 0; k < n; k++) {
       if (sys.count >= MAXP) this._kill(sys, 0);
       const i = sys.count++;
       const ang = baseDir === null ? rnd() * Math.PI * 2 : baseDir + (rnd() - 0.5) * (e.spread ?? 1);
       const sp = range(e.speed, 3) * (e.scaleSpeed === false ? 1 : Math.sqrt(sc));
       const off = range(e.offset, 0) * sc;
-      sys.x[i] = x + Math.cos(ang) * off; sys.y[i] = y + Math.sin(ang) * off; sys.z[i] = (o.z ?? 0) + (e.zBias ?? 0) + range(e.z, 0) * (rnd() < 0.5 ? -1 : 1);
+      sys.x[i] = x + Math.cos(ang) * off; sys.y[i] = y + Math.sin(ang) * off; sys.z[i] = (o.z ?? 0) + zb + range(e.z, 0) * (rnd() < 0.5 ? -1 : 1);
       sys.vx[i] = Math.cos(ang) * sp + (o.vx ?? 0) * (e.inherit ?? 0); sys.vy[i] = Math.sin(ang) * sp + (e.lift ?? 0) + (o.vy ?? 0) * (e.inherit ?? 0);
       sys.max[i] = sys.life[i] = range(e.life, 0.6);
       const sz = range(e.size, 0.3) * sc; sys.s0[i] = sz; sys.s1[i] = sz * (e.grow ?? 1);

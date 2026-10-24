@@ -39,7 +39,7 @@ export const VFX = {
   headshot: {
     emitters: [
       { count: 20, shape: 'star', blend: 'add', life: [0.3, 0.6], speed: [4, 10], size: [0.15, 0.32], color: 0xfff6a0, color2: 0xff8a3d, alpha: [1, 0], drag: 4, spin: 10 },
-      { count: 1, shape: 'glow', blend: 'add', life: 0.28, speed: 0, size: 2.2, grow: 1.4, color: 0xfff1b0, alpha: [1, 0], scaleCount: false },
+      { count: 1, shape: 'glow', blend: 'add', life: 0.28, speed: 0, size: 2.2, grow: 1.4, color: 0xffe08a, alpha: [0.75, 0], zBias: -1.6, scaleCount: false },
       shockRing(0.5, 0xffffff, 0.22),
     ],
     ring: { radius: 2.8, color: 0xffe27a, life: 0.38 },
@@ -64,11 +64,11 @@ export const VFX = {
     // order matters inside a blend group: earlier emitters draw underneath
     emitters: [
       // lingering smoke column
-      { count: [12, 16], shape: 'puff', blend: 'alpha', life: [1.1, 2.0], speed: [2.5, 5.5], size: [0.3, 0.48], grow: 2.7, color: 0x5a4844, color2: 0xb8aca4, colorJitter: 0.5, alpha: [0.95, 0], drag: 2.4, lift: 2.8, gravity: -1.3 },
+      { count: [12, 16], shape: 'puff', blend: 'alpha', life: [1.1, 2.0], speed: [2.5, 5.5], size: [0.3, 0.48], grow: 2.7, color: 0x5a4844, color2: 0xb8aca4, colorJitter: 0.5, alpha: [0.95, 0], drag: 2.4, lift: 2.8, gravity: -1.3, zBias: -1.1 },
       // dust skirts rolling along the ground
       groundSkirt(0, 5), groundSkirt(Math.PI, 5),
       // fireball
-      { count: [13, 15], shape: 'puff', blend: 'alpha', life: [0.3, 0.55], speed: [4, 8.5], size: [0.34, 0.52], grow: 0.7, color: 0xffd23a, color2: 0xff3a10, colorJitter: 0.6, alpha: [1, 1], drag: 6, lift: 1.5 },
+      { count: [13, 15], shape: 'puff', blend: 'alpha', life: [0.3, 0.55], speed: [4, 8.5], size: [0.34, 0.52], grow: 0.7, color: 0xffd23a, color2: 0xff3a10, colorJitter: 0.6, alpha: [1, 1], drag: 6, lift: 1.5, zBias: -0.9 },
       // white-hot core
       // hot core: additive yellow, small and pushed behind the z=0 plane so it never paints a white disc over a victim
       { count: [4, 5], shape: 'puff', blend: 'add', life: [0.14, 0.24], speed: [1.5, 3.5], size: [0.2, 0.3], grow: 0.6, color: 0xfff07a, color2: 0xff9a2a, alpha: [0.8, 0], drag: 7, zBias: -1.0 },

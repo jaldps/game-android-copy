@@ -71,6 +71,7 @@
 .portrait .p-eye { position: absolute; top: 47%; width: 9%; height: 12%; border-radius: 50%; background: var(--eye); box-shadow: 0 0 0 1.5px #fff; }
 .portrait .p-eye.l { left: 37%; } .portrait .p-eye.r { right: 37%; }
 .portrait .p-mouth { position: absolute; left: 44%; right: 44%; top: 68%; height: 4%; border-radius: 0 0 4px 4px; background: rgba(120, 40, 40, .7); }
+.portrait.photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .portrait.rnd { display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 50% 30%, #6a5ad0, #2a1c5a); }
 .portrait.rnd svg { width: 55%; height: 55%; }
 .portrait.ko { filter: grayscale(1) brightness(.7); }
@@ -164,7 +165,7 @@
 .nstars i { width: 15px; height: 15px; color: rgba(0,0,0,.45); }
 .nstars i svg { width: 100%; height: 100%; fill: currentColor; stroke: rgba(255,255,255,.5); stroke-width: 1.5; }
 .nstars i.on { color: var(--gold); }
-.stage-card { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(12px + var(--sb)); width: min(720px, calc(100% - 28px - var(--sl) - var(--sr))); display: flex; align-items: stretch; gap: 14px; padding: 10px; border-radius: 20px; background: linear-gradient(180deg, rgba(48, 72, 140, .95), rgba(18, 28, 64, .97)); border: 1.5px solid rgba(255,255,255,.2); box-shadow: 0 6px 0 rgba(0,0,0,.35), 0 18px 40px rgba(0,0,0,.4); }
+.stage-card { position: absolute; left: 0; right: 0; margin: 0 auto; bottom: calc(12px + var(--sb)); width: min(720px, calc(100% - 28px - var(--sl) - var(--sr))); display: flex; align-items: stretch; gap: 14px; padding: 10px; border-radius: 20px; background: linear-gradient(180deg, rgba(48, 72, 140, .95), rgba(18, 28, 64, .97)); border: 1.5px solid rgba(255,255,255,.2); box-shadow: 0 6px 0 rgba(0,0,0,.35), 0 18px 40px rgba(0,0,0,.4); }
 .screen.in .stage-card { animation: popIn .35s cubic-bezier(.2,1.4,.4,1) both .1s; }
 .stage-card .map-thumb.wide { width: 170px; flex: none; min-height: 96px; }
 .sc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
@@ -183,8 +184,10 @@
 
 /* ---------- quick / hot-seat setup ---------- */
 .setup { background: rgba(8, 16, 40, .62); }
-.setup-card { position: absolute; left: 50%; top: calc(56px + var(--st)); bottom: calc(12px + var(--sb)); transform: translateX(-50%); width: min(760px, calc(100% - 24px - var(--sl) - var(--sr))); display: flex; flex-direction: column; justify-content: space-evenly; gap: 10px; padding: 12px 14px; border-radius: 22px; background: linear-gradient(180deg, rgba(44, 66, 128, .95), rgba(16, 26, 58, .97)); border: 1.5px solid rgba(255,255,255,.2); box-shadow: 0 6px 0 rgba(0,0,0,.35), 0 18px 40px rgba(0,0,0,.4); }
+.setup-card { position: absolute; left: 0; right: 0; margin: 0 auto; top: calc(56px + var(--st)); bottom: calc(12px + var(--sb)); width: min(760px, calc(100% - 24px - var(--sl) - var(--sr))); display: flex; flex-direction: column; justify-content: space-evenly; gap: 10px; padding: 12px 14px; border-radius: 22px; background: linear-gradient(180deg, rgba(44, 66, 128, .95), rgba(16, 26, 58, .97)); border: 1.5px solid rgba(255,255,255,.2); box-shadow: 0 6px 0 rgba(0,0,0,.35), 0 18px 40px rgba(0,0,0,.4); }
+/* centred with margins (not a translate the pop-in keyframes would override); the pop-in plays once, never on re-renders */
 .screen.in .setup-card { animation: popIn .32s cubic-bezier(.2,1.4,.4,1) both; }
+.screen.settled .setup-card, .screen.settled .topbar { animation: none !important; }
 .setup-card .sec { font: 900 10px 'Nunito'; letter-spacing: 2px; color: #9fd8ff; margin-bottom: -6px; }
 .maps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
 .mt { padding: 0; border-radius: 14px; border: 2.5px solid transparent; box-shadow: 0 3px 0 rgba(0,0,0,.35); }

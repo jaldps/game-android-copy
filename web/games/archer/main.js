@@ -13,13 +13,16 @@ import { makeRng } from './core/util.js';
 import { trayArrows } from './arrows/index.js';
 import { MAPS, getMap } from './maps/index.js';
 import { getCharacter, CHARACTERS } from './characters/index.js';
-import { createMeta } from './meta/index.js';
+import { createMeta, setPortraitSource } from './meta/index.js';
+import { renderPortraits, portraitURL } from './core/portraits.js';
 
 setOrientation('landscape');
 const canvas = document.getElementById('c');
 let quality = P.quality || store.get('quality', 'high');
 initRender(canvas, quality);
 const fx = new FX(R.scene); fx.onShake = (a) => addShake(a);
+// hero busts for the turn strip / shop / setup, rendered once from the real models before any screen is built
+renderPortraits(); setPortraitSource(portraitURL);
 
 let seedCounter = P.seed ?? ((Date.now() / 1000) | 0) % 1000000;
 const rng = makeRng((seedCounter ^ 0x5bd1e995) >>> 0);
@@ -43,7 +46,8 @@ const app = {
   /** Render one small frame of every map (one per animation frame) for the arena pickers; cb runs as each lands. */
   requestMapThumbs(cb) {
     for (const m of MAPS) if (!thumbs.has(m.id) && !thumbQueue.includes(m.id)) thumbQueue.push(m.id);
-    thumbCb = cb ?? null; thumbWait = 0.35;   // let the screen mount and animate in first
+    thumbCb = cb ?? null; thumbWait = Math.max(thumbWait, 0.35);   // let the screen mount and animate in first
+    if (!thumbQueue.length) cb?.();
   },
   restyle(charId, outfitId) { if (match?.cfg.showcase) match.restyle(0, charId, outfitId); },
   hud(v) { hud.show(v); },
@@ -196,11 +200,13 @@ function frame(now) {
   if (pendingEnd) handleEnd();
   if (autoplayT >= 0) { autoplayT -= dt; if (autoplayT < 0) startAutoplay(); }
   if (match && !match.cfg.showcase && P.hud) hud.update(dt);
-  if (thumbQueue.length && (thumbWait -= dtRaw) <= 0) renderThumb(thumbQueue.shift());
+  if (thumbQueue.length && (thumbWait -= dtRaw) <= 0) { renderThumb(thumbQueue.shift()); thumbWait = 0.15; }   // spread out: one per few frames
   updateCamera(dt);
   renderFrame();
   if (!booted) { booted = true; document.getElementById('boot')?.classList.add('done'); }
 }
 document.fonts.ready.then(() => {}).catch(() => {});
 boot();
+// pre-render the arena thumbnails in the background while the title screen idles, so Quick Match opens instantly
+if (!P.autoplay && P.scene !== 'play') { app.requestMapThumbs(null); thumbWait = 1.2; }
 requestAnimationFrame(frame);
