@@ -16,8 +16,8 @@ export default {
   id: 'neon', name: 'Neon Heights', subtitle: 'Rooftop duel over the night city', music: 'battle',
   killY: -9.5, waterY: -11, fallVfx: 'street_impact', fallSfx: 'street_impact',
   bounds: { minX: -62, maxX: 62, minY: -12, maxY: 34 },
-  palette: { style: STYLE.CITY, grass: 0x58545e, grass2: 0x6c6670, dirt: 0x4a4458, rock: 0xa49a94, rock2: 0x8a8088, deep: 0x2a2440,
-    brick: 0xb8584a, brick2: 0x94443e, mortar: 0x4a2a30, wood: 0x7a5a40, wood2: 0x5a3e2a, metal: 0x8a9aa4, glow: 0xff3fb0, glow2: 0x3fe8ff, brickSize: [0.7, 0.32], bump: 1.0 },
+  palette: { style: STYLE.CITY, grass: 0x302e36, grass2: 0x403c46, dirt: 0x4a4458, rock: 0x7c7680, rock2: 0x66606e, deep: 0x2a2440,
+    brick: 0x9a4a40, brick2: 0x7a3832, mortar: 0x3a2a2e, wood: 0x7a5a40, wood2: 0x5a3e2a, metal: 0x5e6874, glow: 0xff3fb0, glow2: 0x3fe8ff, brickSize: [0.7, 0.32], bump: 1.0 },
   lighting: { sun: 0xb8c4ff, sunIntensity: 2.3, sunDir: [-0.5, 0.7, 0.55], hemiSky: 0x9a7aff, hemiGround: 0xff5ab0, hemiIntensity: 1.3, fill: 0x5ae0ff, fillIntensity: 1.2,
     fog: 0x2e1a52, fogNear: 90, fogFar: 420, exposure: 1.12, saturation: 1.25, contrast: 1.06, warmth: [1.0, 0.98, 1.05] },
   sky: { top: 0x0c0a2e, mid: 0x3a1a6e, horizon: 0xff5aa8 },
@@ -92,6 +92,9 @@ export default {
       const r = () => b.x0 + 1.2 + rng() * (b.w - 2.4);
       place(b, 'acunit', r(), -1.4 + rng() * 0.6, { scale: 0.8 + rng() * 0.3, rotY: (rng() - 0.5) * 0.4 });
       place(b, 'vent', r(), rng() < 0.5 ? -1.0 : 1.3, { scale: 0.8 + rng() * 0.4 });
+      place(b, 'acunit', r(), -1.9 + rng() * 0.4, { scale: 0.7 + rng() * 0.3, rotY: (rng() - 0.5) * 0.4 });
+      place(b, 'vent', r(), -0.9 - rng() * 0.6, { scale: 0.7 + rng() * 0.4 });
+      if (rng() < 0.5) place(b, 'vent', r(), 1.4, { scale: 0.6 + rng() * 0.3 });
       if (rng() < 0.6) place(b, rng() < 0.5 ? 'dish' : 'antenna', r(), -1.8, { scale: 0.8 + rng() * 0.3, rotY: rng() * 6 });
       if (rng() < 0.45) place(b, 'watertower', r(), -1.9, { scale: 0.85 + rng() * 0.25 });
       if (rng() < 0.55) place(b, 'neonsign', r(), -1.6, { scale: 0.9 + rng() * 0.3, rotY: (rng() - 0.5) * 0.3 });
@@ -108,7 +111,8 @@ export default {
     group.add(far.mesh, midL.mesh, near.mesh);
     // fog banks between the skyline layers (depth), the mascot sign landmark and a drifting blimp
     group.add(hazeLayer({ z: -260, y0: -16, height: 90, color: 0x6a3a9a, alpha: 0.55 }), hazeLayer({ z: -140, y0: -16, height: 45, color: 0x7a3a9a, alpha: 0.45 }));
-    const cat = luckyCatSign({}), ship = blimp({});
+    // the cat sign sits LOW between the buildings (ring top ~y 12.5) and smaller, so it never rises into the HUD corners
+    const cat = luckyCatSign({ x: 4, y: -20, z: -88, scale: 0.5 }), ship = blimp({ y: 24 });
     group.add(cat.mesh, ship.mesh);
     const clouds = cloudField({ count: 9, seed: 23, color: 0x7a4aa8, shade: 0x3a2060, zRange: [-200, -380], yRange: [50, 90], scale: [18, 34], speed: 0.7 });
     group.add(clouds.mesh);

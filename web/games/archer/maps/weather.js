@@ -8,7 +8,8 @@ const KINDS = {
   motes: { color: 0xfff2b0, size: 0.1, fall: [0.4, 0.25], wobble: 0.8, alpha: 0.75, additive: true },
   petals: { color: 0xffa8c8, size: 0.13, fall: [1.2, -0.8], wobble: 1.0, alpha: 0.9, additive: false },
   embers: { color: 0xff7a1a, core: 0xffe08a, size: 0.07, fall: [0.4, 1.4], wobble: 0.7, alpha: 0.95, additive: false, maxPx: 7, stretch: 2.2, flicker: 1 },
-  ash: { color: 0x5a4e58, size: 0.11, fall: [0.5, -0.6], wobble: 0.9, alpha: 0.75, additive: false },
+  // ash: small dark flakes with a capped on-screen size (near-camera flakes used to swell into pale grey discs)
+  ash: { color: 0x2a1e24, core: 0x3a2a2e, size: 0.07, fall: [0.5, -0.6], wobble: 0.9, alpha: 0.7, additive: false, maxPx: 6, stretch: 1.6 },
   dust: { color: 0xf4d8a0, size: 0.08, fall: [3.2, 0.15], wobble: 0.5, alpha: 0.6, additive: false },
   rain: { color: 0xa8c8ff, size: 0.2, fall: [-1.2, -16], wobble: 0.05, alpha: 0.55, additive: true, stretch: 5 },
   neon: { color: 0xff7ad8, size: 0.09, fall: [0.2, 0.35], wobble: 1.0, alpha: 0.8, additive: true },

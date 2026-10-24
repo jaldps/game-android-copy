@@ -179,13 +179,16 @@ export function buildBody(ctx) {
   for (const side of ['L', 'R']) {
     const sg = side === 'L' ? 1 : -1, ua = J['upperArm' + side], fa = J['foreArm' + side], ha = J['hand' + side];
     // deltoid: a teardrop cap that wraps the shoulder and tapers into the arm (insertion ~45% down), shaded at the tip
-    let g = teardrop(D * 1.0, D * 1.05, D * 0.98, D * 1.3); const dy0 = ua[1] - D * 0.1;
+    let g = teardrop(D * 1.0, D * 1.05, D * 0.9, D * 1.3); const dy0 = ua[1] - D * 0.1;
     xf(g, [ua[0] + sg * 0.02, dy0, ua[2]], [0, 0, sg * 0.18]);
-    rig.add('upperArm' + side, g, (x, y) => tint(skin, 0.86 + 0.16 * ss(dy0 - D * 1.3, dy0 - D * 0.1, y)));
+    rig.add('upperArm' + side, g, (x, y) => tint(skin, 0.76 + 0.26 * ss(dy0 - D * 1.3, dy0 - D * 0.1, y)));
+    // upper-arm occlusion: the inner (torso) side and the back are darker, so a foreshortened arm (pointing at the
+    // camera on the draw side) reads as a tapered cylinder with a lit and a shadow side instead of a round balloon
+    const armAO = (x, z) => 1 - 0.2 * Math.max(0, Math.min(1, sg * (ua[0] - x) / B.upperArmR[0] + 0.2)) - 0.08 * Math.max(0, Math.min(1, -(z - ua[2]) / B.upperArmR[0]));
     const def = B.shape?.def ?? 0;
     g = sculptLimb(B, 'upperArm', B.upperArm); g.translate(ua[0], ua[1], ua[2]);
-    rig.add('upperArm' + side, g, def ? (x, y, z) => { const t = (ua[1] - y) / B.upperArm, lat = Math.abs(x - ua[0]) / B.upperArmR[0];
-      return tint(skin, 1 - def * (0.14 * bump(t, 0.95, 0.08) + 0.1 * bump(lat, 0.85, 0.2) * bump(t, 0.55, 0.3)) + def * 0.06 * Math.max(0, z / B.upperArmR[0])); } : skin);
+    rig.add('upperArm' + side, g, (x, y, z) => { const t = (ua[1] - y) / B.upperArm, lat = Math.abs(x - ua[0]) / B.upperArmR[0];
+      return tint(skin, armAO(x, z) * (1 - def * (0.14 * bump(t, 0.95, 0.08) + 0.1 * bump(lat, 0.85, 0.2) * bump(t, 0.55, 0.3)) + def * 0.06 * Math.max(0, z / B.upperArmR[0]) - 0.1 * bump(t, 0.12, 0.08))); });
     g = sculptLimb(B, 'foreArm', B.foreArm); g.translate(fa[0], fa[1], fa[2]); rig.add('foreArm' + side, g, skin);
     // mitten hand + thumb
     const hr = B.handR, hc = C.gloves && C.handsGloved ? C.gloves : skin;
@@ -212,14 +215,20 @@ export function buildHead(ctx, F = {}) {
   const { rig, B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
   const add = (g, col, o) => rig.add('head', g, col, o);
   const fem = !!F.lashes, blush = C.cheek ?? (fem ? 0xf07f86 : null);
+  const sockY = hy + R * (F.eyeY ?? 0.02), sockX = R * (F.eyeSpread ?? 0.36);
   const skinFn = (x, y, z) => {
-    let c = C.skin;
+    // form shading painted in: the face plane stays light, cheeks/temples/jaw sides fall off, so the head reads as a
+    // sculpted shape (and the features pop) even at ~12% of screen height in flat light
+    const front = Math.max(0, Math.min(1, (z - hz) / R + 0.15));
+    let c = tint(C.skin, 0.8 + 0.24 * front);
+    const so = Math.min(Math.hypot(x - hx - sockX, (y - sockY) * 1.3), Math.hypot(x - hx + sockX, (y - sockY) * 1.3)) / R;
+    if (z > hz && so < 0.36) c = tint(c, 0.9 + 0.1 * (so / 0.36));
     if (blush != null && z > hz) {
       const d = Math.min(Math.hypot(x - hx - R * 0.52, y - hy + R * 0.3), Math.hypot(x - hx + R * 0.52, y - hy + R * 0.3)) / R;
       if (d < 0.32) c = mix(c, blush, (1 - d / 0.32) * (fem ? 0.5 : 0.3));
     }
     // painted stubble along the jaw (C.stubble), leaving a clean band around the mouth
-    if (C.stubble != null && y < hy - R * 0.32 && (y < hy - R * 0.74 || Math.abs(x - hx) > R * 0.3 || y > hy - R * 0.4)) c = mix(c, C.stubble, y < hy - R * 0.4 ? 0.32 : 0.18);
+    if (C.stubble != null && y < hy - R * 0.32 && (y < hy - R * 0.74 || Math.abs(x - hx) > R * 0.3 || y > hy - R * 0.4)) c = mix(c, C.stubble, y < hy - R * 0.4 ? 0.24 : 0.14);
     return c;
   };
   // skull + jaw + chin
@@ -231,7 +240,9 @@ export function buildHead(ctx, F = {}) {
   // nose: bridge + rounded tip, shaded underside
   const nk = F.nose ?? 1;
   g = ball(R * 0.12 * nk, R * 0.15 * nk, R * 0.13 * nk, 12); g.translate(hx, hy - R * 0.22, ctx.faceZ(hx, hy - R * 0.22) - R * 0.04);
-  add(g, (x, y) => (y < hy - R * 0.3 ? tint(C.skin, 0.86) : tint(C.skin, 1.04)), NO_LINE);
+  add(g, (x, y) => (y < hy - R * 0.28 ? tint(C.skin, 0.7) : tint(C.skin, 1.06)), NO_LINE);
+  // nose cast shadow on the upper lip: a soft dark wedge that makes the nose read at play scale
+  { const ny = hy - R * 0.37; g = ball(R * 0.16 * nk, R * 0.05, R * 0.03, 12); g.translate(hx + R * 0.03, ny, ctx.faceZ(hx, ny) - R * 0.012); add(g, tint(C.skin, 0.66), NO_LINE); }
   g = ball(R * 0.055 * nk, R * 0.16, R * 0.06, 8); g.translate(hx, hy - R * 0.06, ctx.faceZ(hx, hy - R * 0.06) - R * 0.02); add(g, tint(C.skin, 1.03), NO_LINE);
   // nostril wings + dark nostrils so the nose has a sculpted base instead of a lone ball
   for (const s of [1, -1]) {
@@ -242,19 +253,19 @@ export function buildHead(ctx, F = {}) {
   if (!fem) {   // brow ridge: a soft shelf of skin over the eyes (shadowed underside) gives the male faces structure
     const by = hy + R * ((F.eyeY ?? 0.02) + (F.eyeSize ?? 0.2) * 1.15);
     g = ball(R * 0.68, R * 0.12, R * 0.14, 16); g.translate(hx, by, ctx.faceZ(hx, by) - R * 0.1);
-    add(g, (x, y) => tint(C.skin, y < by - R * 0.03 ? 0.84 : 1.0), NO_LINE);
+    add(g, (x, y) => tint(C.skin, y < by - R * 0.03 ? 0.72 : 1.0), NO_LINE);
   }
   // eyes
-  const es = R * (F.eyeSize ?? 0.2), tall = F.eyeTall ?? 1.15, ey = hy + R * (F.eyeY ?? 0.02);
-  const iris = C.eyes, irisD = tint(iris, 0.5), lash = F.lashColor ?? 0x1c0f1a;
+  const es = R * (F.eyeSize ?? 0.2) * (F.eyeScale ?? 1.12), tall = F.eyeTall ?? 1.15, ey = hy + R * (F.eyeY ?? 0.02);
+  const iris = tint(C.eyes, 0.85), irisD = tint(C.eyes, 0.35), lash = F.lashColor ?? 0x120810;
   for (const s of [1, -1]) {
     const ex = hx + s * R * (F.eyeSpread ?? 0.36), ez = ctx.faceZ(ex, ey), yaw = s * Math.asin(Math.min(0.9, (ex - hx) / (R * 0.95))) * 0.7;
     const put = (geo, lx, ly, lz) => xf(geo.translate(lx, ly, lz), [ex, ey, ez - es * 0.18], [0, yaw, 0]);
     const ix = -s * es * 0.05;     // irises look slightly inward/forward
     // eye white sits almost flush with the skin (front ~0.14 es proud), iris/pupil/glints layered just in front of it
-    add(put(ball(es * 0.92, es * tall, es * 0.34, 16), 0, 0, 0), 0xfbfbff, { rough: 0.25, outline: 0.35 });
+    add(put(ball(es * 0.92, es * tall, es * 0.34, 16), 0, 0, 0), 0xffffff, { rough: 0.25, emissive: 0.18, outline: 0.35 });
     add(put(ball(es * 0.64, es * 0.76 * tall, es * 0.2, 14), ix, -es * 0.06, es * 0.17), (x, y) => (y > ey + es * 0.22 ? irisD : y < ey - es * 0.42 ? tint(iris, 1.3) : iris), { rough: 0.15, outline: 0 });
-    add(put(ball(es * 0.3, es * 0.42 * tall, es * 0.12, 10), ix, -es * 0.04, es * 0.27), 0x0a0810, { rough: 0.1, outline: 0 });
+    add(put(ball(es * 0.36, es * 0.48 * tall, es * 0.12, 10), ix, -es * 0.04, es * 0.27), 0x050308, { rough: 0.1, outline: 0 });
     add(put(ball(es * 0.18, es * 0.2, es * 0.06, 8), ix + es * 0.2, es * 0.24, es * 0.33), 0xffffff, { rough: 0.1, emissive: 1.0, outline: 0 });
     add(put(ball(es * 0.08, es * 0.08, es * 0.04, 6), ix - es * 0.18, -es * 0.3, es * 0.31), 0xffffff, { rough: 0.1, emissive: 0.8, outline: 0 });
     // upper lid / lash line hugging the top of the eye (thicker and winged for the women)
@@ -264,7 +275,7 @@ export function buildHead(ctx, F = {}) {
     // brow: tapered tube, thick at the inner end, sitting on the forehead surface
     const bt = es * (F.browThick ?? 0.38), by = ey + es * (F.browY ?? 1.55), tl = F.browTilt ?? -0.18, pts = [];
     for (const u of [-0.9, 0.05, 1.0]) { const bx = ex + s * u * es * 1.05, yy = by + u * tl * es * 1.0 + (Math.abs(u) < 0.5 ? es * 0.12 : 0); pts.push([bx, yy, ctx.faceZ(bx, yy) + bt * 0.15]); }
-    add(tube(pts, bt * 0.55, bt * 0.25, 10, 6), C.brow ?? C.hair, { rough: 0.6, outline: 0 });
+    add(tube(pts, bt * (fem ? 0.6 : 0.72), bt * (fem ? 0.26 : 0.38), 10, 6), tint(C.brow ?? C.hair, 0.75), { rough: 0.7, outline: 0 });
   }
   // mouth
   const my = hy - R * (F.mouthY ?? 0.52), mz = ctx.faceZ(hx, my), mw = R * (F.mouthW ?? 0.42) * 0.5, smirk = F.smirk ?? 0.1;
@@ -272,7 +283,7 @@ export function buildHead(ctx, F = {}) {
   if (F.mouth === false) { /* the character builds its own (e.g. inside a beard) */ } else if (F.lips) {
     g = ball(R * 0.19, R * 0.055, R * 0.065, 14); g.translate(hx, my + R * 0.035, mz - R * 0.01); add(g, F.lips, { rough: 0.3, outline: 0 });
     g = ball(R * 0.16, R * 0.07, R * 0.07, 14); g.translate(hx, my - R * 0.055, mz - R * 0.015); add(g, tint(F.lips, 1.1), { rough: 0.3, outline: 0 });
-    arc(R * 0.22, R * 0.02, 1.3, tint(F.lips, 0.5), my - R * 0.012, mz + R * 0.035);
+    arc(R * 0.22, R * 0.026, 1.3, tint(F.lips, 0.32), my - R * 0.012, mz + R * 0.035);
   } else if (F.grin) {
     // open grin: dark D-shaped mouth, a band of upper teeth, lips and smile creases at the corners
     g = ball(mw * 1.0, R * 0.1, R * 0.05, 16); xf(g, null, null); g.translate(hx, my - R * 0.035, mz - R * 0.02);
@@ -282,7 +293,8 @@ export function buildHead(ctx, F = {}) {
     g = ball(mw * 0.9, R * 0.03, R * 0.04, 14); g.translate(hx, my - R * 0.15, mz - R * 0.01); add(g, tint(C.skin, 0.9), NO_LINE);   // lower lip
     for (const s of [1, -1]) { g = ball(R * 0.025, R * 0.08, R * 0.03, 6); xf(g, [hx + s * mw * 1.05, my - R * 0.03, ctx.faceZ(hx + s * mw * 1.05, my) - R * 0.005], [0, 0, s * 0.5]); add(g, tint(C.skin, 0.72), NO_LINE); }
   } else {
-    arc(mw * 1.5, R * 0.04, 1.2, 0x5a2a28, my - R * 0.05, mz + R * 0.01);
+    g = ball(mw * 0.95, R * 0.045, R * 0.03, 14); xf(g, null, [0, 0, smirk * 0.5]); g.translate(hx, my - R * 0.01, ctx.faceZ(hx, my) - R * 0.008); add(g, 0x3a1216, { rough: 0.6, outline: 0 });
+    arc(mw * 1.5, R * 0.055, 1.2, 0x3a1418, my - R * 0.05, mz + R * 0.01);
     // lower lip highlight + shadow under it, so the mouth reads as a feature and not a pencil line
     g = ball(R * 0.13, R * 0.035, R * 0.04, 12); g.translate(hx, my - R * 0.075, ctx.faceZ(hx, my - R * 0.075) - R * 0.01); add(g, mix(tint(C.skin, 0.95), 0xc06060, 0.25), NO_LINE);
     for (const s of [1, -1]) { g = ball(R * 0.022, R * 0.022, R * 0.02, 6); const cx = hx + s * mw * 1.45; g.translate(cx, my + smirk * s * R * 0.12, ctx.faceZ(cx, my) + R * 0.0); add(g, 0x5a2a28, NO_LINE); }
@@ -334,7 +346,7 @@ export function buildBow(o = {}) {
   const string = new THREE.Line(sg, new THREE.LineBasicMaterial({ color: o.string ?? 0xfff4dc })); string.frustumCulled = false; group.add(string);
   let lastFlex = -1;
   return {
-    group, drawLen: o.drawLen ?? 0.62, arrowLen: 1.3,
+    group, drawLen: o.drawLen ?? 0.62, arrowLen: 1.3, tipY,
     setString(x) { if (arr[3] !== x) { arr[3] = x; sg.attributes.position.needsUpdate = true; } },
     /** Limb flex 0..1 (follows the draw): tips bend back toward the archer and the string ends follow them. */
     setDraw(k) {

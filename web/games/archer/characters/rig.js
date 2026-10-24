@@ -34,7 +34,7 @@ export function jointPositions(B) {
 // Material: standard PBR + per-vertex roughness/metalness/emissive (aPbr), fresnel rim and hit flash.
 export function createCharacterMaterial() {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 1 });
-  const u = { uRim: { value: new THREE.Color(0xfff2dd) }, uRimAmt: { value: 0.45 }, uFlash: { value: new THREE.Color(0xffffff) }, uFlashAmt: { value: 0 } };
+  const u = { uRim: { value: new THREE.Color(0xfff2dd) }, uRimAmt: { value: 0.45 }, uFlash: { value: new THREE.Color(0xff7a5c) }, uFlashAmt: { value: 0 } };
   mat.userData.u = u;
   mat.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, u);
@@ -46,10 +46,12 @@ export function createCharacterMaterial() {
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vPbr.z;')
       .replace('#include <opaque_fragment>', `float fr = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 2.6);
         outgoingLight += uRim * fr * uRimAmt;
-        outgoingLight = mix(outgoingLight, uFlash, uFlashAmt);
+        // hit flash: warm red-white TINT (multiply + small lift), never a flat white fill, so outfit colours,
+        // eye whites/pupils and the outline stay readable on the victim
+        outgoingLight = mix(outgoingLight, outgoingLight * (vec3(0.75) + uFlash * 0.9) + uFlash * 0.16, uFlashAmt);
         #include <opaque_fragment>`);
   };
-  mat.customProgramCacheKey = () => 'archer-char-v1';
+  mat.customProgramCacheKey = () => 'archer-char-v2';
   return mat;
 }
 
@@ -143,7 +145,7 @@ const ARM_BONES = ['upperArmL', 'foreArmL', 'upperArmR', 'foreArmR'];
 const ANIMS = ['idle', 'pose', 'walk', 'aim', 'release', 'hit', 'fall', 'victory', 'defeat', 'dead'];
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _qa = new THREE.Quaternion(), _qc = new THREE.Quaternion();
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _v4 = new THREE.Vector3(), _d = new THREE.Vector3(), _up = new THREE.Vector3(), _pole = new THREE.Vector3();
-const DOWN = new THREE.Vector3(0, -1, 0), YAXIS = new THREE.Vector3(0, 1, 0), ZAXIS = new THREE.Vector3(0, 0, 1);
+const XAXIS = new THREE.Vector3(1, 0, 0), DOWN = new THREE.Vector3(0, -1, 0), YAXIS = new THREE.Vector3(0, 1, 0), ZAXIS = new THREE.Vector3(0, 0, 1);
 
 export class Character {
   /**
@@ -168,7 +170,7 @@ export class Character {
     this.facing = 1; this.anim = 'idle'; this.animT = 0; this.t = Math.random() * 10;
     this.aimAngle = 0.6; this.draw = 0; this.aimBlend = 0; this.walkPhase = 0; this.walkSpeed = 0;
     this.yaw = 0.6; this.hitK = 0; this.flashT = 0; this.releaseT = 9; this.hipsDY = 0; this.hipsDX = 0; this.tiltZ = 0; this.tiltY = 0;
-    this.readyBlend = 0;
+    this.readyBlend = 0; this.wallK = 0; this._solid = null;
     const S0 = def.scale ?? 1.2;
     this.hitShapes = { hx: 0, hy: 0, hr: B.headR * 1.2 * S0, ax: 0, ay: 0, bx: 0, by: 0, br: (B.bodyR ?? 0.3) * S0 };
     this.height = (B.neckY + B.neckLen + B.headR * 2) * S0;
@@ -181,7 +183,12 @@ export class Character {
   /** Aim angle in WORLD radians (0 = +x, PI/2 = up); draw 0..1. */
   setAim(angle, draw) { this.aimAngle = angle; this.draw = clamp(draw, 0, 1); }
   setWalkSpeed(s) { this.walkSpeed = s; }
-  hit(strength = 1) { this.hitK = Math.min(1.4, this.hitK + strength); this.flashT = 0.16; }
+  hit(strength = 1) { this.hitK = Math.min(1.4, this.hitK + strength); this.flashT = 0.22; }
+  /** Wall awareness for the bow pose. Pass the match Terrain (anything with solid(x, y)) or a (x, y) => bool function,
+   *  once per character after it is created. The rig then probes along the aim ray every update and, when a wall or
+   *  crenellation is in the way, pulls the bow arm in (bent elbow), cants the bow flat and retracts the nocked arrow
+   *  so nothing pokes into the terrain. null switches it off. ch.wallK (0..1) reports how much it is pulled in. */
+  setTerrain(t) { this._solid = !t ? null : typeof t === 'function' ? t : (x, y) => t.solid(x, y); }
   /** Attach the arrow model shown on the string (or null). Model convention: tip at origin, shaft along -X. */
   setNockedArrow(obj) {
     if (this.nocked === obj) return;
@@ -259,7 +266,7 @@ export class Character {
       this._mix('hips', 0, 0.06 * sw2, -0.045 * sw, k);
       this._mix('spine', -0.03 + 0.045 * br, -0.05, 0.035 * sw, k); this._mix('chest', -0.02 + 0.04 * br, -0.07, 0.015 * sw, k);
       this._mix('neck', -0.02 * br, 0.08, -0.03 * sw, k);
-      this._mix('head', -0.05 + 0.03 * Math.sin(t * 0.9), 0.22 + 0.08 * Math.sin(t * 0.37), 0.04 * sw, k);
+      this._mix('head', -0.05 + 0.03 * Math.sin(t * 0.9), 0.02 + 0.07 * Math.sin(t * 0.37), 0.04 * sw, k);
       hipsDY = lerp(hipsDY, -0.035 + 0.012 * br - 0.008 * Math.abs(sw), k); hipsDX = 0.03 * sw * k;
     }
     const aiming = a === 'aim' || (a === 'release' && this.releaseT < 0.45);
@@ -270,7 +277,7 @@ export class Character {
       // archer stance: wide base, lean back slightly and twist the chest open as the draw builds
       this._mix('thighL', -0.2, 0, 0.22, k); this._mix('thighR', 0.14, 0, -0.2, k); this._mix('shinL', 0.16, 0, 0, k); this._mix('shinR', 0.1, 0, 0, k);
       this._mix('spine', -0.05 - 0.05 * d + 0.02 * br, 0.05, -0.05 * Math.sin(ang), k); this._mix('chest', -0.06 - 0.04 * d, 0.08 + 0.1 * d, 0, k);
-      this._mix('head', -clamp(ang - 0.2, -0.6, 1.2) * 0.45, 0.78, -0.1, k);
+      this._mix('head', -clamp(ang - 0.2, -0.6, 1.2) * 0.45, 0.18, -0.1, k);   // look along the shot but keep the face 3/4 to camera
       hipsDY = lerp(hipsDY, -0.045 - 0.015 * d, k);
     }
     this.hipsDX = damp(this.hipsDX, hipsDX, 8, dt);
@@ -343,14 +350,31 @@ export class Character {
     const aimDir = _v4.copy(_d); // careful: _v4 reused below — copy into locals
     const ax = aimDir.x, ay = aimDir.y, az = aimDir.z;
     const S = this._S.setFromMatrixPosition(this.rig[BI.upperArmL]);
+    // wall pull-in: how far along the aim ray (and the upper/lower limb lines) is free terrain?
+    let pull = 0;
+    const armL = this.rest[BI.foreArmL].length() + this.rest[BI.handL].length();
+    if (this._solid && kA > 0.01 && this.anim !== 'dead') {
+      this._toWorld(S, _v3);
+      const f = this.facing, wx = f * Math.cos(ang), wy = Math.sin(ang), Sc = this.S;
+      const full = (armL * reachK + 0.3) * Sc, px = -wy * f, py = Math.abs(wx);      // perpendicular, upper side
+      const tip = (this.bow.tipY ?? 0.6) * 0.85 * Sc;
+      let free = full;
+      for (let i = 1; i <= 6 && free === full; i++) {
+        const d = full * i / 6, cx = _v3.x + wx * d, cy = _v3.y + wy * d;
+        if (this._solid(cx, cy) || this._solid(cx + px * tip, cy + py * tip) || this._solid(cx - px * tip * 0.6, cy - py * tip * 0.6)) free = full * (i - 1) / 6;
+      }
+      pull = clamp(1 - (free - 0.25 * Sc) / (full - 0.25 * Sc), 0, 1);
+    }
+    this.wallK = damp(this.wallK, pull, 10, dt);
+    const wk = this.wallK;
     if (kA > 0.01) {
-      const reach = (this.rest[BI.foreArmL].length() + this.rest[BI.handL].length()) * reachK;
+      const reach = armL * reachK * (1 - 0.48 * wk);
       const T1 = this._t1.set(S.x + ax * reach, S.y + ay * reach, S.z + az * reach);
       this._pl.set(0, -1, -0.4);
       this._ik('upperArmL', 'foreArmL', T1, this._pl);
       const stringX = -0.1 - (this.bow.drawLen ?? 0.6) * drawEff;
       const T2 = this._t2.set(T1.x + ax * stringX, T1.y + ay * stringX, T1.z + az * stringX + 0.05);
-      this._pl.set(-ax, 0.6 - ay * 0.3, -0.5);
+      this._pl.set(-ax, 0.85 - ay * 0.3, -0.32);   // draw elbow up and back, kept fairly in the screen plane so the arm shows its length
       this._ik('upperArmR', 'foreArmR', T2, this._pl);
       // blend IK result with the FK pose by aimBlend
       if (kA < 0.999) for (let q = 0; q < ARM_BONES.length; q++) { const n = ARM_BONES[q];
@@ -364,15 +388,16 @@ export class Character {
     _q2.setFromAxisAngle(YAXIS, -Math.PI / 2); _qc.multiplyQuaternions(_q, _q2);
     _qa.setFromAxisAngle(ZAXIS, ang); _q.setFromAxisAngle(YAXIS, -yaw); _qa.premultiply(_q);
     this.bowNode.quaternion.copy(_qc).slerp(_qa, kA);
+    if (wk > 0.002) this.bowNode.quaternion.multiply(_q2.setFromAxisAngle(XAXIS, -1.3 * wk));   // cant the bow flat against a wall
     this.bowNode.position.copy(hand).addScaledVector(_d.set(ax, ay, az), 0.02 * kA);
     const sx = -0.1 - (this.bow.drawLen ?? 0.6) * drawEff * kA;
     this.bow.setString(sx + (this.releaseT < 0.25 ? Math.sin(this.releaseT * 60) * 0.04 * (1 - this.releaseT * 4) : 0));
     this.bow.setDraw?.(drawEff * kA);
-    this.nock.position.set(sx + (this.bow.arrowLen ?? 1.0), 0, 0.0);
+    this.nock.position.set(sx + (this.bow.arrowLen ?? 1.0) - 0.6 * wk, 0, 0.0);
     this.nock.visible = kA > 0.5 && this.anim === 'aim';
     // ---- flash ----
     this.flashT = Math.max(0, this.flashT - dt);
-    this.material.userData.u.uFlashAmt.value = this.flashT > 0 ? Math.min(0.75, this.flashT * 6) : 0;
+    this.material.userData.u.uFlashAmt.value = this.flashT > 0 ? Math.min(0.5, this.flashT * 3.2) : 0;   // <=50%, gone in 0.22 s
     // ---- hit shapes (world) ----
     const hs = this.hitShapes, B = this.B;
     this._toWorld(_v.setFromMatrixPosition(this.rig[BI.head]).add(_v2.set(0, B.headR * 0.95, 0).applyQuaternion(_q.setFromRotationMatrix(this.rig[BI.head]))), _v3);

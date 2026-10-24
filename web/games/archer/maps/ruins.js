@@ -114,7 +114,7 @@ export default {
       for (let k = 0; k < 3; k++) place('shrub', Mx.a + 1.5 + rng() * span, 0.6 + rng() * 1.2, { scale: 0.8 + rng() * 0.5, rotY: rng() * 6 });
       for (let k = 0; k < 2; k++) place('sandrock', Mx.a + 1.5 + rng() * span, (rng() - 0.5) * 3, { scale: 0.5 + rng() * 0.7, rotY: rng() * 6 });
       place('pillar', Mx.a + 1.5 + rng() * span, -1.5 - rng() * 0.6, { scale: 0.9 + rng() * 0.4, rotY: rng() * 6 });
-      if (rng() < 0.6) place('skull', Mx.a + 1.5 + rng() * span, 1.2 + rng() * 0.6, { scale: 0.8 + rng() * 0.3, rotY: (rng() - 0.5) * 1.5 });
+      if (rng() < 0.6) { rng(); rng(); rng(); rng(); }   // (was a white skull prop in front of the spawn; removed, rng draws kept so layouts stay stable)
     }
     for (const S of gen.sp) {
       place('urn', S.x - 1.8, -0.9, { scale: 0.9, rotY: rng() * 6 }); place('urn', S.x + 1.9, -1.2, { scale: 0.75, rotY: rng() * 6 });

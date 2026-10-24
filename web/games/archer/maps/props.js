@@ -244,7 +244,7 @@ export const PROP_TYPES = {
 
   // ---------------- neon city rooftops ----------------
   acunit: () => {
-    const parts = [[T(new RoundedBoxGeometry(1.3, 0.85, 0.95, 2, 0.06), 0, 0.43, 0), (x, y, z) => (z > 0.4 && Math.abs((y * 10) % 1) < 0.35 && y < 0.75 ? 0x5a6478 : 0xb8c0cc)]];
+    const parts = [[T(new RoundedBoxGeometry(1.3, 0.85, 0.95, 2, 0.06), 0, 0.43, 0), (x, y, z) => (z > 0.4 && Math.abs((y * 10) % 1) < 0.4 && y < 0.75 && Math.abs(x) < 0.55 ? 0x262c38 : y < 0.12 ? 0x4a505c : y > 0.8 ? 0x9aa2ae : 0x7e8692)]];   // weathered steel casing, dark grille, grimy base
     parts.push([T(new THREE.CylinderGeometry(0.36, 0.36, 0.06, 14), 0.1, 0.88, 0), 0x2a3040], [T(new THREE.CylinderGeometry(0.06, 0.06, 0.08, 6), 0.1, 0.9, 0), 0x9aa4b4]);
     return { geo: build(parts) };
   },

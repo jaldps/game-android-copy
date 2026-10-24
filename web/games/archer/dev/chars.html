@@ -11,7 +11,7 @@
 //   (default)        one hero per column, their first outfit (?o=1|2 picks another outfit index)
 //   ?char=kaito      all outfits of one hero        ?all=1  every outfit: columns = heroes, rows = outfit index
 //   ?anims=aim,walk,dead  per-column animation list
-//   ?close=1         head-and-shoulders close-up    ?face=1 all columns face the camera (+x) instead of alternating
+//   ?close=1         head-and-shoulders close-up    ?dist=2.4  pull the camera back (play-scale faces, ~12% of height)    ?face=1 all columns face the camera (+x) instead of alternating
 import * as THREE from 'three';
 import { CHARACTERS, outfitsFor, createCharacter, computeStats } from '../characters/index.js';
 const q = new URLSearchParams(location.search);
@@ -43,7 +43,7 @@ const W = cols * SP + 0.6, aspect = innerWidth / innerHeight;
 const cam = new THREE.PerspectiveCamera(26, aspect, 0.1, 200);
 if (q.get('close')) { const d = Math.max(3.2, W * 0.62 / aspect / 0.2309 / 2 * 0.9); cam.position.set(0, 2.45, d); cam.lookAt(0, 2.25, 0); }
 else if (rows > 1) { cam.position.set(0, 6.5, 13 + rows * 2.2); cam.lookAt(0, 0.9, -2.4); }
-else { const d = Math.max(7.5, W / (2 * 0.2309 * aspect)); cam.position.set(0, 1.6, d); cam.lookAt(0, 1.2, 0); }
+else { const d = Math.max(7.5, W / (2 * 0.2309 * aspect)) * +(q.get('dist') || 1); cam.position.set(0, 1.6, d); cam.lookAt(0, 1.2, 0); }
 window.__chars = { list, stats: cells.map(([d, o]) => ({ id: d.id, outfit: o?.id, ...computeStats(d, o) })) };
 // ?close=1: one head-and-shoulders viewport per hero (grid), each camera aimed at that hero's head
 const closeCams = q.get('close') ? list.map(() => new THREE.PerspectiveCamera(22, 1, 0.1, 50)) : null;

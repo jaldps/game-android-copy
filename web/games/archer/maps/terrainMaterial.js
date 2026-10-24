@@ -43,6 +43,7 @@ export function createTerrainMaterial(palette = {}) {
         uniform float uSnow, uBump, uStyle, uTime; uniform vec2 uBrick;
         float tH;   // procedural height for bump mapping (set in color pass, used in normal pass)
         vec3 tEmit; // procedural emissive (lava, neon, windows)
+        float tWet; // city roofs: puddle mask (glossy)
         bool isLava(){ return uStyle > 2.5 && uStyle < 3.5; }
         bool isCity(){ return uStyle > 3.5; }
         float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*.1031); p3 += dot(p3, p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
@@ -54,14 +55,39 @@ export function createTerrainMaterial(palette = {}) {
           return vec3(d1, d2 - d1, id); }
         // playable rooftops: a dashed warm/cyan LED strip just under the roof edge + a dark drip-edge flashing above it
         vec3 cityEdge(vec2 p, float depth, vec3 col){
-          float flash = smoothstep(0.02, 0.05, depth) * smoothstep(0.2, 0.16, depth);
-          col = mix(col, vec3(0.16, 0.16, 0.2), flash * 0.85);
-          float strip = smoothstep(0.24, 0.27, depth) * smoothstep(0.38, 0.35, depth);
-          float dash = smoothstep(0.08, 0.14, fract(p.x * 0.55)) * smoothstep(0.92, 0.86, fract(p.x * 0.55));
-          vec3 lc = mix(vec3(1.0, 0.72, 0.32), u_glow2, step(0.55, h12(vec2(floor(p.x / 16.0), 1.0))));
-          col = mix(col, lc, strip * dash); tEmit += lc * strip * dash * 2.2;
-          tEmit += lc * 0.18 * smoothstep(0.38, 0.9, depth) * smoothstep(1.6, 0.38, depth) * dash;  // light spill on the wall below
+          // rain grime running down from the parapet + soot/AO toward the bottom of the facade
+          float streak = smoothstep(0.45, 0.85, vn(vec2(p.x * 3.1, p.y * 0.1 + 9.0))) * smoothstep(0.35, 1.0, depth);
+          col *= 0.62 * (1.0 - 0.38 * streak);              // facades stay dark (night): neon and LEDs carry the colour
+          col *= mix(1.0, 0.6, smoothstep(0.9, 3.0, depth));
+          // parapet coping: pale precast caps with joints, a dark drip shadow underneath
+          float cap = 1.0 - smoothstep(0.11, 0.14, depth);
+          float cj = smoothstep(0.0, 0.025, fract(p.x / 1.8)) * smoothstep(1.0, 0.975, fract(p.x / 1.8));
+          vec3 cc = vec3(0.5, 0.48, 0.55) * (0.85 + 0.25 * vn(p * vec2(1.4, 9.0))) * mix(0.55, 1.0, cj);
+          col = mix(col, cc, cap);
+          float drip = smoothstep(0.12, 0.15, depth) * smoothstep(0.24, 0.19, depth);
+          col = mix(col, vec3(0.05, 0.045, 0.07), drip * 0.85);
+          // LED tube along the parapet: continuous, one colour per building, short mounting gaps every 3 units
+          float strip = smoothstep(0.2, 0.225, depth) * smoothstep(0.36, 0.335, depth);
+          float gap = smoothstep(0.0, 0.03, fract(p.x / 3.0)) * smoothstep(1.0, 0.97, fract(p.x / 3.0));
+          vec3 lc = mix(u_glow, u_glow2, step(0.5, h12(vec2(floor(p.x / 18.0), 1.0))));
+          col = mix(col, lc, strip * gap); tEmit += lc * strip * gap * 3.2;
+          tEmit += lc * 0.22 * smoothstep(0.36, 0.6, depth) * smoothstep(1.5, 0.36, depth);   // light spill on the wall below
+          tH = mix(tH, 0.9, cap) - drip * 0.4 + strip * 0.3;
           return col; }
+        // playable roof surface (seen as the strip behind the parapet): dark tar membrane in lapped sheets, gravel,
+        // grime and shallow puddles that pick up the neon
+        vec3 cityRoof(vec2 p){
+          float sx = fract(p.x / 1.6), seam = smoothstep(0.0, 0.035, sx) * smoothstep(1.0, 0.965, sx);
+          float sz = fract(p.y / 2.2 + h12(vec2(floor(p.x / 1.6), 4.0))), lap = smoothstep(0.0, 0.05, sz);
+          vec3 tar = mix(u_grass, u_grass2, vn(p * 0.7) * 0.6) * (0.8 + 0.3 * vn(p * 3.3));
+          tar = mix(tar, tar * 1.6 + 0.02, step(0.82, h12(floor(p * 11.0))) * 0.7);       // gravel speckle
+          tar *= mix(0.55, 1.0, seam) * mix(0.7, 1.0, lap);
+          tar *= 1.0 - 0.3 * smoothstep(0.55, 0.8, fbm(p * 0.8 + 7.0));                    // grime patches
+          float pud = smoothstep(0.66, 0.72, fbm(p * 0.45 + 3.0));
+          vec3 nc = mix(u_glow, u_glow2, vn(p * 0.25));
+          tar = mix(tar, tar * 0.5 + nc * 0.12, pud); tEmit += nc * pud * 0.1; tWet = max(tWet, pud);
+          tH = seam * 0.45 + lap * 0.25 + vn(p * 9.0) * 0.12 - pud * 0.25;
+          return tar; }
         vec3 rockCol(vec2 p, float depth){
           if (isCity()) {                       // precast concrete panels (no windows: facades live in the backdrop)
             vec2 q = vec2(p.x / 2.4, p.y / 1.6); vec2 f = fract(q), id = floor(q);
@@ -134,6 +160,7 @@ export function createTerrainMaterial(palette = {}) {
           tH = m * (0.7 + 0.3 * smoothstep(0.0, 0.35, e)) - vn(p * 6.0) * 0.12 * m;
           // (no stamped window squares on playable brick: they read as z-fighting decals; facades live in the backdrop)
           if (isLava()) { float hot = smoothstep(0.06, 0.0, e) * smoothstep(1.2, 2.8, depth); tEmit += u_glow * hot * 0.9; }
+          if (isCity()) { col *= 0.92 + 0.1 * h12(vec2(floor(p.x / 5.0), 2.0)); col = cityEdge(p, depth, col); }
           return mix(col, col * 0.62, smoothstep(0.8, 3.0, depth) * 0.6); }
         vec3 woodCol(vec2 p){
           float plank = floor(p.y / 0.32); float f = fract(p.y / 0.32);
@@ -159,8 +186,8 @@ export function createTerrainMaterial(palette = {}) {
           col = mix(col, u_metal * 1.45, rivet);
           tH = seam * 0.5 + rivet * 0.6;
           if (isCity()) {                          // corrugated steel sheeting with rust runs (playable rooftop metal)
-            float rib = sin(p.x * 14.0); float sheet = fract(p.y / 2.2);
-            vec3 sc = u_metal * (0.86 + 0.2 * h12(vec2(floor(p.x / 1.8), floor(p.y / 2.2)))) * (0.8 + 0.22 * (0.5 + 0.5 * rib));
+            float pf = fract(p.x / 0.9), rib = smoothstep(0.0, 0.06, pf) * smoothstep(0.16, 0.1, pf); float sheet = fract(p.y / 2.2);
+            vec3 sc = u_metal * (0.86 + 0.2 * h12(vec2(floor(p.x / 1.8), floor(p.y / 2.2)))) * (0.9 + 0.35 * rib) * (0.9 + 0.12 * vn(p * vec2(0.8, 3.0)));
             sc *= mix(0.55, 1.0, smoothstep(0.0, 0.03, sheet) * smoothstep(1.0, 0.97, sheet));
             float rust = smoothstep(0.62, 0.85, vn(vec2(p.x * 1.6, p.y * 0.18 + 2.0))) * (0.4 + 0.6 * vn(p * 4.0));
             sc = mix(sc, vec3(0.55, 0.3, 0.18), rust * 0.55);
@@ -181,10 +208,7 @@ export function createTerrainMaterial(palette = {}) {
             tH = smoothstep(0.0, 0.1, c.y) * 0.6;
             tEmit += u_glow * crack * (0.9 + 0.35 * sin(uTime * 2.0 + c.z * 20.0));
             return mix(s, u_glow, crack * 0.7); }
-          if (isCity()) {                          // roof tiles / tar
-            vec2 q = p / 0.9; vec2 f = fract(q); float tile = smoothstep(0.0, 0.05, f.x) * smoothstep(0.0, 0.05, f.y);
-            vec3 s = mix(u_grass, u_grass2, h12(floor(q)) * 0.6) * (0.85 + 0.2 * vn(p * 6.0)) * mix(0.72, 1.0, tile);
-            tH = tile * 0.3; return s; }
+          if (isCity()) return cityRoof(p);
           vec3 g = mix(u_grass, u_grass2, fbm(p * 0.5)); float bl = vn(p * vec2(9.0, 2.0)); g *= 0.88 + 0.18 * bl;
           tH = bl * 0.3;
           float fl = step(0.975, h12(floor(p * 2.5)));
@@ -203,7 +227,7 @@ export function createTerrainMaterial(palette = {}) {
         float tRough = 0.9;
         {
           vec2 p = vW.xy; float kind = vInfo.x, depth = vInfo.y, m = floor(vMat + 0.5);
-          vec3 N = normalize(vWN); vec3 col; tH = 0.0; tEmit = vec3(0.0);
+          vec3 N = normalize(vWN); vec3 col; tH = 0.0; tEmit = vec3(0.0); tWet = 0.0;
           if (kind > 1.5) {                       // drape
             float v = depth;
             if (uSnow > 0.5) { col = mix(vec3(1.0), vec3(0.8, 0.9, 1.0), v * 0.8); col *= 0.94 + 0.06 * vn(vec2(p.x * 6.0, v * 3.0)); tH = vn(vec2(p.x * 5.0, v * 2.0)) * 0.4; }
@@ -225,7 +249,7 @@ export function createTerrainMaterial(palette = {}) {
             vec3 side = matCol(m, vec2(p.x + vW.z * 0.7, p.y + vW.z * 0.3), 0.6);
             float hs = tH; vec3 es = tEmit; tEmit = vec3(0.0);
             side *= mix(1.0, 0.55, smoothstep(-0.2, -0.8, N.y));
-            vec3 top = (m < 0.5 || m > 4.5 || (m > 2.5 && m < 3.5)) ? topCol(vec2(p.x, vW.z)) : matCol(m, vec2(p.x, vW.z), 0.0) * 1.08;
+            vec3 top = isCity() ? cityRoof(vec2(p.x, vW.z)) : (m < 0.5 || m > 4.5 || (m > 2.5 && m < 3.5)) ? topCol(vec2(p.x, vW.z)) : matCol(m, vec2(p.x, vW.z), 0.0) * 1.08;
             tH = mix(hs, tH, up); tEmit = mix(es, tEmit, up);
             col = mix(side, top, up);
           } else {                                // front cap
@@ -268,6 +292,7 @@ export function createTerrainMaterial(palette = {}) {
           }
           if (m > 2.5 && m < 3.5) tRough = 0.35;
           if (m > 3.5 && m < 4.5) tRough = 0.55;
+          if (isCity()) tRough = mix(tRough, 0.18, tWet);
           diffuseColor.rgb = col;
         }`)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += tEmit;')
@@ -281,7 +306,7 @@ export function createTerrainMaterial(palette = {}) {
           normal = normalize(abs(det) * normal - g);
         }`);
   };
-  mat.customProgramCacheKey = () => 'archer-terrain-v5';
+  mat.customProgramCacheKey = () => 'archer-terrain-v6';
   mat.userData.uniforms = u;
   return mat;
 }

@@ -5,6 +5,7 @@
 // Every builder returns { mesh, update(dt, t) }.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { glowStdMaterial, depthShade } from './sky.js';
 
 const _c = new THREE.Color(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
@@ -16,10 +17,18 @@ function kit() {
   const parts = [];
   const api = {
     add(geo, paint, glow = 0, pos = null, rot = null, scl = null) {
-      let g = geo.index ? geo.toNonIndexed() : geo;
-      for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
       _e.set(rot?.[0] ?? 0, rot?.[1] ?? 0, rot?.[2] ?? 0); _q.setFromEuler(_e); _s.set(...(scl ?? [1, 1, 1])); _v.set(...(pos ?? [0, 0, 0]));
-      _m.compose(_v, _q, _s); g.applyMatrix4(_m); g.computeVertexNormals();
+      _m.compose(_v, _q, _s);
+      let g;
+      if (api.smooth) {               // keep the geometry's own smooth normals (sculpted look), then un-index for the merge
+        g = geo; for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+        if (!g.attributes.normal) g.computeVertexNormals();
+        g.applyMatrix4(_m); if (g.index) g = g.toNonIndexed();
+      } else {
+        g = geo.index ? geo.toNonIndexed() : geo;
+        for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+        g.applyMatrix4(_m); g.computeVertexNormals();
+      }
       const p = g.attributes.position, n = g.attributes.normal, N = p.count, col = new Float32Array(N * 3), gl = new Float32Array(N);
       for (let i = 0; i < N; i++) {
         const r = typeof paint === 'function' ? paint(p.getX(i), p.getY(i), p.getZ(i), n.getY(i)) : paint;
@@ -155,31 +164,49 @@ export function dragonSkeleton({ x = 4, y = -9, z = -118, scale = 1.25 } = {}) {
  *  the sand beside it. Striped royal headdress, kohl-lined eyes, a broken ceremonial beard. */
 export function sunKingHead({ x = 8, y = -10, z = -118, scale = 1.3 } = {}) {
   const K = kit(), SAND = 0xf2c47a, STONE = 0xe8b070, STONE2 = 0xc8884e, BLUE = 0x2a5ab0, GOLD = 0xf2c14e;
-  const sst = (px, py, pz) => { const n = noise3(px * 0.7, py * 0.7, pz * 0.7); return Math.abs(Math.sin(px * 0.9 + py * 1.3) * Math.cos(pz * 0.7 - py * 0.4)) < 0.035 ? shift(STONE2, 0.6) : mixHex(STONE2, STONE, n); };
+  K.smooth = true;   // sculpted: smooth normals + bevelled blocks instead of flat-shaded facets
+  const RB = (w, h, d, r = 0.45) => new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w * 0.45, h * 0.45, d * 0.45));
+  // weathering: sun-bleached top, sand-stained base, darker streaks running down, worn paint; AO from the normal
+  // (undersides, the eye sockets and under the brow/nose go dark), so the head reads as carved stone
+  const weather = (hex, px, py, pz, ny, worn = 0) => {
+    const g = Math.max(0, Math.min(1, (py - 3) / 22)), n = noise3(px * 0.35, py * 0.2, pz * 0.35);
+    let c = mixHex(mixHex(0xa86a3a, hex, 0.55 + 0.45 * g), 0xfff0d0, 0.22 * g * g);
+    if (worn) c = mixHex(c, mixHex(STONE2, STONE, n), worn * Math.max(0, n - 0.35) * 1.6);
+    const streak = Math.max(0, Math.sin(px * 1.7 + Math.sin(pz * 0.9) * 2.0) - 0.82) * 3.5 * (1 - g * 0.6);
+    const ao = 0.5 + 0.5 * Math.max(0, Math.min(1, 0.55 + ny * 0.6));
+    return shift(c, ao * (1 - 0.22 * streak) * (0.92 + 0.12 * n));
+  };
+  const sst = (px, py, pz, ny = 0) => { const n = noise3(px * 0.7, py * 0.7, pz * 0.7); const crack = Math.abs(Math.sin(px * 0.9 + py * 1.3) * Math.cos(pz * 0.7 - py * 0.4)) < 0.03;
+    return weather(crack ? shift(STONE2, 0.55) : mixHex(STONE2, STONE, n), px, py, pz, ny); };
+  const W = (hex, worn = 0.5) => (px, py, pz, ny) => weather(hex, px, py, pz, ny, worn);
   const tilt = [0.06, 0.12, 0.14], P = (a) => { const v = new THREE.Vector3(...a).applyEuler(new THREE.Euler(...tilt)); return [v.x, v.y + 14, v.z]; };
   // dune it is buried in
   K.add(new THREE.SphereGeometry(26, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), (px, py, pz) => mixHex(0xd89a58, SAND, 0.4 + py / 12 + 0.2 * Math.sin(px * 0.4 + pz * 0.3)), 0, [0, -1, 0], null, [1.4, 0.36, 0.7]);
   // face
   const head = (g, paint, pos, rot = [0, 0, 0], scl = null, glow = 0) => K.add(g, paint, glow, P(pos), [tilt[0] + rot[0], tilt[1] + rot[1], tilt[2] + rot[2]], scl);
-  head(new THREE.SphereGeometry(8, 16, 12), sst, [0, 0, 0], [0, 0, 0], [0.85, 1.1, 0.9]);
-  head(new THREE.BoxGeometry(2.2, 5, 2.4), sst, [0, -1, 7.1], [-0.12, 0, 0]);                       // nose
-  head(new THREE.BoxGeometry(2.8, 1.6, 2.2), sst, [0, -3.6, 7.6]);
-  head(new THREE.BoxGeometry(6, 0.9, 1.4), shift(STONE2, 0.85), [0, -6.1, 6.8]);                     // lips
-  head(new THREE.BoxGeometry(5, 0.8, 1.4), sst, [0, -7.0, 6.6]);
+  head(new THREE.SphereGeometry(8, 32, 24), sst, [0, 0, 0], [0, 0, 0], [0.85, 1.1, 0.9]);
+  head(new THREE.SphereGeometry(5.2, 24, 16), sst, [0, -4.2, 3.2], [0, 0, 0], [0.92, 0.8, 0.85]);       // cheeks + jaw mass
+  head(RB(2.2, 5, 2.4, 0.8), sst, [0, -1, 7.1], [-0.12, 0, 0]);                                      // nose
+  head(new THREE.SphereGeometry(1.5, 16, 10), sst, [0, -3.6, 7.7], [0, 0, 0], [1.05, 0.7, 0.85]);       // nose tip + nostrils
+  head(RB(6, 0.9, 1.4, 0.4), W(shift(STONE2, 0.85)), [0, -6.1, 7.0]);                                 // lips
+  head(RB(5, 0.9, 1.4, 0.4), sst, [0, -7.0, 6.8]);
+  head(RB(5.4, 0.35, 0.6, 0.15), W(0x5a3820, 0), [0, -6.6, 7.6]);                                     // mouth line
   for (const s of [1, -1]) {
-    head(new THREE.BoxGeometry(3.6, 1.7, 1.2), 0xfaf0dc, [s * 2.9, 2.3, 7.0], [0, s * 0.25, s * 0.08]);       // eye whites
-    head(new THREE.BoxGeometry(1.4, 1.5, 0.6), 0x1a1410, [s * 2.7, 2.3, 7.7], [0, s * 0.25, 0]);
-    head(new THREE.BoxGeometry(5.2, 0.55, 1.4), 0x1a1410, [s * 3.3, 3.25, 7.2], [0, s * 0.25, s * -0.08]);    // kohl line with wing
-    head(new THREE.BoxGeometry(4.4, 0.8, 1.6), shift(STONE2, 0.9), [s * 2.9, 4.6, 6.6], [0, s * 0.25, s * 0.12]); // brow
-    // headdress lappets falling either side of the face, striped blue/gold
-    head(new THREE.BoxGeometry(4, 13, 3.4), (px, py) => (Math.floor(py * 0.9) % 2 ? BLUE : GOLD), [s * 8.3, -3.5, 1.5], [0, 0, s * -0.08]);
+    head(new THREE.SphereGeometry(2.1, 16, 10), W(shift(STONE2, 0.7), 0), [s * 2.9, 2.2, 6.0], [0, s * 0.25, 0], [1.05, 0.62, 0.6]);  // socket
+    head(RB(3.6, 1.7, 1.2, 0.55), W(0xfaf0dc, 0.4), [s * 2.9, 2.3, 7.0], [0, s * 0.25, s * 0.08]);       // eye whites
+    head(RB(1.4, 1.5, 0.6, 0.25), 0x1a1410, [s * 2.7, 2.3, 7.7], [0, s * 0.25, 0]);
+    head(RB(5.2, 0.55, 1.4, 0.2), 0x1a1410, [s * 3.3, 3.25, 7.2], [0, s * 0.25, s * -0.08]);            // kohl line with wing
+    head(RB(4.6, 1.0, 1.9, 0.45), sst, [s * 2.9, 4.6, 6.6], [0, s * 0.25, s * 0.12]);                    // brow
+    // headdress lappets falling either side of the face, striped blue/gold (paint worn by the sand)
+    head(RB(4, 13, 3.4, 1.0), (px, py, pz, ny) => weather(Math.floor(py * 0.9) % 2 ? BLUE : GOLD, px, py, pz, ny, 0.6), [s * 8.3, -3.5, 1.5], [0, 0, s * -0.08]);
   }
   // striped headdress dome + front band + cobra crest, and a crack missing a chunk of the crown
-  head(new THREE.SphereGeometry(8.8, 18, 10, Math.PI / 2 + 0.8, Math.PI * 2 - 1.6, 0, Math.PI * 0.62), (px, py, pz) => (Math.floor((Math.atan2(px, pz) + 3.2) * 4.0) % 2 ? BLUE : GOLD), [0, 1.0, -0.6], [0, 0, 0], [0.86, 1.02, 0.96]);
+  head(new THREE.SphereGeometry(8.8, 36, 18, Math.PI / 2 + 0.8, Math.PI * 2 - 1.6, 0, Math.PI * 0.62), (px, py, pz, ny) => weather(Math.floor((Math.atan2(px, pz) + 3.2) * 4.0) % 2 ? BLUE : GOLD, px, py, pz, ny, 0.5), [0, 1.0, -0.6], [0, 0, 0], [0.86, 1.02, 0.96]);
   head(new THREE.TorusGeometry(8.2, 0.7, 6, 26, Math.PI), GOLD, [0, 4.4, 0], [Math.PI / 2 + 0.05, 0, Math.PI], null, 0.15);
   head(new THREE.ConeGeometry(1.0, 4, 6), [GOLD, 0.4], [0, 8.0, 7.4], [0.2, 0, 0]);
   head(new THREE.SphereGeometry(1.0, 8, 6), [0x3ad0c0, 1.4], [0, 6.6, 8.0]);
-  head(new THREE.BoxGeometry(3.0, 5.5, 2.6), (px, py) => (Math.floor(py * 1.6) % 2 ? shift(BLUE, 0.8) : shift(STONE2, 0.9)), [0, -10.2, 4.8], [0.2, 0, 0]);   // broken beard
+  head(RB(3.0, 5.5, 2.6, 0.7), (px, py, pz, ny) => weather(Math.floor(py * 1.6) % 2 ? shift(BLUE, 0.8) : shift(STONE2, 0.9), px, py, pz, ny, 0.4), [0, -10.2, 4.8], [0.2, 0, 0]);   // broken beard
+  K.smooth = false;
   // fallen fragments and the giant hand breaking the sand
   K.add(new THREE.BoxGeometry(3.2, 3.2, 3.2), sst, 0, [-14, 1.5, 6], [0.4, 0.6, 0.3]);
   K.add(new THREE.BoxGeometry(2.4, 2.0, 2.0), (px, py) => (py > 1.8 ? BLUE : GOLD), 0, [-18, 0.8, 3], [0.2, 0.9, 0.5]);

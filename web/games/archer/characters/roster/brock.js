@@ -15,8 +15,8 @@ export default {
     thighR: [0.172, 0.104], shinR: [0.106, 0.064],
     footL: 0.29, footW: 0.13, footH: 0.11,
     waistY: 1.22, shoulderY: 1.555, shoulderW: 0.43, neckY: 1.66, neckLen: 0.07, neckR: 0.13,
-    upperArm: 0.34, foreArm: 0.31, upperArmR: [0.112, 0.086], foreArmR: [0.108, 0.064], deltR: 0.15, handR: 0.084,
-    shape: { bicep: 0.55, tricep: 0.45, fore: 0.6, quad: 0.7, ham: 0.4, calf: 0.75, knee: 0.14, def: 1 },
+    upperArm: 0.34, foreArm: 0.31, upperArmR: [0.11, 0.07], foreArmR: [0.104, 0.062], deltR: 0.135, handR: 0.084,
+    shape: { bicep: 0.42, tricep: 0.3, fore: 0.6, quad: 0.7, ham: 0.4, calf: 0.75, knee: 0.14, def: 1 },
     headR: 0.218, bodyR: 0.32,
     torso: [
       [0.86, 0.1, 0.08, 0], [0.93, 0.2, 0.15, 0], [1.02, 0.212, 0.152, -0.005], [1.12, 0.198, 0.148, 0.01],
