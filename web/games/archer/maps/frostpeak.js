@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { MAT } from '../core/terrain.js';
 import { groundMass, rect, ellipse, polygon, tower, wall, stamp, floatingIsland } from './shapes.js';
-import { skyDome, cloudField, sea, ridge, mountains, castle } from './sky.js';
+import { skyDome, cloudField, sea, ridge, mountains, castle, hazeLayer } from './sky.js';
+import { dragonSkeleton } from './landmarks.js';
 import { createWeather } from './weather.js';
 import { fbm1 } from '../core/util.js';
 
@@ -72,6 +73,10 @@ export default {
     group.add(ridge({ z: -260, y0: -10, height: 70, peaks: 12, seed: 4, color: 0x8a86c0, cap: 0xf4e8ff, capLine: 0.55 }));
     group.add(mountains({ z: -170, count: 10, seed: 9, width: 560, height: [45, 80], radius: [30, 48], rock: 0x6f78b0, rock2: 0x8c90c8, capLine: 0.5 }));
     group.add(mountains({ z: -95, count: 12, seed: 13, width: 380, height: [18, 34], radius: [14, 24], rock: 0x58648f, rock2: 0x75809f, capLine: 0.58 }));
+    group.add(hazeLayer({ z: -215, y0: -12, height: 70, color: 0xe8e0ff, alpha: 0.55 }));
+    group.add(hazeLayer({ z: -130, y0: -12, height: 40, color: 0xe0e8ff, alpha: 0.4 }));
+    const dragon = dragonSkeleton({ y: this.waterY, z: -86, scale: 1.05 });
+    group.add(dragon.mesh);
     group.add(castle({ x: 46, y: 2, z: -160, scale: 0.75 }));
     group.add(castle({ x: -120, y: 6, z: -210, scale: 0.6 }));
     const clouds = cloudField({ count: 12, seed: 21, color: 0xffe8f0, shade: 0xa898c8, zRange: [-140, -320], yRange: [20, 70], scale: [14, 28], speed: 0.8 });

@@ -4,6 +4,7 @@ import { MAT } from '../core/terrain.js';
 import { floatingIsland, rect, circle, polygon, tower, stamp, safeSpawn, ensureHeightGap } from './shapes.js';
 import { skyDome, cloudField, castle, lavaSea } from './sky.js';
 import { volcanoRange, smokePlumes, heatHaze } from './backdrops.js';
+import { giantAnvil } from './landmarks.js';
 import { createWeather } from './weather.js';
 import { terrainClock, STYLE } from './terrainMaterial.js';
 
@@ -119,6 +120,8 @@ export default {
     const big = farV.peaks.slice().sort((a, b) => b.h - a.h).slice(0, 3);
     const plumes = smokePlumes(big, { per: 12, rise: 110 });
     group.add(plumes.mesh);
+    const anvil = giantAnvil({ y: this.waterY });
+    group.add(anvil.mesh);
     const haze = heatHaze({ y: this.waterY, z: -110 });
     group.add(haze.mesh);
     group.add(castle({ x: -60, y: -6, z: -140, scale: 0.8, wall: 0x3a2a34, roof: 0x24161e, windows: 0xffa040 }));
@@ -128,6 +131,6 @@ export default {
     group.add(lava.mesh);
     const embers = createWeather({ kind: 'embers', count: 260, seed: 3 }), ash = createWeather({ kind: 'ash', count: 200, seed: 8 });
     group.add(embers.mesh, ash.mesh);
-    return { group, update(dt, t, cam, wind) { terrainClock.value = t; smoke.update(dt); farV.update(dt, t); nearV.update(dt, t); plumes.update(dt, t, wind); haze.update(dt, t); lava.update(dt, t); embers.update(dt, t, cam, wind); ash.update(dt, t, cam, wind); } };
+    return { group, update(dt, t, cam, wind) { terrainClock.value = t; smoke.update(dt); farV.update(dt, t); nearV.update(dt, t); plumes.update(dt, t, wind); anvil.update(dt, t); haze.update(dt, t); lava.update(dt, t); embers.update(dt, t, cam, wind); ash.update(dt, t, cam, wind); } };
   },
 };

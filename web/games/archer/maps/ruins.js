@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { MAT } from '../core/terrain.js';
 import { rect, circle, ellipse, polygon, gable, wall, mesa, stamp, floatingIsland, safeSpawn, ensureHeightGap } from './shapes.js';
-import { skyDome, cloudField, mesas, duneSea } from './sky.js';
+import { skyDome, cloudField, mesas, duneSea, hazeLayer } from './sky.js';
+import { sunKingHead } from './landmarks.js';
 import { createWeather } from './weather.js';
 import { terrainClock, STYLE } from './terrainMaterial.js';
 import { fbm1, noise1 } from '../core/util.js';
@@ -130,7 +131,11 @@ export default {
     group.add(skyDome({ ...this.sky, sun: 0xfff2c0, sunDir: [-0.45, 0.5, -1], sunSize: 2.2 }));
     group.add(mesas({ z: -280, count: 9, seed: 6, width: 760, height: [40, 75], radius: [26, 44], bands: [0xe8a874, 0xd8946a, 0xf0bc88, 0xc98060], top: 0xf6d2a0,
       pyramids: [{ x: -90, y: -14, z: -330, size: 70 }, { x: 150, y: -14, z: -360, size: 48 }] }));
+    group.add(hazeLayer({ z: -220, y0: -14, height: 60, color: 0xfae6c4, alpha: 0.6 }));
     group.add(mesas({ z: -150, count: 8, seed: 11, width: 520, height: [22, 44], radius: [14, 26] }));
+    group.add(hazeLayer({ z: -125, y0: -14, height: 30, color: 0xfae0b8, alpha: 0.45 }));
+    const king = sunKingHead({ y: this.waterY - 0.6 });
+    group.add(king.mesh);
     group.add(mesas({ z: -95, count: 6, seed: 19, width: 380, height: [5, 12], radius: [6, 11], y0: -12, bands: [0xc8703e, 0xb05a34, 0xd8864e, 0x9a4a2c], top: 0xf2c47a }));
     const clouds = cloudField({ count: 7, seed: 31, color: 0xfff6e8, shade: 0xf0c8a0, zRange: [-180, -340], yRange: [40, 80], scale: [16, 30], speed: 0.6 });
     group.add(clouds.mesh);

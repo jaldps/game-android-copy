@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { MAT } from '../core/terrain.js';
 import { rect, circle, polygon, stamp, safeSpawn, ensureHeightGap } from './shapes.js';
-import { skyDome, cloudField, cityFloor } from './sky.js';
+import { skyDome, cloudField, cityFloor, hazeLayer } from './sky.js';
+import { luckyCatSign, blimp } from './landmarks.js';
 import { cityLayer } from './backdrops.js';
 import { createWeather } from './weather.js';
 import { terrainClock, STYLE } from './terrainMaterial.js';
@@ -101,10 +102,14 @@ export default {
     const group = new THREE.Group();
     group.add(skyDome({ ...this.sky, sun: 0xfff0e0, sunDir: [0.45, 0.55, -1], sunSize: 0.5, stars: 1.0 }));
     // three lit skyline layers, each fading further into the violet haze (fog depth between layers)
-    const far = cityLayer({ z: -330, count: 60, width: 1200, height: [50, 160], depth: [20, 40], bw: [16, 34], seed: 2, tint: 0x2a2a6a, haze: 0x4a2470, hazeAmt: 0.45, tile: 40, signs: 0.25, lit: 0.8 });
-    const midL = cityLayer({ z: -190, count: 44, width: 760, height: [24, 90], depth: [12, 24], bw: [10, 22], seed: 7, tint: 0x3a347c, haze: 0x5a2a7a, hazeAmt: 0.25, tile: 26, signs: 0.4 });
-    const near = cityLayer({ z: -95, count: 30, width: 440, height: [8, 34], depth: [8, 14], bw: [7, 14], y0: -16, seed: 13, tint: 0x4a3c8a, haze: 0x6a2a80, hazeAmt: 0.1, tile: 16, signs: 0.55 });
+    const far = cityLayer({ z: -330, count: 60, width: 1200, height: [50, 160], depth: [20, 40], bw: [16, 34], seed: 2, tint: 0x2a2a6a, haze: 0x4a2470, hazeAmt: 0.62, tile: 40, signs: 0.25, lit: 0.7 });
+    const midL = cityLayer({ z: -190, count: 44, width: 760, height: [24, 90], depth: [12, 24], bw: [10, 22], seed: 7, tint: 0x3a347c, haze: 0x5a2a7a, hazeAmt: 0.42, tile: 26, signs: 0.4, lit: 0.9 });
+    const near = cityLayer({ z: -95, count: 30, width: 440, height: [8, 34], depth: [8, 14], bw: [7, 14], y0: -16, seed: 13, tint: 0x4a3c8a, haze: 0x6a2a80, hazeAmt: 0.2, tile: 16, signs: 0.55 });
     group.add(far.mesh, midL.mesh, near.mesh);
+    // fog banks between the skyline layers (depth), the mascot sign landmark and a drifting blimp
+    group.add(hazeLayer({ z: -260, y0: -16, height: 90, color: 0x6a3a9a, alpha: 0.55 }), hazeLayer({ z: -140, y0: -16, height: 45, color: 0x7a3a9a, alpha: 0.45 }));
+    const cat = luckyCatSign({}), ship = blimp({});
+    group.add(cat.mesh, ship.mesh);
     const clouds = cloudField({ count: 9, seed: 23, color: 0x7a4aa8, shade: 0x3a2060, zRange: [-200, -380], yRange: [50, 90], scale: [18, 34], speed: 0.7 });
     group.add(clouds.mesh);
     const street = cityFloor({ y: this.waterY });
@@ -113,7 +118,7 @@ export default {
     group.add(rain.mesh, motes.mesh);
     return {
       group,
-      update(dt, t, cam, wind) { terrainClock.value = t; far.update(dt, t); midL.update(dt, t); near.update(dt, t); clouds.update(dt); street.update(dt, t); rain.update(dt, t, cam, wind); motes.update(dt, t, cam, wind); },
+      update(dt, t, cam, wind) { terrainClock.value = t; far.update(dt, t); midL.update(dt, t); near.update(dt, t); clouds.update(dt); street.update(dt, t); cat.update(dt, t); ship.update(dt, t); rain.update(dt, t, cam, wind); motes.update(dt, t, cam, wind); },
     };
   },
 };

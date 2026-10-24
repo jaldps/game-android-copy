@@ -94,7 +94,25 @@ export const PROP_TYPES = {
     const parts = [];
     parts.push([T(new THREE.CylinderGeometry(0.05, 0.06, 3.2, 6), 0, 1.6, 0), 0x6e4425]);
     parts.push([T(sph(0.1, 8, 6), 0, 3.25, 0), 0xf2c14e]);
-    parts.push([T(new RoundedBoxGeometry(1.3, 0.8, 0.04, 1, 0.02), 0.7, 2.7, 0), (x, y) => (y > 2.75 ? 0xe23b3b : 0xffffff), (y) => 0.2 + (y - 2.3) * 0.4]);
+    // cloth banner: rippling folds baked into the sheet (deeper toward the free end), a gold border
+    // and an original emblem (a golden sun pierced by an arrow) painted in vertex colours
+    const cloth = new THREE.BoxGeometry(1.5, 0.9, 0.03, 30, 18, 1), cp = cloth.attributes.position;
+    for (let i = 0; i < cp.count; i++) {
+      const x = cp.getX(i) + 0.75, y = cp.getY(i); const u = x / 1.5;
+      const fold = Math.sin(u * 9.5 + y * 1.4) * 0.11 * u + Math.sin(u * 4.1) * 0.05 * u;
+      cp.setXYZ(i, x, y - u * u * 0.08, cp.getZ(i) + fold);
+    }
+    cloth.computeVertexNormals();
+    const flagCol = (x, y, z) => {
+      const ly = y - 2.7, u = x / 1.5;
+      if (Math.abs(ly) > 0.38 || u < 0.04 || u > 0.97) return 0xf2c14e;                     // gold border
+      const ex = x - 0.62, ey = ly, d = Math.hypot(ex, ey);
+      if (Math.abs(ey + ex * 0.55) < 0.035 && Math.abs(ex) < 0.36) return 0xffffff;          // arrow shaft
+      if (d < 0.17) return 0xffd24a; if (d < 0.2) return 0xb0281e;                          // sun disc + ring
+      if (d < 0.3 && Math.cos(Math.atan2(ey, ex) * 8) > 0.55) return 0xffd24a;               // rays
+      return (Math.sin(u * 9.5 + ly * 1.4) > 0.3 ? 0xc42a2a : 0xe23b3b);                    // fold shading
+    };
+    parts.push([T(cloth, 0.05, 2.7, 0), flagCol, (y) => 0.25 + (y - 2.3) * 0.4]);
     return { geo: build(parts) };
   },
   crate: () => ({ geo: build([[T(new RoundedBoxGeometry(0.9, 0.9, 0.9, 2, 0.06), 0, 0.45, 0), (x, y, z) => ((Math.abs(x) > 0.36 || Math.abs(y - 0.45) > 0.36) ? 0x7a4a26 : 0xb07a46)]]) }),
@@ -249,7 +267,14 @@ export const PROP_TYPES = {
     for (const x of [-1.0, 1.0]) parts.push([T(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 5), x, 0.65, 0), 0x1a1624]);
     parts.push([T(new RoundedBoxGeometry(2.7, 1.3, 0.1, 1, 0.04), 0, 1.85, -0.05), 0x1a1030]);
     for (const [x, y, w, h] of [[0, 2.47, 2.6, 0.07], [0, 1.23, 2.6, 0.07], [-1.3, 1.85, 0.07, 1.3], [1.3, 1.85, 0.07, 1.3]]) parts.push([T(new RoundedBoxGeometry(w, h, 0.08, 1, 0.03), x, y, 0.04), pink]);
-    for (const [x, y, w] of [[-0.62, 2.05, 0.9], [0.45, 2.05, 0.7], [-0.3, 1.66, 1.5], [0.88, 1.66, 0.3]]) parts.push([T(new RoundedBoxGeometry(w, 0.13, 0.08, 1, 0.04), x, y, 0.06), cyan]);
+    // readable neon icon instead of fake glyphs: a steaming noodle bowl with chopsticks + a "this way" arrow
+    const yel = 0xffe040;
+    parts.push([T(new THREE.TorusGeometry(0.4, 0.06, 6, 18, Math.PI), -0.6, 1.92, 0.07, 0, 0, Math.PI), cyan]);
+    parts.push([T(new RoundedBoxGeometry(0.95, 0.09, 0.08, 1, 0.04), -0.6, 1.92, 0.07), cyan]);
+    for (const [dx, r] of [[-0.12, 0.5], [0.02, 0.62]]) parts.push([T(new RoundedBoxGeometry(0.05, 0.75, 0.06, 1, 0.02), -0.6 + dx + 0.25, 2.12, 0.08, 0, 0, -r), yel]);
+    for (const dx of [-0.25, 0, 0.25]) parts.push([T(new THREE.TorusGeometry(0.08, 0.025, 4, 8, Math.PI), -0.6 + dx - 0.1, 2.08, 0.07, 0, 0, Math.PI / 2), 0xffffff]);
+    parts.push([T(new RoundedBoxGeometry(0.7, 0.12, 0.08, 1, 0.04), 0.5, 1.85, 0.07), yel]);
+    parts.push([T(new THREE.ConeGeometry(0.22, 0.38, 3), 0.96, 1.85, 0.07, 0, 0, -Math.PI / 2), yel]);
     return { geo: build(parts), emissive: true };
   },
   vent: () => {

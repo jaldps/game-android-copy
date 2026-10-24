@@ -96,7 +96,9 @@ export function createTerrainMaterial(palette = {}) {
           // rare embedded gems / pebbles
           vec2 gq = p * 1.7; vec2 gid = floor(gq); float gh = h12(gid + 5.3);
           float gem = step(0.965, gh) * smoothstep(0.2, 0.12, length(fract(gq) - 0.5)) * (1.0 - clay);
-          col = mix(col, mix(vec3(0.45, 0.95, 1.0), vec3(1.0, 0.82, 0.3), step(0.983, gh)) * 1.25, gem);
+          vec3 gemC = isLava() ? mix(vec3(0.9, 0.22, 0.04), vec3(1.0, 0.55, 0.12), step(0.983, gh)) : mix(vec3(0.45, 0.95, 1.0), vec3(1.0, 0.82, 0.3), step(0.983, gh)) * 1.25;
+          if (isLava()) gem *= smoothstep(0.14, 0.08, length(fract(gq) - 0.5));        // lava: small glowing coals, not white pebbles
+          col = mix(col, gemC, gem);
           tH += gem * 0.6;
           if (uStyle > 1.5 && uStyle < 2.5) {    // desert: wind-carved sandstone strata dominate the cells
             float sy2 = (p.y + warp * 0.6) / 0.72; float sb = floor(sy2), sf = fract(sy2);
@@ -120,7 +122,7 @@ export function createTerrainMaterial(palette = {}) {
             float vein = (1.0 - smoothstep(0.0, 0.06, c.y)) * smoothstep(0.7, 2.2, depth) * (1.0 - clay * 0.6);
             float pulse = 0.75 + 0.35 * sin(uTime * 1.6 + p.x * 0.6 + p.y * 0.9);
             col = mix(col, u_glow * 0.7, vein * 0.6); tEmit += u_glow * vein * pulse * 1.3;
-            tEmit += mix(u_glow, vec3(1.0, 0.9, 0.4), 0.3) * gem * 0.8; }
+            tEmit += mix(u_glow, vec3(1.0, 0.6, 0.2), 0.3) * gem * (0.6 + 0.4 * sin(uTime * 2.3 + gh * 40.0)); }
           return col; }
         vec3 brickCol(vec2 p, float depth){
           float row = floor(p.y / uBrick.y); vec2 q = vec2(p.x / uBrick.x + row * 0.5, p.y / uBrick.y); vec2 id = floor(q), f = fract(q);

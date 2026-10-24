@@ -162,38 +162,47 @@ function cityAtlas() {
     const ox = (tIdx % 4) * S, oy = Math.floor(tIdx / 4) * S;
     x.save(); x.beginPath(); x.rect(ox, oy, S, S); x.clip();
     if (tIdx < 12) {
-      const kind = tIdx % 4, lit = [0.32, 0.45, 0.25, 0.55][Math.floor(tIdx / 4) % 3] + (kind === 3 ? 0.1 : 0), pal = tIdx % 3 === 1 ? cool : warm;
-      // facade base: mid grey (tinted per layer in the shader), floor slabs, pilasters
-      x.fillStyle = '#5a5a66'; x.fillRect(ox, oy, S, S);
-      const cols = [8, 6, 4, 10][kind], rows = [8, 10, 6, 12][kind], cw = S / cols, rh = S / rows;
+      // facade: every tile has its own window size/rhythm, and lighting is decided PER FLOOR (whole floors dark,
+      // fully lit offices, sparse late-night windows), so the skyline never reads as one uniform grid
+      const kind = tIdx % 4, mood = Math.floor(tIdx / 4);                         // mood 0 busy, 1 mixed, 2 mostly asleep
+      const pal = tIdx % 3 === 1 ? cool : tIdx % 3 === 2 ? warm.concat(['#ffb070']) : warm;
+      x.fillStyle = ['#5a5a66', '#545a68', '#625a60', '#4e5262'][kind]; x.fillRect(ox, oy, S, S);
+      const cols = [8, 5, 3, 12][kind] + (mood === 1 ? 1 : 0), rows = [8, 10, 6, 14][kind], cw = S / cols, rh = S / rows;
+      const wwK = [0.6, 0.78, 0.86, 0.5][kind], whK = [0.5, 0.62, 0.42, 0.55][kind];
       for (let r = 0; r < rows; r++) { x.fillStyle = r % 2 ? '#646472' : '#565662'; x.fillRect(ox, oy + r * rh, S, rh * 0.18); }
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-        const wx = ox + c * cw + cw * (kind === 2 ? 0.08 : 0.2), wy = oy + r * rh + rh * 0.3, ww = cw * (kind === 2 ? 0.84 : 0.6), wh = rh * (kind === 1 ? 0.6 : 0.5);
-        const on = rng() < lit * (rng() < 0.15 ? 2 : 1);
-        if (on) {
-          const col = rng() < 0.06 ? neon[Math.floor(rng() * neon.length)] : pal[Math.floor(rng() * pal.length)];
-          const gr = x.createLinearGradient(0, wy, 0, wy + wh); gr.addColorStop(0, col); gr.addColorStop(1, '#ffffff');
-          x.fillStyle = gr; x.fillRect(wx, wy, ww, wh);
-          if (rng() < 0.4) { x.fillStyle = 'rgba(40,30,50,0.55)'; x.fillRect(wx + ww * (0.2 + rng() * 0.5), wy, ww * 0.1, wh); }   // blind / frame
-        } else {
-          const gr = x.createLinearGradient(0, wy, 0, wy + wh); gr.addColorStop(0, '#141a34'); gr.addColorStop(1, '#232b52');
-          x.fillStyle = gr; x.fillRect(wx, wy, ww, wh);
+      for (let r = 0; r < rows; r++) {
+        const fr = rng(), floorLit = mood === 2 ? (fr < 0.75 ? 0.04 : 0.5) : mood === 1 ? (fr < 0.35 ? 0.03 : fr < 0.7 ? 0.85 : 0.35) : (fr < 0.2 ? 0.05 : 0.75);
+        const floorCol = pal[Math.floor(rng() * pal.length)], tvFloor = rng() < 0.12;
+        for (let c = 0; c < cols; c++) {
+          const wx = ox + c * cw + cw * (1 - wwK) / 2, wy = oy + r * rh + rh * 0.3, ww = cw * wwK, wh = rh * whK;
+          if (rng() < floorLit) {
+            const col = tvFloor ? neon[Math.floor(rng() * neon.length)] : rng() < 0.2 ? pal[Math.floor(rng() * pal.length)] : floorCol;
+            const gr = x.createLinearGradient(0, wy, 0, wy + wh); gr.addColorStop(0, col); gr.addColorStop(1, '#ffffff');
+            x.fillStyle = gr; x.fillRect(wx, wy, ww, wh);
+            if (rng() < 0.45) { x.fillStyle = 'rgba(40,30,50,0.6)'; x.fillRect(wx, wy, ww, wh * (0.2 + rng() * 0.5)); }   // half-drawn blind
+          } else {
+            const gr = x.createLinearGradient(0, wy, 0, wy + wh); gr.addColorStop(0, '#10142a'); gr.addColorStop(1, '#1e2548');
+            x.fillStyle = gr; x.fillRect(wx, wy, ww, wh);
+          }
         }
       }
       if (kind === 3) { x.fillStyle = 'rgba(20,24,50,0.5)'; for (let c = 0; c <= cols; c++) x.fillRect(ox + c * cw - 1, oy, 2, S); }
     } else {
-      // neon sign: dark panel, frame, 2 rows of glowing pseudo-glyphs
+      // neon signs with readable, original words: 12-13 horizontal billboards, 14-15 vertical blade signs
+      const WORDS = ['NOODLES', 'ARCADE', 'HOTEL', 'BAR 24'], word = WORDS[tIdx - 12];
       const nc = neon[(tIdx - 12) % neon.length], nc2 = neon[(tIdx - 9) % neon.length];
       x.fillStyle = '#0a0614'; x.fillRect(ox, oy, S, S);
-      x.strokeStyle = nc2; x.lineWidth = 8; x.shadowColor = nc2; x.shadowBlur = 18; x.strokeRect(ox + 10, oy + 10, S - 20, S - 20);
-      x.shadowColor = nc; x.shadowBlur = 22; x.fillStyle = nc;
-      for (let row = 0; row < 2; row++) {
-        let gx = ox + 30; const gy = oy + 40 + row * 100;
-        while (gx < ox + S - 50) {
-          const gw = 26 + rng() * 18;
-          for (let b = 0; b < 3; b++) { const vert = rng() < 0.5; x.fillRect(gx + (vert ? rng() * gw * 0.7 : 0), gy + (vert ? 0 : rng() * 60), vert ? 8 : gw, vert ? 70 : 8); }
-          gx += gw + 14;
-        }
+      x.strokeStyle = nc2; x.lineWidth = 7; x.shadowColor = nc2; x.shadowBlur = 16; x.strokeRect(ox + 9, oy + 9, S - 18, S - 18);
+      x.fillStyle = nc; x.shadowColor = nc; x.shadowBlur = 20; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.font = '900 120px sans-serif';
+      if (tIdx < 14) {          // one line across, squeezed to fit (the board stretches it back out)
+        const m = x.measureText(word).width, sx = Math.min(1, (S - 44) / m);
+        x.save(); x.translate(ox + S / 2, oy + S * 0.5); x.scale(sx, 1.25); x.fillText(word, 0, 0); x.restore();
+        x.fillStyle = '#fff6fb'; x.shadowBlur = 6; x.save(); x.translate(ox + S / 2, oy + S * 0.5); x.scale(sx, 1.25); x.fillText(word, 0, 0); x.restore();
+        x.globalAlpha = 0.85; x.fillStyle = nc; x.globalAlpha = 1;
+      } else {                  // letters stacked top to bottom (the tall blade sign stretches them vertically)
+        const L = word.replace(' ', '').split(''), ch = S / L.length;
+        L.forEach((c2, i) => { x.save(); x.translate(ox + S / 2, oy + ch * (i + 0.5)); x.scale(1.5, ch / 130); x.fillStyle = nc; x.fillText(c2, 0, 0); x.fillStyle = '#fff6fb'; x.shadowBlur = 5; x.fillText(c2, 0, 0); x.shadowBlur = 20; x.restore(); });
       }
       x.shadowBlur = 0;
     }
@@ -233,12 +242,12 @@ export function cityLayer({ z = -120, count = 34, width = 520, height = [14, 50]
     } else if (r < 0.75) {                                                  // rooftop billboard on stilts
       const bw2 = w * (0.7 + rng() * 0.25), bh = Math.min(h * 0.3, bw2 * 0.45), pole = new THREE.BoxGeometry(w * 0.05, bh * 0.6, w * 0.05);
       for (const s of [-0.35, 0.35]) { const pg = pole.clone(); pg.translate(bx + s * bw2, top + bh * 0.3, zz + d * 0.2); push(pg, 0, ti, bx, w / 2, top); }
-      const bb = new THREE.BoxGeometry(bw2, bh, 0.6); bb.translate(bx, top + bh * 0.6 + bh * 0.5, zz + d * 0.2); push(bb, 1, 12 + Math.floor(rng() * 4), bx, bw2 / 2, top + bh * 1.1);
+      const bb = new THREE.BoxGeometry(bw2, bh, 0.6); bb.translate(bx, top + bh * 0.6 + bh * 0.5, zz + d * 0.2); push(bb, 1, 12 + Math.floor(rng() * 2), bx, bw2 / 2, top + bh * 1.1);
     }
     if (rng() < signs) {                                                    // vertical wall sign on the front face
       const sw = Math.max(1.2, w * 0.14), sh = Math.min(h * 0.5, sw * 4.5), sg = new THREE.BoxGeometry(sw, sh, 0.5);
       const sx = bx + (rng() < 0.5 ? -1 : 1) * (w / 2 - sw * 0.9), sy = y0 + h * (0.35 + rng() * 0.35);
-      sg.translate(sx, sy, zz + d / 2 + 0.6); push(sg, 1, 12 + Math.floor(rng() * 4), sx, sw / 2, sy + sh / 2);
+      sg.translate(sx, sy, zz + d / 2 + 0.6); push(sg, 1, 14 + Math.floor(rng() * 2), sx, sw / 2, sy + sh / 2);
     }
     cx += w + rng() * 3;
   }
@@ -273,8 +282,13 @@ export function cityLayer({ z = -120, count = 34, width = 520, height = [14, 50]
             vec2 uv = vec2((side > 0.5 ? vW.z : vW.x) / uTile, (vW.y - uY0) / (uTile * 1.25));
             vec3 t = tileSample(uv, idx, dFdx(uv), dFdy(uv));
             float l = dot(t, vec3(0.333));
-            float win = smoothstep(0.45, 0.62, l) * uLit;
-            c = mix(t * uTint * 1.25, t * 1.35, win) * (side > 0.5 ? 0.62 : 1.0);
+            float litM = smoothstep(0.45, 0.62, l);
+            float bRand = vTop.y;                                               // per-building random
+            float flr = floor(uv.y * 8.0);
+            float keep = (bRand < 0.2 ? 0.0 : 1.0) * step(0.22, fract(sin(flr * 12.9898 + bRand * 78.233) * 43758.5453));  // dark towers + whole dark floors
+            t = mix(t, vec3(0.07, 0.08, 0.18), litM * (1.0 - keep));
+            float win = litM * uLit * keep;
+            c = mix(t * uTint * (bRand < 0.2 ? 0.8 : 1.25), t * 1.35, win) * (side > 0.5 ? 0.62 : 1.0);
           }
           // two-tone rim light: magenta on right edges / side faces, cyan on left, strongest high up
           float hk = smoothstep(uY0, top, vW.y);

@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { MAT } from '../core/terrain.js';
 import { floatingIsland, rect, circle, polygon, tower, wall, stamp } from './shapes.js';
-import { skyDome, cloudField, sea, farIslands, richIslands } from './sky.js';
+import { skyDome, cloudField, sea, farIslands, richIslands, hazeLayer } from './sky.js';
+import { stoneGuardian } from './landmarks.js';
 import { createWeather } from './weather.js';
 
 const HEIGHT_SETS = [[4, 11, 1.5, 12.5, 6], [10.5, 3.5, 8, 2, 11.5], [6, 12.5, 3.5, 9, 2.5], [2.5, 8.5, 12, 4, 10], [11, 6, 2, 13, 4.5]];
@@ -81,6 +82,9 @@ export default {
     const low = cloudField({ count: 10, seed: 8, zRange: [-30, -80], yRange: [-10, -5], scale: [5, 9], shade: 0xb8d8f0, speed: 0.6 });
     group.add(clouds.mesh, low.mesh);
     group.add(farIslands({ count: 9, seed: 7, top: 0x7ccf5a, rock: 0xd0a070, zRange: [-200, -300], yRange: [0, 40], xRange: [-300, 300] }));
+    group.add(hazeLayer({ z: -190, y0: this.waterY, height: 55, color: 0xd8f0fa, alpha: 0.6 }));
+    const guardian = stoneGuardian({ y: this.waterY - 7 });
+    group.add(guardian.mesh);
     const isles = richIslands({ count: 8, seed: 12, zRange: [-95, -170], yRange: [2, 24], xRange: [-170, 170], falls: 4, waterY: this.waterY });
     group.add(isles.group);
     const water = sea({ y: this.waterY, shallow: 0x3cd6dc, deep: 0x1f86c8 });

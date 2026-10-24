@@ -97,6 +97,41 @@ export function sea({ y = -9, shallow = 0x3fd0d8, deep = 0x1478b8, foam = 0xffff
   return { mesh: m, update(dt, t) { mat.uniforms.uTime.value = t; } };
 }
 
+/** Depth shading for backdrop landforms: vertical AO gradient (dark at the base -> full colour at the top), a
+ *  coloured rim light on silhouette edges, and a cool atmospheric tint toward the base. Wraps any existing patch. */
+export function depthShade(mat, { y0 = -14, h = 50, ao = 0.55, rim = 0xfff0d8, rimAmt = 0.5, tint = null, tintAmt = 0.25 } = {}) {
+  const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey?.() ?? '';
+  const u = { uDY0: { value: y0 }, uDH: { value: h }, uDAO: { value: ao }, uDRim: { value: new THREE.Color(rim) }, uDRimAmt: { value: rimAmt },
+    uDTint: { value: new THREE.Color(tint ?? 0x000000) }, uDTintAmt: { value: tint === null ? 0 : tintAmt } };
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.call(mat, sh, r);
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vDY;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDY = (modelMatrix * vec4(transformed, 1.0)).y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vDY; uniform float uDY0, uDH, uDAO, uDRimAmt, uDTintAmt; uniform vec3 uDRim, uDTint;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        { float k = smoothstep(uDY0, uDY0 + uDH, vDY); diffuseColor.rgb *= mix(uDAO, 1.0, k); diffuseColor.rgb = mix(diffuseColor.rgb, uDTint, uDTintAmt * (1.0 - k)); }`)
+      .replace('#include <opaque_fragment>', `{ float fr = pow(1.0 - saturate(abs(dot(normal, normalize(vViewPosition)))), 3.0);
+        outgoingLight += uDRim * fr * uDRimAmt * smoothstep(uDY0, uDY0 + uDH, vDY); }
+        #include <opaque_fragment>`);
+  };
+  mat.customProgramCacheKey = () => prevKey + '|depthshade';
+  return mat;
+}
+
+/** Far fog layer: a translucent band of haze rising from the horizon, placed between backdrop layers for depth. */
+export function hazeLayer({ z = -200, y0 = -14, height = 60, width = 2000, color = 0xffffff, alpha = 0.55 } = {}) {
+  const g = new THREE.PlaneGeometry(width, height, 1, 1); g.translate(0, y0 + height / 2, z);
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false,
+    uniforms: { uC: { value: new THREE.Color(color) }, uA: { value: alpha } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform vec3 uC; uniform float uA; varying vec2 vUv;
+      void main(){ float a = uA * pow(1.0 - vUv.y, 1.6); gl_FragColor = vec4(uC, a);
+        #include <colorspace_fragment>
+      }` });
+  const m = new THREE.Mesh(g, mat); m.renderOrder = 1; return m;
+}
+
 /** Distant floating islands (cheap, fogged). */
 export function farIslands({ count = 8, seed = 7, top = 0x6fcf3a, rock = 0xc49a6c, zRange = [-50, -150], yRange = [-2, 22], xRange = [-160, 160] } = {}) {
   const rng = makeRng(seed), parts = [];
@@ -133,7 +168,7 @@ export function ridge({ z = -120, y0 = -12, height = 30, width = 700, peaks = 14
 }
 
 /** Lit faceted low-poly mountain range (vertex colours: rock -> snow cap). Reads as sculpted 3D, not flat paper. */
-export function mountains({ z = -140, count = 9, seed = 5, width = 520, height = [30, 60], radius = [22, 40], rock = 0x6a74a8, rock2 = 0x8a8fc0, snow = 0xffffff, capLine = 0.55, y0 = -14, x = 0 } = {}) {
+export function mountains({ z = -140, count = 9, seed = 5, width = 520, height = [30, 60], radius = [22, 40], rock = 0x6a74a8, rock2 = 0x8a8fc0, snow = 0xffffff, capLine = 0.55, y0 = -14, x = 0, rimColor = 0xffe8d8, baseTint = 0x4a5a8a } = {}) {
   const rng = makeRng(seed), parts = [];
   const cR = new THREE.Color(rock), cR2 = new THREE.Color(rock2), cS = new THREE.Color(snow), tmp = new THREE.Color();
   for (let i = 0; i < count; i++) {
@@ -156,8 +191,8 @@ export function mountains({ z = -140, count = 9, seed = 5, width = 520, height =
     g.translate(x - width / 2 + (i + 0.3 + rng() * 0.4) / count * width, y0 + h / 2, z - rng() * 40);
     parts.push(g);
   }
-  const mesh = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }));
-  return mesh;
+  const mat = depthShade(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }), { y0, h: height[1] * 0.85, ao: 0.5, rim: rimColor, rimAmt: 0.55, tint: baseTint, tintAmt: 0.3 });
+  return new THREE.Mesh(mergeGeometries(parts), mat);
 }
 
 /** Distant floating islands with tree blobs and (optionally) animated waterfalls. Returns { group, update(dt,t) }. */
@@ -184,7 +219,17 @@ export function richIslands({ count = 6, seed = 7, top = 0x58c43a, rock = 0xc990
     const m = mergeGeometries(geos); m.translate(cx, cy, cz); parts.push(m);
     if (i < falls) {
       const fw = 2.2 + rng() * 1.6, fh = cy - waterY + 2;
-      const f = new THREE.PlaneGeometry(fw, fh, 1, 1); f.translate(cx + (rng() - 0.5) * w * 0.4, cy - fh / 2 - 0.2, cz + w * 0.95); fallParts.push(f);
+      // curved sheet of water (bulges out over the lip, then drops), plus a splash/mist cloud where it meets the sea
+      const fx = cx + (rng() - 0.5) * w * 0.4, fz = cz + w * 0.95;
+      const f = new THREE.PlaneGeometry(fw, fh, 4, 16), fp = f.attributes.position;
+      for (let k = 0; k < fp.count; k++) { const v = 0.5 - fp.getY(k) / fh, xx = fp.getX(k); fp.setXYZ(k, xx * (1 + v * 0.6), fp.getY(k), Math.sin(Math.min(1, v * 6) * 1.57) * 1.2 + (xx * xx) * -0.15); }
+      f.translate(fx, cy - fh / 2 - 0.2, fz);
+      const kind = new Float32Array(fp.count).fill(0); f.setAttribute('aKind', new THREE.BufferAttribute(kind, 1)); fallParts.push(f);
+      for (let m = 0; m < 3; m++) {         // mist puffs: camera-facing-ish quads at the base, animated in the shader
+        const ms = fw * (1.6 + m * 0.7), q = new THREE.PlaneGeometry(ms * 1.6, ms, 1, 1);
+        q.translate(fx + (m - 1) * fw * 0.5, waterY + ms * 0.32, fz + 1.4 + m * 0.3);
+        q.setAttribute('aKind', new THREE.BufferAttribute(new Float32Array(q.attributes.position.count).fill(1 + m), 1)); fallParts.push(q);
+      }
     }
   }
   const mesh = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
@@ -194,20 +239,33 @@ export function richIslands({ count = 6, seed = 7, top = 0x58c43a, rock = 0xc990
     fallMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, fog: true,
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]),
-      vertexShader: `varying vec2 vUv; varying vec3 vW;
+      vertexShader: `attribute float aKind; varying vec2 vUv; varying vec3 vW; varying float vK;
         #include <fog_pars_vertex>
-        void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+        void main(){ vUv = uv; vK = aKind; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
         }`,
-      fragmentShader: `uniform float uTime; varying vec2 vUv; varying vec3 vW;
+      fragmentShader: `uniform float uTime; varying vec2 vUv; varying vec3 vW; varying float vK;
         #include <fog_pars_fragment>
         float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
         float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
         void main(){
-          float edge = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x);
-          float s = vn(vec2(vUv.x * 9.0, vUv.y * 3.0 + uTime * 2.2));
-          vec3 c = mix(vec3(0.62, 0.86, 1.0), vec3(1.0), smoothstep(0.35, 0.8, s));
-          float a = edge * (0.75 + 0.25 * s) * smoothstep(0.0, 0.06, vUv.y);
+          vec3 c; float a;
+          if (vK < 0.5) {
+            // falling water: fast streaks scrolling down in WORLD units, blue core / white foam edges, foam at the lip
+            float edge = smoothstep(0.0, 0.16, vUv.x) * smoothstep(1.0, 0.84, vUv.x);
+            float s1 = vn(vec2(vUv.x * 14.0, vW.y * 0.35 + uTime * 5.5)), s2 = vn(vec2(vUv.x * 30.0 + 3.0, vW.y * 0.9 + uTime * 9.0));
+            float foam = smoothstep(0.55, 0.85, s1 * 0.6 + s2 * 0.5) + (1.0 - edge) * 0.5 + smoothstep(0.9, 1.0, vUv.y);
+            c = mix(vec3(0.35, 0.72, 0.95), vec3(1.0), clamp(foam, 0.0, 1.0));
+            c *= 0.85 + 0.15 * s2;
+            a = edge * (0.6 + 0.35 * s1) * smoothstep(0.0, 0.05, vUv.y) + (1.0 - edge) * 0.0;
+          } else {
+            // splash + mist: soft billowing puff that swells and fades on a loop
+            vec2 q = vUv - vec2(0.5, 0.35); float t = fract(uTime * 0.35 + vK * 0.31);
+            float r = length(q * vec2(1.0, 1.5)) / (0.38 + 0.12 * t);
+            float n = vn(vUv * 6.0 + vec2(uTime * 0.4, -uTime * 0.6) + vK * 3.0);
+            a = smoothstep(1.0, 0.2, r + (n - 0.5) * 0.5) * (0.55 - 0.15 * (vK - 1.0)) * (0.7 + 0.3 * sin(uTime * 2.0 + vK));
+            c = mix(vec3(0.85, 0.95, 1.0), vec3(1.0), n);
+          }
           gl_FragColor = vec4(c, a);
           #include <fog_fragment>
           #include <tonemapping_fragment>
@@ -263,7 +321,7 @@ function paintGlow(g, fn) {
 }
 
 /** Flat-topped, strata-banded desert buttes (and optional stepped pyramids). */
-export function mesas({ z = -150, count = 8, seed = 4, width = 560, height = [18, 40], radius = [12, 26], bands = [0xd98a4a, 0xc0703e, 0xe8a868, 0xb05a34], top = 0xf2c98a, y0 = -14, x = 0, pyramids = [] } = {}) {
+export function mesas({ z = -150, count = 8, seed = 4, width = 560, height = [18, 40], radius = [12, 26], bands = [0xd98a4a, 0xc0703e, 0xe8a868, 0xb05a34], top = 0xf2c98a, y0 = -14, x = 0, pyramids = [], rimColor = 0xfff0c8, baseTint = 0x9a5a48 } = {}) {
   const rng = makeRng(seed), parts = [];
   for (let i = 0; i < count; i++) {
     const h = height[0] + rng() * (height[1] - height[0]), r = radius[0] + rng() * (radius[1] - radius[0]);
@@ -291,7 +349,7 @@ export function mesas({ z = -150, count = 8, seed = 4, width = 560, height = [18
     const cap = new THREE.ConeGeometry(s * 0.2, s * 0.25, 4).toNonIndexed(); paintGlow(cap, () => [0xffd860, 0.6]);
     cap.translate(P.x, P.y + s * 0.62 + s * 0.1, P.z); parts.push(cap);
   }
-  return new THREE.Mesh(mergeGeometries(parts), glowStdMaterial());
+  return new THREE.Mesh(mergeGeometries(parts), depthShade(glowStdMaterial(), { y0, h: height[1] * 0.9, ao: 0.55, rim: rimColor, rimAmt: 0.5, tint: baseTint, tintAmt: 0.25 }));
 }
 
 /** Volcano range with glowing craters and lava rivers. */
