@@ -4,7 +4,7 @@
 Up from 4/7 (57%) in round 1. Console clean everywhere. Input verified with real taps: 1° angle taps (47→50→49),
 move, arrow tray, hold-to-fire, `?char=` override.
 
-> Status: **fixes NOT yet applied.** This file is the input to fix pass 2.
+> Status: **fix pass 2 applied** (fixer A: 1, 2, 3, 7, 9, 10, 11, 12 → 8ea7e03; fixer B: 4 partly, 5, 6, 8, 13 → d40721e; merged 612f34f). Not yet re-judged: that is critic round 3. Also from this pass: a single hit is now capped at 70% of max HP (a perked Blast headshot could reach ~142, one-shotting any hero).
 
 **The diagnostic pattern: every pairing we lost was a projectile-flight frame.** Aiming frames now win.
 Lead confirmed on frost_s2_w60-16000.png: mid-flight the main view is empty mountains, the arrow off the top
