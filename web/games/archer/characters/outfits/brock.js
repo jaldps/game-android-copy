@@ -22,8 +22,9 @@ export default {
       }
       ctx.limbShell('foreArm', 0.78, 0.92, 0xffffff, 0.016);
       const [hx, hy, hz] = ctx.headPos(), R = B.headR;
-      for (const s of [1, -1]) ctx.add('head', xf(ball(R * 0.3, R * 0.2, R * 0.08, 12), [hx + s * R * 0.37, hy + R * 0.06, hz + R * 0.9]), 0x161a28, { rough: 0.1, metal: 0.6 });
-      ctx.add('head', xf(box(R * 0.3, R * 0.05, R * 0.05, 0.01), [hx, hy + R * 0.12, hz + R * 0.95]), 0x161a28, { metal: 0.6 });
+      // shades pushed up onto the headband so the eyes stay readable
+      for (const s of [1, -1]) ctx.add('head', xf(ball(R * 0.28, R * 0.18, R * 0.07, 12), [hx + s * R * 0.35, hy + R * 0.72, hz + R * 0.8], [-0.7, 0, 0]), 0x161a28, { rough: 0.1, metal: 0.6 });
+      ctx.add('head', xf(box(R * 0.3, R * 0.05, R * 0.05, 0.01), [hx, hy + R * 0.76, hz + R * 0.84], [-0.7, 0, 0]), 0x161a28, { metal: 0.6 });
       ctx.add('head', xf(torus(R * 0.98, R * 0.09, 26, 8), [hx, hy + R * 0.45, hz - R * 0.05], [Math.PI / 2 - 0.12, 0, 0]), 0xe23b3b, { rough: 0.7 });
     },
   },
@@ -43,7 +44,9 @@ export default {
       for (const s of [1, -1]) ctx.add('hips', xf(box(0.17, 0.2, 0.05, 0.02), [s * 0.17, 0.98, 0.04], [0, 0, s * 0.18]), C.steel, M);
       for (const s of ['L', 'R']) {
         const p = J['upperArm' + s], sg = s === 'L' ? 1 : -1;
-        ctx.add('upperArm' + s, xf(ball(0.2, 0.15, 0.19, 18), [p[0] + sg * 0.04, p[1] + 0.03, p[2]], [0, 0, sg * -0.35]), C.steel, M);
+        // layered pauldron: a shallow domed cap over two overlapping lames (plates), not a ball
+        ctx.add('upperArm' + s, xf(dome(0.2, 0.13, 0.19, 1.25, 20), [p[0] + sg * 0.04, p[1] + 0.0, p[2]], [0, 0, sg * -0.35]), (x, y) => tint(C.steel, 0.8 + 0.5 * Math.max(0, y - p[1]) / 0.13), M);
+        for (let k = 0; k < 2; k++) ctx.add('upperArm' + s, xf(dome(0.19 - k * 0.012, 0.09, 0.18 - k * 0.012, 1.0, 18), [p[0] + sg * (0.07 + k * 0.025), p[1] - 0.07 - k * 0.06, p[2]], [0, 0, sg * -0.45]), k ? C.trim : C.steel, M);
         ctx.add('upperArm' + s, xf(torus(0.17, 0.022, 20, 6, Math.PI), [p[0] + sg * 0.04, p[1] - 0.03, p[2]], [0, Math.PI / 2, sg * -0.35 + Math.PI / 2]), C.trim, M);
       }
       ctx.limbShell('upperArm', 0.3, 1.0, C.bottom, 0.012);

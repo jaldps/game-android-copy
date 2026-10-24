@@ -52,27 +52,27 @@ export function createTerrainMaterial(palette = {}) {
           for (int y=-1;y<=1;y++) for (int x=-1;x<=1;x++){ vec2 g = vec2(x,y); vec2 o = vec2(h12(i+g), h12(i+g+17.3))*0.8+0.1; float d = length(g+o-f);
             if (d < d1){ d2 = d1; d1 = d; id = h12(i+g+3.1);} else if (d < d2) d2 = d; }
           return vec3(d1, d2 - d1, id); }
-        // lit / dark windows over a facade colour (neon city)
-        vec3 windows(vec2 p, vec3 base, float so){
-          vec2 q = vec2(p.x / 1.25, p.y / 1.6); vec2 id = floor(q), f = fract(q);
-          float wx = smoothstep(0.22, 0.27, f.x) * smoothstep(0.78, 0.73, f.x) * smoothstep(0.3, 0.35, f.y) * smoothstep(0.82, 0.77, f.y);
-          float r = h12(id + so);
-          float lit = step(0.5, r) * step(0.4, h12(vec2(floor(id.x / 3.0), floor(id.y / 2.0)) + so + 9.0));
-          vec3 lc = r > 0.96 ? u_glow : (r > 0.92 ? u_glow2 : mix(vec3(1.0, 0.78, 0.45), vec3(1.0, 0.92, 0.75), h12(id + 3.0)));
-          vec3 glass = mix(vec3(0.04, 0.05, 0.12), vec3(0.12, 0.14, 0.3), f.y);
-          float sill = smoothstep(0.24, 0.2, f.y) * smoothstep(0.1, 0.14, f.y) * smoothstep(0.12, 0.2, f.x) * smoothstep(0.88, 0.8, f.x);
-          vec3 c = mix(base * (1.0 + sill * 0.25), mix(glass, lc, lit), wx);
-          tEmit += lc * lit * wx * (0.75 + 0.25 * vn(vec2(r * 30.0, uTime * 0.6)));
-          tH = mix(tH, 0.0, wx) + sill * 0.3;
-          return c; }
+        // playable rooftops: a dashed warm/cyan LED strip just under the roof edge + a dark drip-edge flashing above it
+        vec3 cityEdge(vec2 p, float depth, vec3 col){
+          float flash = smoothstep(0.02, 0.05, depth) * smoothstep(0.2, 0.16, depth);
+          col = mix(col, vec3(0.16, 0.16, 0.2), flash * 0.85);
+          float strip = smoothstep(0.24, 0.27, depth) * smoothstep(0.38, 0.35, depth);
+          float dash = smoothstep(0.08, 0.14, fract(p.x * 0.55)) * smoothstep(0.92, 0.86, fract(p.x * 0.55));
+          vec3 lc = mix(vec3(1.0, 0.72, 0.32), u_glow2, step(0.55, h12(vec2(floor(p.x / 16.0), 1.0))));
+          col = mix(col, lc, strip * dash); tEmit += lc * strip * dash * 2.2;
+          tEmit += lc * 0.18 * smoothstep(0.38, 0.9, depth) * smoothstep(1.6, 0.38, depth) * dash;  // light spill on the wall below
+          return col; }
         vec3 rockCol(vec2 p, float depth){
-          if (isCity()) {                       // concrete facade with floor slabs + windows
-            float fl = fract(p.y / 1.6);
-            vec3 col = mix(u_rock, u_rock2, h12(vec2(floor(p.x / 7.0), 3.0))) * (0.9 + 0.12 * vn(p * 3.0));
-            float slab = smoothstep(0.0, 0.07, fl) * smoothstep(1.0, 0.93, fl);
-            col *= mix(0.72, 1.0, slab); tH = slab * 0.4 + vn(p * 5.0) * 0.1;
-            if (depth > 0.55) col = windows(p, col, 0.0);
-            return mix(col, col * 0.7, smoothstep(2.0, 3.0, depth) * 0.3); }
+          if (isCity()) {                       // precast concrete panels (no windows: facades live in the backdrop)
+            vec2 q = vec2(p.x / 2.4, p.y / 1.6); vec2 f = fract(q), id = floor(q);
+            float joint = smoothstep(0.0, 0.025, f.x) * smoothstep(1.0, 0.975, f.x) * smoothstep(0.0, 0.04, f.y) * smoothstep(1.0, 0.96, f.y);
+            vec3 col = mix(u_rock, u_rock2, h12(id)) * (0.88 + 0.14 * vn(p * 3.0));
+            col *= 1.0 - 0.2 * smoothstep(0.55, 0.9, vn(vec2(p.x * 2.6, p.y * 0.22 + 4.0)));            // rain grime streaks
+            vec2 th = (fract(q * 2.0) - 0.5) * vec2(2.4, 1.6); float tie = smoothstep(0.07, 0.035, length(th));
+            col = mix(col * 0.55, col, joint); col = mix(col, col * 0.45, tie);
+            tH = joint * 0.5 + vn(p * 5.0) * 0.12 - tie * 0.3;
+            col = cityEdge(p, depth, col);
+            return mix(col, col * 0.7, smoothstep(2.0, 3.0, depth) * 0.35); }
           float warp = (vn(vec2(p.x * 0.09, 3.0)) - 0.5) * 3.0 + p.x * 0.05;
           float sy = (p.y + warp) / 1.15; float band = floor(sy); float bf = fract(sy);
           vec3 c = cells(vec2(p.x * 0.85 + band * 3.7, p.y * 1.5));
@@ -156,17 +156,15 @@ export function createTerrainMaterial(palette = {}) {
           vec2 rc = min(f, 1.0 - f); float rivet = smoothstep(0.07, 0.04, length((rc - vec2(0.08, 0.13)) * vec2(1.3, 0.85)));
           col = mix(col, u_metal * 1.45, rivet);
           tH = seam * 0.5 + rivet * 0.6;
-          if (isCity() && depth > 0.55) {          // glass curtain wall: mullions, floor bands, sky reflections, some lit panes
-            vec2 gq = vec2(p.x / 0.95, p.y / 1.6); vec2 gf = fract(gq), gid = floor(gq);
-            float mull = smoothstep(0.0, 0.07, gf.x) * smoothstep(1.0, 0.93, gf.x) * smoothstep(0.0, 0.12, gf.y) * smoothstep(1.0, 0.9, gf.y);
-            vec3 glass = mix(vec3(0.08, 0.1, 0.28), vec3(0.32, 0.42, 0.85), smoothstep(0.3, 0.9, fract((p.x + p.y * 0.6) * 0.06)));
-            float lit = step(0.7, h12(gid + 13.0)) * step(0.3, h12(vec2(floor(gid.x / 3.0), gid.y) + 2.0));
-            vec3 lc = h12(gid + 5.0) > 0.8 ? u_glow : vec3(0.75, 0.92, 1.0);
-            col = mix(col * 0.7, mix(glass, lc, lit * 0.85), mull);
-            tEmit += (lc * lit * 0.7 + glass * 0.2) * mull; tH = (1.0 - mull) * 0.5;
-            return col; }
-          if (isCity()) { float st = smoothstep(0.05, 0.0, abs(f.y - 0.5)) * step(0.55, h12(vec2(id.y, floor(id.x / 4.0) + 4.0)));
-            vec3 nc = h12(vec2(id.y, 6.0)) > 0.5 ? u_glow : u_glow2; col = mix(col, nc, st); tEmit += nc * st * 1.5; }
+          if (isCity()) {                          // corrugated steel sheeting with rust runs (playable rooftop metal)
+            float rib = sin(p.x * 14.0); float sheet = fract(p.y / 2.2);
+            vec3 sc = u_metal * (0.86 + 0.2 * h12(vec2(floor(p.x / 1.8), floor(p.y / 2.2)))) * (0.8 + 0.22 * (0.5 + 0.5 * rib));
+            sc *= mix(0.55, 1.0, smoothstep(0.0, 0.03, sheet) * smoothstep(1.0, 0.97, sheet));
+            float rust = smoothstep(0.62, 0.85, vn(vec2(p.x * 1.6, p.y * 0.18 + 2.0))) * (0.4 + 0.6 * vn(p * 4.0));
+            sc = mix(sc, vec3(0.55, 0.3, 0.18), rust * 0.55);
+            tH = 0.5 + 0.35 * rib + rust * 0.1;
+            sc = cityEdge(p, depth, sc);
+            return mix(sc, sc * 0.6, smoothstep(0.8, 3.0, depth) * 0.45); }
           if (isLava()) { float hz = step(0.5, fract((p.x + p.y) * 0.6)) * smoothstep(0.92, 0.97, f.y);   // hazard trim on plate tops
             col = mix(col, mix(vec3(0.95, 0.7, 0.1), vec3(0.08), hz), smoothstep(0.92, 0.97, f.y) * 0.85); }
           return mix(col, col * 0.6, smoothstep(0.8, 3.0, depth) * 0.5); }
@@ -207,7 +205,12 @@ export function createTerrainMaterial(palette = {}) {
           if (kind > 1.5) {                       // drape
             float v = depth;
             if (uSnow > 0.5) { col = mix(vec3(1.0), vec3(0.8, 0.9, 1.0), v * 0.8); col *= 0.94 + 0.06 * vn(vec2(p.x * 6.0, v * 3.0)); tH = vn(vec2(p.x * 5.0, v * 2.0)) * 0.4; }
-            else if (uStyle > 1.5 && uStyle < 2.5) { col = mix(u_grass2, u_grass * 0.86, v); col *= 0.93 + 0.08 * vn(vec2(p.x * 3.0, v * 2.0)); tH = vn(vec2(p.x * 4.0, v * 3.0)) * 0.3; }
+            else if (uStyle > 1.5 && uStyle < 2.5) {   // desert: drape trimmed to a short, blocky broken sandstone lip
+              float bx = floor(p.x / 0.9); float lim = 0.18 + floor(h12(vec2(bx, 5.0)) * 3.0) * 0.1;
+              if (v > lim) discard;
+              col = mix(u_grass2, mix(u_sand, u_rock, 0.45), smoothstep(lim * 0.4, lim, v)); col *= 0.93 + 0.08 * vn(vec2(p.x * 3.0, v * 2.0));
+              col *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, 0.06, min(fract(p.x / 0.9), 1.0 - fract(p.x / 0.9))));
+              tH = vn(vec2(p.x * 4.0, v * 3.0)) * 0.3; }
             else if (isLava()) { col = mix(u_grass2, u_grass * 0.55, v); float hot = smoothstep(0.5, 1.0, v); col = mix(col, u_glow, hot * 0.75);
               tEmit = u_glow * hot * (1.0 + 0.3 * sin(uTime * 2.5 + p.x * 1.7)); tH = vn(vec2(p.x * 7.0, v * 2.0)) * 0.5; }
             else if (isCity()) { float band = smoothstep(0.06, 0.12, v) * smoothstep(0.42, 0.34, v);
@@ -230,6 +233,16 @@ export function createTerrainMaterial(palette = {}) {
               col = mix(col, u_dirt * (0.85 + 0.2 * vn(p * 4.0)), soil);
               tH = mix(tH, vn(p * 5.0) * 0.3, soil); tEmit *= 1.0 - soil;
               col *= mix(1.0, 0.7, smoothstep(0.55, 0.15, depth) * smoothstep(0.0, 0.18, depth)); // contact shade under the drape
+              if (uStyle > 1.5 && uStyle < 2.5) {    // desert: a crumbling sandstone lip of broken blocks, no drips
+                float bw = 0.7 + 0.5 * h12(vec2(floor(p.x / 1.1), 7.0)), bx = floor(p.x / bw), fx2 = fract(p.x / bw);
+                float dl = 0.3 + floor(h12(vec2(bx, 3.0)) * 4.0) * 0.11;                // stepped block heights
+                float lip = 1.0 - smoothstep(dl - 0.012, dl + 0.012, depth);
+                float under = smoothstep(dl - 0.01, dl + 0.02, depth) * (1.0 - smoothstep(dl + 0.06, dl + 0.22, depth));
+                float seam = 1.0 - smoothstep(0.0, 0.05, min(fx2, 1.0 - fx2));
+                vec3 lc = mix(u_sand, u_rock, 0.35) * (0.9 + 0.14 * vn(p * 6.0)) * (1.0 - seam * 0.35) * mix(1.12, 0.92, depth / max(dl, 0.01));
+                col = mix(col, lc, lip); col *= 1.0 - under * 0.4;
+                tH = mix(tH, 0.85 - seam * 0.5, lip) - under * 0.3;
+              } else {
               // moss / snow / sand drips running down from the top edge
               float cx = floor(p.x * 2.2), fx = fract(p.x * 2.2);
               float dl = 0.4 + h12(vec2(cx, 3.0)) * 1.4 * step(0.35, h12(vec2(cx, 9.0)));
@@ -240,6 +253,7 @@ export function createTerrainMaterial(palette = {}) {
               vec3 mc = uSnow > 0.5 ? vec3(0.95, 0.98, 1.0) * (0.92 + 0.08 * vn(p * 5.0)) : mix(u_grass, u_grass2, 0.2 + 0.3 * vn(p * 6.0)) * 0.82;
               col = mix(col, mc * (1.0 - rim * 0.25), moss); tH = mix(tH, 0.9 - rim * 0.5, moss);
               if (isLava()) tEmit += u_glow * rim * 0.9;                            // molten crust lips
+              }
             }
           }
           if (isLava()) {
@@ -265,7 +279,7 @@ export function createTerrainMaterial(palette = {}) {
           normal = normalize(abs(det) * normal - g);
         }`);
   };
-  mat.customProgramCacheKey = () => 'archer-terrain-v4';
+  mat.customProgramCacheKey = () => 'archer-terrain-v5';
   mat.userData.uniforms = u;
   return mat;
 }

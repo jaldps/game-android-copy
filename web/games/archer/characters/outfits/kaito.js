@@ -9,6 +9,11 @@ function mask(ctx, color) {
   ctx.add('head', xf(ball(R * 0.87, R * 0.56, R * 0.88, 22), [hx, hy - R * 0.5, hz + R * 0.07]),
     (x, y) => tint(color, (0.86 + 0.2 * Math.max(0, (y - hy + R) / R)) * (Math.sin(y * 260) > 0.7 ? 0.85 : 1)), { rough: 0.7 });
 }
+/** Cloth mask pulled down into a soft cowl around the neck. */
+function maskDown(ctx, color) {
+  const { B } = ctx, ny = B.neckY + 0.03;
+  ctx.add('neck', xf(torus(B.neckR * 1.45, 0.042, 22, 8), [0, ny, 0.01], [Math.PI / 2 - 0.15, 0, 0]), (x, y, z) => tint(color, 0.85 + 0.25 * Math.max(0, z) / 0.1), { rough: 0.75 });
+}
 /** Ninjato across the back, hilt over the right shoulder. */
 function sword(ctx, wrap) {
   ctx.add('chest', xf(box(0.055, 0.66, 0.03, 0.012), [0.02, 1.36, -0.165], [0, 0, 0.62]), 0x1d1f2e, { rough: 0.3 });
@@ -37,7 +42,8 @@ export default {
       ctx.limbShell('shin', 0.9, 1.0, C.boots, 0.02);
       ctx.limbShell('upperArm', -0.05, 0.62, fabric(C.top, 0.08), 0.022, { rough: 0.65 });
       ctx.limbShell('foreArm', 0.12, 0.95, stripes(C.wrap, tint(C.wrap, 0.78), 0.03, 0.6), 0.012, { rough: 0.8 });
-      mask(ctx, C.mask);
+      // (mask pulled down: the face — eyes, brows, smirk — is the character; a lower-face cloth read as a blob in play)
+      maskDown(ctx, C.top);
       // red hachimaki headband with a steel plate
       const [hx, hy, hz] = ctx.headPos(), R = B.headR;
       ctx.add('head', xf(torus(R * 1.02, R * 0.08, 28, 6), [hx, hy + R * 0.48, hz - R * 0.04], [Math.PI / 2 - 0.1, 0, 0]), C.sash, { rough: 0.6 });

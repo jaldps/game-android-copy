@@ -24,7 +24,7 @@ export default {
     ],
     extras: [['torso', [0.085, 1.47, 0.09], [0.1, 0.07, 0.05], 'top'], ['torso', [-0.085, 1.47, 0.09], [0.1, 0.07, 0.05], 'top']],
   },
-  face: { eyeSize: 0.23, eyeTall: 0.9, eyeSpread: 0.37, eyeY: 0.04, browThick: 0.5, browY: 1.3, browTilt: -0.36, jawX: 0.68, jawY: 0.55, jawZ: 0.72, chin: true, mouthW: 0.32, smirk: 0.22 },
+  face: { eyeSize: 0.23, eyeTall: 0.9, eyeSpread: 0.37, eyeY: 0.04, browThick: 0.55, browY: 1.3, browTilt: -0.36, jawX: 0.68, jawY: 0.55, jawZ: 0.72, chin: true, mouthW: 0.36, smirk: 0.3, nose: 1.05 },
   build(ctx) {
     const { B, C } = ctx, [hx, hy, hz] = ctx.headPos(), R = B.headR;
     const hat = !!C.hatOn;                                  // outfits with headgear skip the spikes

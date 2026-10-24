@@ -15,8 +15,8 @@ export default {
     thighR: [0.172, 0.104], shinR: [0.106, 0.064],
     footL: 0.29, footW: 0.13, footH: 0.11,
     waistY: 1.22, shoulderY: 1.555, shoulderW: 0.43, neckY: 1.66, neckLen: 0.07, neckR: 0.13,
-    upperArm: 0.34, foreArm: 0.31, upperArmR: [0.128, 0.094], foreArmR: [0.11, 0.066], deltR: 0.165, handR: 0.084,
-    shape: { bicep: 0.75, tricep: 0.45, fore: 0.7, quad: 0.7, ham: 0.4, calf: 0.75, knee: 0.14 },
+    upperArm: 0.34, foreArm: 0.31, upperArmR: [0.112, 0.086], foreArmR: [0.108, 0.064], deltR: 0.15, handR: 0.084,
+    shape: { bicep: 0.55, tricep: 0.45, fore: 0.6, quad: 0.7, ham: 0.4, calf: 0.75, knee: 0.14, def: 1 },
     headR: 0.218, bodyR: 0.32,
     torso: [
       [0.86, 0.1, 0.08, 0], [0.93, 0.2, 0.15, 0], [1.02, 0.212, 0.152, -0.005], [1.12, 0.198, 0.148, 0.01],
@@ -24,8 +24,10 @@ export default {
       [1.57, 0.4, 0.19, 0], [1.63, 0.3, 0.155, -0.02], [1.69, 0.14, 0.115, -0.01],
     ],
     extras: [
-      ['torso', [0.145, 1.465, 0.13], [0.175, 0.125, 0.09], 'top', [0, 0, 0.12]], ['torso', [-0.145, 1.465, 0.13], [0.175, 0.125, 0.09], 'top', [0, 0, -0.12]],
-      ['torso', [0.3, 1.36, -0.03], [0.1, 0.19, 0.13], 'top'], ['torso', [-0.3, 1.36, -0.03], [0.1, 0.19, 0.13], 'top'],
+      // pecs: two flat slabs with a squared, shadowed lower edge and a sternum gap (not balls)
+      ['torso', [0.128, 1.47, 0.125], [0.165, 0.12, 0.085], 'top', [0, 0.18, 0.1], 1], ['torso', [-0.128, 1.47, 0.125], [0.165, 0.12, 0.085], 'top', [0, -0.18, -0.1], 1],
+      // lats: long, flat wedges flaring under the arms
+      ['torso', [0.27, 1.38, -0.05], [0.075, 0.17, 0.11], 'top', [0, 0, -0.15]], ['torso', [-0.27, 1.38, -0.05], [0.075, 0.17, 0.11], 'top', [0, 0, 0.15]],
       ['torso', [0.16, 1.63, -0.02], [0.17, 0.1, 0.12], 'skin', [0, 0, 0.35]], ['torso', [-0.16, 1.63, -0.02], [0.17, 0.1, 0.12], 'skin', [0, 0, -0.35]],
     ],
   },
