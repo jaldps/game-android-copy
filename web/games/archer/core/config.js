@@ -29,6 +29,7 @@ export const COMBAT = {
   directBonus: 1.25,      // multiplier for an arrow that strikes the body directly
   headshotBonus: 1.6,     // multiplier for a head strike (stacks with crit perks)
   falloffPow: 1.15,       // damage falloff exponent over blast radius
+  maxHitFrac: 0.7,        // one hit never deals more than this share of the target's max HP, so no one-shot kills
 };
 
 export const ACTOR_RADIUS = 0.42;                 // body half-width used for walking collisions

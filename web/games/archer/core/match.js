@@ -148,6 +148,8 @@ export class Match {
       const info = { direct: a === o.direct, head: a === o.direct && o.part === 'head', arrow: o.arrow };
       if (info.direct) dmg *= COMBAT.directBonus * (o.owner?.stats.directMult ?? 1);
       if (info.head) dmg *= COMBAT.headshotBonus * (o.owner?.stats.headshotMult ?? 1);
+      // The bonuses compound (a perked direct headshot with a Blast reaches ~140), so cap a single hit.
+      dmg = Math.min(dmg, a.stats.maxHp * COMBAT.maxHitFrac);
       const n = a.damage(dmg, o.owner, info);
       if (o.owner && o.owner !== a) { o.owner.stat.damage += n; if (n > 0) o.owner.stat.hits++; if (info.head) o.owner.stat.headshots++; }
       total += n; if (n > best) { best = n; bestActor = a; }
