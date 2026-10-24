@@ -27,8 +27,13 @@ export const ICONS = {
 export const hex = (n) => '#' + ((n ?? 0x888888) >>> 0).toString(16).padStart(6, '0').slice(-6);
 export const el = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 
-/** Stylized CSS portrait from a hero's palette (hair crest, face, eyes) — readable at 40-70px. */
+/** Portraits rendered from the 3D hero models come from the core (core/portraits.js); until then a CSS sketch. */
+let portraitSrc = null;
+export function setPortraitSource(fn) { portraitSrc = fn; }
+/** Hero portrait: the rendered 3D bust when available, else a stylized CSS sketch from the palette. */
 export function portrait(def, size = 46, cls = '') {
+  const url = portraitSrc?.(def.id);
+  if (url) return `<span class="portrait photo ${cls}" style="--sz:${size}px"><img src="${url}" alt="${def.name}"></span>`;
   const P = def.palette;
   return `<span class="portrait ${def.gender === 'f' ? 'f' : 'm'} ${cls}" style="--sz:${size}px;--skin:${hex(P.skin)};--hair:${hex(P.hair)};--hair2:${hex(P.hair2 ?? P.hair)};--eye:${hex(P.eyes)}"><i class="p-hair"></i><i class="p-face"></i><i class="p-eye l"></i><i class="p-eye r"></i><i class="p-mouth"></i></span>`;
 }
@@ -241,7 +246,9 @@ export function setupScreen(kind, h) {
     node.querySelector('.go').onclick = () => h.start({ ...st });
   };
   render();
-  node.refresh = render;      // re-run when rendered map thumbnails arrive
+  setTimeout(() => node.classList.add('settled'), 450);   // later re-renders (selection changes) don't replay the pop-in
+  // rendered map thumbnails arrived: swap the pictures in place (no re-render, no replayed animation)
+  node.refresh = () => node.querySelectorAll('.mt[data-m]').forEach((b) => { if (b.dataset.m !== 'random') b.innerHTML = mapThumb(getMap(b.dataset.m)); });
   return node;
 }
 

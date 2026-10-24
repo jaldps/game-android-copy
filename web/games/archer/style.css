@@ -75,7 +75,7 @@ svg { display: block; }
 .ang-read { width: 50px; text-align: center; line-height: 1; }
 .ang-read small, .move small { display: block; font: 900 8px 'Nunito'; letter-spacing: 1.2px; color: rgba(255,255,255,.7); }
 .ang-read b { font: 400 22px 'Lilita One', sans-serif; color: var(--gold); text-shadow: 0 2px 0 var(--ink); }
-.gauges { position: relative; flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 5px; padding-right: 36px; }
+.gauges { position: relative; flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 5px; padding-right: 42px; }
 .power { position: relative; height: 22px; border-radius: 8px; background: #0a1128; box-shadow: inset 0 2px 4px rgba(0,0,0,.6), 0 0 0 1.5px rgba(255,255,255,.18); overflow: visible; }
 .power .fill { position: absolute; inset: 2px; border-radius: 6px; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, #ffd25a, #ff9f2a 60%, #ff4a3a); box-shadow: inset 0 3px 0 rgba(255,255,255,.35); }
 .power .ticks i { position: absolute; top: 4px; bottom: 4px; width: 1.5px; background: rgba(255,255,255,.18); }
@@ -83,7 +83,8 @@ svg { display: block; }
 .power .last i { position: absolute; left: -6px; top: 0; width: 12px; height: 9px; background: #fff; clip-path: polygon(0 0, 100% 0, 50% 100%); filter: drop-shadow(0 1px 0 #000); }
 .power .last::after { content: ''; position: absolute; left: -1px; top: 7px; bottom: 0; width: 2px; background: rgba(255,255,255,.9); }
 .gauges .pv { position: absolute; right: 0; top: 0; width: 32px; height: 22px; border-radius: 7px; display: grid; place-items: center; background: #0a1128; box-shadow: 0 0 0 1.5px rgba(255,210,90,.55); font: 400 14px 'Lilita One', sans-serif; color: var(--gold); text-shadow: 0 1px 0 var(--ink); }
-.power::before { content: 'POWER'; position: absolute; left: 7px; top: 0; bottom: 0; display: grid; place-items: center; font: 900 7px 'Nunito'; letter-spacing: 1.2px; color: rgba(255,255,255,.35); }
+.power::before { content: 'POWER'; position: absolute; z-index: 2; left: 7px; top: 0; bottom: 0; display: grid; place-items: center; font: 900 8px 'Nunito'; letter-spacing: 1.2px; color: #fff; text-shadow: 0 1px 0 #0a1128, 0 0 3px #0a1128, 0 0 2px #0a1128; pointer-events: none; }
+.power .last { z-index: 3; }
 .move { position: relative; height: 9px; border-radius: 5px; background: #0a1128; box-shadow: inset 0 1px 2px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.14); }
 .move .fill { position: absolute; inset: 1.5px; border-radius: 4px; transform-origin: 0 50%; background: linear-gradient(90deg, #4fe08a, #b8ff6a); transition: transform .1s; }
 .move small { position: absolute; left: 6px; top: -1px; font-size: 7px; line-height: 11px; color: rgba(10,20,30,.85); }

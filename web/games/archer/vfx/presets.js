@@ -19,17 +19,18 @@ export const VFX = {
     emitters: [
       { count: [7, 10], shape: 'puff', blend: 'alpha', life: [0.45, 0.8], speed: [1.5, 4.5], dir: 'input', spread: 2.0, size: [0.22, 0.4], grow: 1.9, color: 'terrain', color2: 'dark', colorJitter: 0.4, alpha: [1, 0], gravity: 4, drag: 3 },
       { count: 7, shape: 'streak', blend: 'add', life: [0.15, 0.3], speed: [6, 11], dir: 'input', spread: 2.2, size: 0.05, color: 0xfff1c8, alpha: [1, 0], gravity: 12, drag: 2 },
-      { count: 1, shape: 'glow', blend: 'add', life: 0.1, speed: 0, size: 0.8, grow: 1.4, color: 0xfff6dc, alpha: [0.7, 0], scaleCount: false },
+      { count: 1, shape: 'glow', blend: 'add', life: 0.14, speed: 0, size: 1.0, grow: 1.4, color: 0xffe2a8, alpha: [0.7, 0], zBias: -1.2, scaleCount: false },
+      shockRing(0.45, 0xffffff, 0.26, 0.85),
     ],
-    debris: { count: 7, speed: [4, 9], size: [0.06, 0.14], life: [0.8, 1.4], color: 'terrain', top: 0.4 },
-    ring: { radius: 1.5, color: 0xfff1c8, life: 0.24, alpha: 0.75 },
-    flash: { color: 0xfff0c8, intensity: 28, radius: 8, life: 0.14 },
-    shake: 0.14,
+    debris: { count: 12, speed: [5, 10], size: [0.07, 0.16], life: [0.9, 1.5], color: 'terrain', top: 0.4 },
+    ring: { radius: 2.4, color: 0xfff1c8, life: 0.3, alpha: 0.85 },
+    flash: { color: 0xfff0c8, intensity: 45, radius: 10, life: 0.18 },
+    shake: 0.22,
   },
   impact_body: {
     emitters: [
       { count: 12, shape: 'star', blend: 'add', life: [0.2, 0.42], speed: [3, 8], size: [0.12, 0.24], color: 0xffffff, color2: 0xffd27a, alpha: [1, 0], drag: 5, spin: 8 },
-      { count: 1, shape: 'glow', blend: 'add', life: 0.18, speed: 0, size: 1.2, grow: 1.6, color: 0xffffff, alpha: [0.95, 0], scaleCount: false },
+      { count: 1, shape: 'glow', blend: 'add', life: 0.18, speed: 0, size: 1.3, grow: 1.6, color: 0xffd9a0, alpha: [0.65, 0], zBias: -1.2, scaleCount: false },
       { count: 6, shape: 'streak', blend: 'add', life: [0.12, 0.22], speed: [8, 13], size: 0.06, color: 0xffffff, color2: 0xffb35c, alpha: [1, 0], drag: 3 },
     ],
     ring: { radius: 1.7, color: 0xffffff, life: 0.25 },
@@ -38,25 +39,40 @@ export const VFX = {
   headshot: {
     emitters: [
       { count: 20, shape: 'star', blend: 'add', life: [0.3, 0.6], speed: [4, 10], size: [0.15, 0.32], color: 0xfff6a0, color2: 0xff8a3d, alpha: [1, 0], drag: 4, spin: 10 },
-      { count: 1, shape: 'glow', blend: 'add', life: 0.28, speed: 0, size: 2.2, grow: 1.4, color: 0xfff1b0, alpha: [1, 0], scaleCount: false },
+      { count: 1, shape: 'glow', blend: 'add', life: 0.28, speed: 0, size: 2.2, grow: 1.4, color: 0xffe08a, alpha: [0.75, 0], zBias: -1.6, scaleCount: false },
       shockRing(0.5, 0xffffff, 0.22),
     ],
     ring: { radius: 2.8, color: 0xffe27a, life: 0.38 },
     flash: { color: 0xfff0a0, intensity: 50, radius: 10, life: 0.2 },
     shake: 0.5,
   },
+  // played by core/match.js on top of the arrow's own impact whenever someone takes damage (at the victim's body)
+  impact_hit: {
+    emitters: [
+      { count: 1, shape: 'glow', blend: 'add', life: 0.3, speed: 0, size: 2.2, grow: 1.5, color: 0xffe6b0, alpha: [0.75, 0], zBias: -1.6, scaleCount: false },
+      shockRing(0.6, 0xffffff, 0.34, 1),
+      shockRing(0.35, 0xffd27a, 0.5, 0.9),
+      { count: 16, shape: 'star', blend: 'add', life: [0.3, 0.55], speed: [5, 11], size: [0.14, 0.26], color: 0xffffff, color2: 0xffc04a, alpha: [1, 0], drag: 4, spin: 9 },
+      { count: 10, shape: 'puff', blend: 'alpha', life: [0.5, 0.9], speed: [3, 7], dir: 'input', spread: 2.2, size: [0.2, 0.34], grow: 1.9, color: 'terrain', color2: 'dark', colorJitter: 0.5, alpha: [1, 0], gravity: 5, drag: 3, zBias: 0.6 },
+    ],
+    debris: { count: 12, speed: [6, 12], size: [0.08, 0.18], life: [1.0, 1.7], color: 'terrain', spread: 2.6, top: 0.35 },
+    ring: { radius: 3.6, color: 0xfff0c8, life: 0.42, alpha: 0.95 },
+    flash: { color: 0xffc070, intensity: 90, radius: 14, life: 0.3 },
+    shake: 0.6,
+  },
   explosion: {
     // order matters inside a blend group: earlier emitters draw underneath
     emitters: [
       // lingering smoke column
-      { count: [12, 16], shape: 'puff', blend: 'alpha', life: [1.1, 2.0], speed: [2.5, 5.5], size: [0.3, 0.48], grow: 2.7, color: 0x5a4844, color2: 0xb8aca4, colorJitter: 0.5, alpha: [0.95, 0], drag: 2.4, lift: 2.8, gravity: -1.3 },
+      { count: [12, 16], shape: 'puff', blend: 'alpha', life: [1.1, 2.0], speed: [2.5, 5.5], size: [0.3, 0.48], grow: 2.7, color: 0x5a4844, color2: 0xb8aca4, colorJitter: 0.5, alpha: [0.95, 0], drag: 2.4, lift: 2.8, gravity: -1.3, zBias: -1.1 },
       // dust skirts rolling along the ground
       groundSkirt(0, 5), groundSkirt(Math.PI, 5),
       // fireball
-      { count: [13, 15], shape: 'puff', blend: 'alpha', life: [0.3, 0.55], speed: [4, 8.5], size: [0.34, 0.52], grow: 0.7, color: 0xffd23a, color2: 0xff3a10, colorJitter: 0.6, alpha: [1, 1], drag: 6, lift: 1.5 },
+      { count: [13, 15], shape: 'puff', blend: 'alpha', life: [0.3, 0.55], speed: [4, 8.5], size: [0.34, 0.52], grow: 0.7, color: 0xffd23a, color2: 0xff3a10, colorJitter: 0.6, alpha: [1, 1], drag: 6, lift: 1.5, zBias: -0.9 },
       // white-hot core
-      { count: [5, 6], shape: 'puff', blend: 'alpha', life: [0.16, 0.28], speed: [1, 3], size: [0.32, 0.45], grow: 0.5, color: 0xffffff, color2: 0xfff07a, alpha: [1, 1], drag: 7 },
-      { count: 1, shape: 'glow', blend: 'add', life: 0.16, speed: 0, size: 1.3, grow: 1.6, color: 0xfff0c0, alpha: [0.85, 0], scaleCount: false },
+      // hot core: additive yellow, small and pushed behind the z=0 plane so it never paints a white disc over a victim
+      { count: [4, 5], shape: 'puff', blend: 'add', life: [0.14, 0.24], speed: [1.5, 3.5], size: [0.2, 0.3], grow: 0.6, color: 0xfff07a, color2: 0xff9a2a, alpha: [0.8, 0], drag: 7, zBias: -1.0 },
+      { count: 1, shape: 'glow', blend: 'add', life: 0.16, speed: 0, size: 1.3, grow: 1.6, color: 0xffd890, alpha: [0.7, 0], zBias: -1.2, scaleCount: false },
       // sparks + embers
       { count: 22, shape: 'streak', blend: 'add', life: [0.25, 0.55], speed: [10, 19], size: 0.09, color: 0xffe9a8, color2: 0xff7a2a, alpha: [1, 0], gravity: 14, drag: 1.5 },
       { count: 8, shape: 'glow', blend: 'add', life: [0.6, 1.2], speed: [3, 7], dir: UP, spread: 2.2, size: [0.06, 0.11], color: 0xffd27a, color2: 0xff4a10, alpha: [1, 0], gravity: 5, drag: 1.2, z: [0, 1.5] },

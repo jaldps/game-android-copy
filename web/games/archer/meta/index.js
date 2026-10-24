@@ -3,7 +3,7 @@
 // The core (main.js) calls ONLY: createMeta(app) -> { showMenu, showShop, showResults, onMatchEnd, showPause, hidePause,
 //   isPauseOpen, isBlocking, back, setMode, mode, createController, autoplayConfig, quickConfig }.
 import { menuScreen, heroScreen, campaignScreen, setupScreen, pauseScreen, resultsScreen, settingsScreen, handoverScreen, ICONS, setThumbSource } from './screens.js';
-export { portrait } from './screens.js';
+export { portrait, setPortraitSource } from './screens.js';
 import { shopScreen } from './shop.js';
 import { createAIController } from './ai.js';
 import { profile, save, grantRewards, equipChar, equipOutfit, buy, blocker, priceOf, starsFor } from './progression.js';

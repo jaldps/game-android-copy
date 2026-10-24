@@ -71,7 +71,7 @@ export class Hud {
     this.el.pause.addEventListener('click', () => { audio.play('ui_click'); opts.onPause?.(); });
     this.el.mute.addEventListener('click', () => { audio.unlock(); audio.setMuted(!audio.muted); this._syncMute(); audio.play('ui_click'); });
     this._syncMute();
-    this.last = {}; this.floaters = []; for (let i = 0; i < 12; i++) this.floaters.push({ t0: -9, x: 0, y: 0, text: '', color: '#fff', ring: '#fff', big: false });
+    this.clock = 0; this.last = {}; this.floaters = []; for (let i = 0; i < 12; i++) this.floaters.push({ t0: -9, x: 0, y: 0, text: '', color: '#fff', ring: '#fff', big: false });
     this.ir = { x: 0, y: 0, w: 0, h: 0 };
     this.pt = { x: 0, y: 0, vis: false, nx: 0, ny: 0 }; this.order = [];
     this._mmDirty = true;
@@ -120,9 +120,9 @@ export class Hud {
   float(a, text, color, big) {
     let f = this.floaters[0]; for (const g of this.floaters) if (g.t0 < f.t0) f = g;
     // stack on a number that is still fresh over the same actor instead of overlapping it
-    let k = 0; const now = performance.now() / 1000;
+    let k = 0; const now = this.clock;
     for (const g of this.floaters) if (g.a === a && now - g.t0 < 0.5) k++;
-    f.t0 = now; f.a = a; f.x = a.hitShapes.hx + a.facing * -0.2; f.y = a.hitShapes.hy + 1.25 + k * 0.75;
+    f.t0 = now; f.a = a; f.x = a.hitShapes.hx + a.facing * -0.2; f.y = a.hitShapes.hy + 2.0 + k * 0.85;   // clear of the name plate + HP bar
     f.text = text; f.color = color; f.ring = a.color; f.big = big;
   }
   _wind(w) {
@@ -153,6 +153,7 @@ export class Hud {
 
   update(dt) {
     const m = this.match; if (!m) return;
+    this.clock += dt;   // game-time clock: damage numbers live 1.2 s of play, not of wall time (slow devices, headless)
     const a = m.active, el = this.el;
     if (a) {
       const myTurn = a.human && m.phase === 'act';
@@ -160,7 +161,7 @@ export class Hud {
       this._set('ang', Math.round(a.angle), (v) => (el.ang.textContent = v + '°'));
       const pw = a.charging ? a.power : (m.phase === 'act' ? 0 : a.lastPower > 0 && m.phase !== 'intro' ? a.lastPower : 0);
       this._set('pw', Math.round(pw * 2) / 2, (v) => { el.powerFill.style.transform = `scaleX(${v / 100})`; el.pv.textContent = Math.round(v); });
-      this._set('lp', a.lastPower, (v) => { el.powerLast.style.left = v + '%'; el.powerLast.style.opacity = v >= 0 ? 1 : 0; });
+      this._set('lp', a.lastPower, (v) => { el.powerLast.style.left = Math.min(v, 96) + '%'; el.powerLast.style.opacity = v >= 0 ? 1 : 0; });
       this._set('mv', Math.round(a.moveLeft / a.stats.moveGauge * 200) / 200, (v) => (el.moveFill.style.transform = `scaleX(${v})`));
       this._set('chg', a.charging, (v) => el.fire.classList.toggle('charging', v));
       const tl = Math.max(0, Math.ceil(m.timer));
@@ -223,17 +224,16 @@ export class Hud {
     if (insetActor) this._insetFrame(insetActor);
     this._arrowMarker();
     // floating damage numbers: pop-scale in, drift up, fade by FLOAT_LIFE; never inside the top HUD band
-    const now = performance.now() / 1000;
+    const now = this.clock;
     c.textBaseline = 'middle'; c.lineJoin = 'round';
     for (const f of this.floaters) {
       const t = now - f.t0; if (t > FLOAT_LIFE || t < 0) continue;
       project(f.x, f.y + t * 0.9, 0, pt); if (!pt.vis) continue;
       const y = clamp(pt.y, 92, H - 96);
       const pop = t < 0.09 ? 0.4 + 0.95 * t / 0.09 : t < 0.22 ? 1.35 - 0.35 * (t - 0.09) / 0.13 : 1;
-      const al = t > FLOAT_LIFE - 0.35 ? Math.max(0, (FLOAT_LIFE - t) / 0.35) : 1, sz = (f.big ? 34 : 25) * pop;
+      const al = t > FLOAT_LIFE - 0.35 ? Math.max(0, (FLOAT_LIFE - t) / 0.35) : 1, sz = (f.big ? 42 : 32) * pop;
       c.globalAlpha = al; c.font = `400 ${sz.toFixed(1)}px 'Lilita One', sans-serif`;
-      c.lineWidth = 8; c.strokeStyle = '#1a1030'; c.strokeText(f.text, pt.x, y);
-      c.lineWidth = 3.2; c.strokeStyle = f.ring; c.strokeText(f.text, pt.x, y);
+      c.lineWidth = 9; c.strokeStyle = '#1a1030'; c.strokeText(f.text, pt.x, y);
       c.fillStyle = f.color; c.fillText(f.text, pt.x, y); c.globalAlpha = 1;
     }
     c.textBaseline = 'alphabetic';
@@ -259,7 +259,7 @@ export class Hud {
   _arrowMarker() {
     const m = this.match, p = m.projectiles.leader(); if (!p || m.phase !== 'flight') return;
     const pt = this.pt; project(p.x, p.y, 0, pt);
-    if (pt.y > 0 || pt.x < 0 || pt.x > innerWidth) return;
+    if (pt.y > innerHeight * 0.05 || pt.x < 0 || pt.x > innerWidth) return;   // above the view (or at its very top edge)
     const c = this.ctx, x = clamp(pt.x, 30, innerWidth - 30), y = 84;
     c.fillStyle = 'rgba(8,14,32,0.7)'; c.beginPath(); c.arc(x, y, 12, 0, 7); c.fill();
     c.fillStyle = '#ffe14a'; c.beginPath(); c.moveTo(x, y - 7); c.lineTo(x + 6, y + 3); c.lineTo(x - 6, y + 3); c.closePath(); c.fill();
