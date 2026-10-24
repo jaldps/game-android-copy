@@ -61,6 +61,7 @@ function makeSystem(additive) {
 }
 
 const col = new THREE.Color(), col2 = new THREE.Color();
+const FLASH_E = { count: 1, shape: 'glow', blend: 'add', life: 0.2, speed: 0, size: 1, grow: 1.3, color: 0xffcc88, alpha: [0.5, 0], scaleCount: false }, FLASH_O = { scale: 1, z: -1.4 };
 let rnd = Math.random;
 const range = (v, d) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * rnd() : (v ?? d));
 
@@ -109,7 +110,7 @@ export class FX {
       const ang = baseDir === null ? rnd() * Math.PI * 2 : baseDir + (rnd() - 0.5) * (e.spread ?? 1);
       const sp = range(e.speed, 3) * (e.scaleSpeed === false ? 1 : Math.sqrt(sc));
       const off = range(e.offset, 0) * sc;
-      sys.x[i] = x + Math.cos(ang) * off; sys.y[i] = y + Math.sin(ang) * off; sys.z[i] = (o.z ?? 0) + range(e.z, 0) * (rnd() < 0.5 ? -1 : 1);
+      sys.x[i] = x + Math.cos(ang) * off; sys.y[i] = y + Math.sin(ang) * off; sys.z[i] = (o.z ?? 0) + (e.zBias ?? 0) + range(e.z, 0) * (rnd() < 0.5 ? -1 : 1);
       sys.vx[i] = Math.cos(ang) * sp + (o.vx ?? 0) * (e.inherit ?? 0); sys.vy[i] = Math.sin(ang) * sp + (e.lift ?? 0) + (o.vy ?? 0) * (e.inherit ?? 0);
       sys.max[i] = sys.life[i] = range(e.life, 0.6);
       const sz = range(e.size, 0.3) * sc; sys.s0[i] = sz; sys.s1[i] = sz * (e.grow ?? 1);
@@ -147,7 +148,9 @@ export class FX {
   flash(x, y, def, sc = 1) {
     this.light.color.set(def.color ?? 0xffaa55); this.light.position.set(x, y + 0.5, 3.5);
     this.lightMax = (def.intensity ?? 60) * sc; this.lightT = this.lightDur = def.life ?? 0.25; this.light.distance = (def.radius ?? 12) * Math.sqrt(sc);
-    this.emit({ count: 1, shape: 'glow', blend: 'add', life: this.lightDur * 0.7, speed: 0, size: (def.radius ?? 12) * 0.08, grow: 1.3, color: def.color ?? 0xffcc88, alpha: [0.45, 0], scaleCount: false }, x, y, { scale: Math.sqrt(sc), z: 0.5 });
+    // the bloom sits BEHIND the z=0 plane, so a victim standing in the blast stays a readable silhouette in front of it
+    FLASH_E.life = this.lightDur * 0.8; FLASH_E.size = (def.radius ?? 12) * 0.08; FLASH_E.color = def.color ?? 0xffcc88; FLASH_O.scale = Math.sqrt(sc);
+    this.emit(FLASH_E, x, y, FLASH_O);
   }
   clear() { this.add.count = 0; this.alpha.count = 0; this.d.n = 0; this.lightT = 0; this.light.intensity = 0; }
 

@@ -18,6 +18,8 @@ import { getCharacter, getOutfit, defaultOutfit, createCharacter, computeStats }
 import { getArrow, trayArrows } from '../arrows/index.js';
 
 const TEAM_COLORS = ['#3fa8ff', '#ff5a4a', '#5ee07a', '#ffcf3a'];
+/** Visible height needed to show an archer and a point at x side by side (inside 84% of the width). */
+const _need = (a, x, asp) => (Math.abs(a.x - x) + 3.4) / (0.84 * asp);
 const _pt = { x: 0, y: 0 }, _sim = { x: 0, y: 0, vx: 0, vy: 0 }, _res = {};
 
 export class Match {
@@ -155,8 +157,15 @@ export class Match {
       const imp = (o.knockback ?? 4) * f * a.stats.knockbackMult;
       if (imp > 1.2) { a.vx += dx * imp; a.vy += Math.max(0.35, dy) * imp * 0.9; a.grounded = false; }
       if (info.head) { this.hitStop = 0.45; addPunch(0.18); events.emit('callout', 'HEADSHOT!', 'headshot'); this.fx.burst('headshot', a.hitShapes.hx, a.hitShapes.hy); audio.play('headshot'); }
-      else if (info.direct) { this.hitStop = Math.max(this.hitStop, 0.16); addPunch(0.08); events.emit('callout', 'DIRECT HIT!', 'direct'); }
+      else if (info.direct) { this.hitStop = Math.max(this.hitStop, 0.3); addPunch(0.12); events.emit('callout', 'DIRECT HIT!', 'direct'); }
+      if (n > 0) {
+        // every damaging hit gets the same unmissable beat: a ~0.3 s freeze, punch-in, shockwave + flash behind the victim
+        this.hitStop = Math.max(this.hitStop, 0.3); addPunch(0.08);
+        const ho = this._fxo; ho.terrainColor = tc; ho.topColor = this.topColor; ho.scale = Math.min(1.5, 0.8 + n / 60); ho.dirX = dx; ho.dirY = dy;
+        if (this.fx.has('impact_hit')) this.fx.burst('impact_hit', cx, cy, ho);
+      }
     }
+    if (total === 0 && o.crater > 0) this.hitStop = Math.max(this.hitStop, 0.07);   // a beat on plain ground hits too
     const fo = this._fxo; fo.terrainColor = tc; fo.topColor = this.topColor; fo.scale = Math.max(0.7, o.radius / 1.5); fo.dirX = o.nx; fo.dirY = o.ny;
     this.fx.burst(o.vfx ?? 'impact_dirt', x, y, fo);
     if (this.accentVfx) { fo.scale = Math.min(1.5, Math.max(0.6, o.radius / 2)); this.fx.burst(this.accentVfx, x, y, fo); }
@@ -295,7 +304,7 @@ export class Match {
       else if (this.settleT < 0.6) {
         // frame where the shot ended: the last explosion, or (sea / lava / off-map) where the arrow was last seen
         const I = this.lastImpact, F = this.lastFlight, L = I && (!F || I.t >= F.t - 0.05) ? I : F;
-        if (L) { setInset(false); lookAt(L.x, cyFor(Math.max(L.y, this.killY + 1), 0.56, 13), 13, 3.5); }
+        if (L) { setInset(false); this._settleCam(L); }
       }
       if (!moving && this.settleT > 0.85) {
         if (!this._checkWin()) this._beginTurn(this._nextActor());
@@ -373,10 +382,10 @@ export class Match {
     const H = cam.th, W = H * R.camera.aspect, cx = cam.tx + cam.panX, cy = cam.ty + cam.panY;
     return x0 > cx - W * 0.47 && x1 < cx + W * 0.47 && y0 > cy - H * 0.29 && y1 < cy + H * 0.34;
   }
-  _insetOn(foe) {
+  _insetOn(foe, side = 0) {
     const h = this._height(foe);
     if (this._onScreen(foe.x - 1, foe.y, foe.x + 1, foe.y + h)) { setInset(false); return; }
-    setInset(true, foe.x, foe.y + h * 0.62, 6.4); R.inset.side = foe.x > cam.x ? 1 : -1; R.inset.actor = foe;
+    setInset(true, foe.x, foe.y + h * 0.62, 6.4); R.inset.side = side || (foe.x > cam.x ? 1 : -1); R.inset.actor = foe;
   }
   _actCam(a) {
     const AIM_H = 9.4, PAIR_MAX = 14.5, f = a.facing, foe = this.nearestFoe(a), h = this._height(a);
@@ -390,24 +399,47 @@ export class Match {
     lookAt(a.x + f * W * 0.13, cyFor(a.y, 0.66, AIM_H), AIM_H, 3.6);
     if (foe) this._insetOn(foe); else setInset(false);
   }
+  /** Largest visible height (world units) at which an archer still fills >= 15% of the screen. */
+  _capH() {
+    let h = 1e9; for (const a of this.actors) if (a.alive) h = Math.min(h, this._height(a));
+    return clamp((h > 1e8 ? 2.6 : h) / 0.15, 14, 21);
+  }
+  /**
+   * Flight camera. Rule (critic r2): every frame of a shot shows an archer (shooter early, target late), the arrow, and
+   * terrain filling the lower part of the view. The zoom never goes past the 15%-archer cap; when the arrow and an
+   * archer can't share the frame (long shots, mid-way) the view tracks the arrow along the ground line and shows the
+   * target in the inset on the trailing side. Altitude never wins over terrain: a very high arrow leaves the top of the
+   * view (HUD chevron) instead of the camera panning up into empty sky.
+   */
   _flightCam(dt) {
     const p = this.projectiles.leader(); if (!p) return;
     const LF = this.lastFlight ?? (this.lastFlight = { x: 0, y: 0, t: 0 }); LF.x = p.x; LF.y = p.y; LF.t = this.time;
-    const RATE = 4.5, FLY_MIN = 15, FLY_MAX = 23;
-    // lead by v/rate so the exponential follow keeps the arrow centred instead of trailing it
-    const lx = p.x + clamp(p.vx / RATE, -11, 11), ly = p.y + clamp(p.vy / RATE, -8, 8);
-    const foe = this._flightTarget(p);
-    if (foe) {
-      const h = this._height(foe);
-      let x0 = Math.min(lx - 3, foe.x - 1.6), x1 = Math.max(lx + 3, foe.x + 1.6);
-      let y0 = Math.min(ly - 2, foe.y - 0.3), y1 = Math.max(ly + 2, foe.y + h + 1);
-      const o = p.owner;   // right after the release keep the shooter in shot too, if it fits
-      if (o && p.age < 0.5 && boxHeight(Math.min(x0, o.x - 1.6), Math.min(y0, o.y - 0.3), Math.max(x1, o.x + 1.6), Math.max(y1, o.y + h + 1)) <= FLY_MAX) {
-        x0 = Math.min(x0, o.x - 1.6); x1 = Math.max(x1, o.x + 1.6); y0 = Math.min(y0, o.y - 0.3); y1 = Math.max(y1, o.y + h + 1);
-      }
-      if (boxHeight(x0, y0, x1, y1) <= FLY_MAX) { frameBox(x0, y0, x1, y1, RATE, FLY_MIN, FLY_MAX); setInset(false); }
-      else { this._frameArrow(p, lx, ly, RATE, FLY_MIN + 1); this._insetOn(foe); }
-    } else { this._frameArrow(p, lx, ly, RATE, FLY_MIN + 1); setInset(false); }
+    const RATE = 4.5, asp = R.camera.aspect, capH = this._capH(), minH = Math.min(13, capH);
+    const o = p.owner && p.owner.alive ? p.owner : null, foe = this._flightTarget(p);
+    // lead by v/rate so the exponential follow keeps the arrow where we put it instead of trailing it
+    const lx = p.x + clamp(p.vx / RATE, -8, 8), ly = p.y + clamp(p.vy / RATE, -6, 6);
+    const dir = foe ? (Math.sign(foe.x - p.x) || Math.sign(p.vx) || 1) : (Math.sign(p.vx) || 1);
+    // anchor archer: shooter until the arrow outruns it, then the target as soon as both fit (never back)
+    if (p !== this._flyP) { this._flyP = p; this._flyA = o; }
+    let A = this._flyA;
+    if (foe && _need(foe, lx, asp) <= capH) A = foe;
+    else if (A && A !== foe && (!A.alive || _need(A, lx, asp) > capH)) A = null;
+    if (A && !A.alive) A = null;
+    this._flyA = A;
+    const H = clamp(A ? _need(A, lx, asp) : capH, minH, capH), W = H * asp, half = 0.42 * W;
+    let cx = lx + dir * 0.17 * W;                          // arrow on the trailing third, open ground ahead of it
+    if (A) cx = clamp(cx, Math.max(lx, A.x) - half, Math.min(lx, A.x) + half);
+    // ground line: the anchor's feet, else interpolated between shooter and target by progress along x
+    let gy;
+    if (A) gy = A.y;
+    else if (o && foe && Math.abs(foe.x - o.x) > 1) { const k = clamp((p.x - o.x) / (foe.x - o.x), 0, 1); gy = o.y + (foe.y - o.y) * (k * k * (3 - 2 * k)); }
+    else gy = (foe ?? o)?.y ?? p.y;
+    let cy = gy + 0.14 * H;                                // ground at ~64% of the screen height
+    cy = clamp(cy, ly - 0.28 * H, ly + 0.26 * H);          // arrow between 22% (below the top HUD) and 76%
+    cy = clamp(cy, gy - 0.2 * H, gy + 0.22 * H);           // ...but terrain always fills the lower part (ground <= 72%)
+    lookAt(cx, cy, H, RATE);
+    if (A === foe || !foe) setInset(false);
+    else this._insetOn(foe, -dir);
     // slow-mo when about to land near someone
     _sim.x = p.x; _sim.y = p.y; _sim.vx = p.vx; _sim.vy = p.vy;
     let near = false, landing = false;
@@ -423,15 +455,19 @@ export class Match {
     if (near && p.age > 0.3) { this.slowTarget = 0.28; this.slowHold = 0.14; }
     else if (landing && p.age > 0.5 && this.slowHold <= 0) { this.slowTarget = 0.55; this.slowHold = 0.08; }   // brief beat before any impact
   }
-  /** Follow the arrow alone (keeping its shooter in the shot for the first moments when it fits). */
-  _frameArrow(p, lx, ly, rate, H) {
-    let x0 = lx - 3, x1 = lx + 3, y0 = ly - 2, y1 = ly + 2;
-    const o = p.owner;
-    if (o && p.age < 0.6) {
-      const a0 = Math.min(x0, o.x - 1.6), a1 = Math.max(x1, o.x + 1.6), b0 = Math.min(y0, o.y - 0.3), b1 = Math.max(y1, o.y + this._height(o) + 1);
-      if (boxHeight(a0, b0, a1, b1) <= H + 3) { x0 = a0; x1 = a1; y0 = b0; y1 = b1; }
+  /** After the shot: frame where it ended together with the archer nearest to it (feet inside the HUD-safe band). */
+  _settleCam(L) {
+    const capH = this._capH(), y = Math.max(L.y, this.killY + 1);
+    let a = null, bd = 1e9;
+    for (const b of this.actors) if (b.alive) { const d = Math.abs(b.x - L.x) + Math.abs(b.y - y) * 0.5; if (d < bd) { bd = d; a = b; } }
+    if (a) {
+      const h = this._height(a);
+      const x0 = Math.min(L.x - 2.2, a.x - 1.6), x1 = Math.max(L.x + 2.2, a.x + 1.6), y0 = Math.min(y - 0.8, a.y - 0.3), y1 = Math.max(y + 2.5, a.y + h + 1);
+      if (boxHeight(x0, y0, x1, y1) <= capH) { frameBox(x0, y0, x1, y1, 3.5, Math.min(12, capH), capH); return; }
+      if (L.y < this.killY + 1.5) { this._frameActor(a, Math.min(13, capH), 0.66, 3.5); return; }   // lost at sea: show who it missed
     }
-    frameBox(x0, y0, x1, y1, rate, H, H + 3);
+    const gy = this.terrain.groundBelow(L.x, y + 1.5, 6);
+    lookAt(L.x, cyFor(isNaN(gy) ? y : gy, 0.64, 13), 13, 3.5);
   }
   /** The foe the camera should keep an eye on during a flight: the one closest to where the arrow is heading. */
   _flightTarget(p) {

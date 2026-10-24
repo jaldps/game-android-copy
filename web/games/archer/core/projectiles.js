@@ -30,7 +30,8 @@ class Trail {
         void main(){
           float edge = abs(vS), a = pow(1.0 - vT, 1.4) * (1.0 - smoothstep(0.55, 1.0, edge) * 0.85) * uAlpha;
           if (a < 0.01) discard;
-          vec3 c = mix(vec3(1.0), uColor, smoothstep(0.0, 0.6, edge) * 0.8 + vT * 0.35);
+          // the arrow's own colour everywhere: a lighter tint of it in the core (never plain white), saturated edges
+          vec3 c = mix(uColor, mix(uColor, vec3(1.0), 0.45), (1.0 - smoothstep(0.0, 0.5, edge)) * (1.0 - vT));
           gl_FragColor = vec4(c, a);
           #include <colorspace_fragment>
         }`,
@@ -42,8 +43,9 @@ class Trail {
   }
   start(def, x, y) {
     const tr = def.trail ?? {};
-    this.mat.uniforms.uColor.value.set(tr.color ?? 0xffe2a0); this.alpha = tr.alpha ?? 0.85; this.width = (tr.width ?? 0.1) * 1.35;
-    this.mat.blending = tr.additive ? THREE.AdditiveBlending : THREE.NormalBlending; this.mat.needsUpdate = true;
+    this.mat.uniforms.uColor.value.set(tr.color ?? 0xffe2a0); this.alpha = Math.max(0.9, tr.alpha ?? 0.9); this.width = (tr.width ?? 0.1) * 1.8;
+    // always alpha-blended: additive ribbons wash out to white over bright skies, snow and neon windows
+    this.mat.blending = THREE.NormalBlending;
     this.len = Math.min(TRAIL_N, tr.length ?? 24); this.maxLen = 1.6 + this.len * 0.12;
     this.time = 0; this.xs.fill(x); this.ys.fill(y); this.ts.fill(0); this.n = 1; this.busy = true; this.fade = 1; this.mesh.visible = true;
   }

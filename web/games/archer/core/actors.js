@@ -39,8 +39,10 @@ export class Actor {
     this.facing = dir;
     const step = TURN.walkSpeed * dt, nx = this.x + dir * step;
     if (nx < T.x0 + 1 || nx > T.x1 - 1) return 0;
-    // wall / headroom check
-    if (T.solid(nx + dir * ACTOR_RADIUS, this.y + TURN.stepUp + 0.15) || T.solid(nx + dir * ACTOR_RADIUS, this.y + 1.2)) return 0;
+    // wall / headroom check: probe a column in front of the body (plus the bow held ahead of it) from just above step
+    // height to the top of the head, so neither body nor bow ever walks into a wall, a crenellation or an overhang
+    const h = this.character.height || 2.6, fx = nx + dir * (ACTOR_RADIUS + 0.28);
+    for (let k = 0; k < 5; k++) { const py = this.y + TURN.stepUp + 0.15 + (h - TURN.stepUp - 0.15) * k / 4; if ((py > this.y + 1.0 && T.solid(fx, py)) || T.solid(nx + dir * ACTOR_RADIUS, py)) return 0; }
     const g = T.groundBelow(nx, this.y + TURN.stepUp, TURN.stepUp + 0.45);
     if (isNaN(g)) {                                 // walked off a ledge
       this.x = nx; this.grounded = false; this.vx = dir * TURN.walkSpeed * 0.8; this.vy = 0.5;
